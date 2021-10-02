@@ -1,6 +1,6 @@
 import pandas as pd
 import os.path as op
-from src.params import figures_path, path_to_data
+from shinobi_fmri.params import figures_path, path_to_data
 from nilearn import plotting
 from nilearn import image
 import os
@@ -17,6 +17,8 @@ from scipy.stats import zscore
 from nilearn.glm.second_level import SecondLevelModel
 
 
+figures_path = shinobi_behav.figures_path
+path_to_data = shinobi_behav.path_to_data
  # Set constants
 sub = 'sub-01'
 actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']

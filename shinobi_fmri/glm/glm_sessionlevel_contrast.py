@@ -1,7 +1,7 @@
 import pandas as pd
 import os.path as op
 import matplotlib.pyplot as plt
-from src.params import figures_path, path_to_data
+import shinobi_behav
 from nilearn import plotting
 from nilearn import image
 import os
@@ -18,7 +18,8 @@ from scipy.stats import zscore
 from src.annotations.annotations import trim_events_df
 
 
-
+figures_path = shinobi_behav.figures_path
+path_to_data = shinobi_behav.path_to_data
 
  # Set constants
 sub = 'sub-01'
