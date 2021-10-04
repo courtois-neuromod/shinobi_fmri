@@ -214,6 +214,24 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
 
 
 def trim_events_df(events_df, trim_by='LvR'):
+    """Creates a new events_df that contains only the conditions of interest.
+
+    Parameters
+    ----------
+    events_df : DataFrame
+        The original dataframe created with create_runevents, containing all the events
+    trim_by : string
+        A string that indicates which types of events are to be kept. Can be
+        "LvR" (for Left vs Right hand events)
+        "event" (all events, irrespective of level played)
+        "healthloss" (health loss events)
+        "JvH" (Jump vs Hit events)
+
+    Returns
+    -------
+    trimmed_df :
+        An events DataFrame in Nilearn-compatible format, containin only the conditions of interest
+    """
     if trim_by=='LvR':
         # Create Left df
         lh_df = pd.concat([events_df[events_df['trial_type'] == '1-0_LEFT'],
@@ -307,14 +325,25 @@ def trim_events_df(events_df, trim_by='LvR'):
     return trimmed_df
 
 
-
-
-##########
 def plot_gameevents(events_df, colors='rand'):
-    '''
-     colors : can be 'rand, 'lvr' or specified by a list of 3-tuples with a length corresponding to the number of event_types
-     if 'lvr' : Left vs Right hand, colors will be forced to match between different buttons of the same hand
-    '''
+    """Generates a plot of an events_df, showing the occurence and duration of
+    all the events across the run.
+
+    Parameters
+    ----------
+    events_df : DataFrame
+        The original dataframe created with create_runevents, containing all the events
+    colors : string
+        The colors to use for each event type. Can be "rand" for random colors,
+        or "lvr" for plotting Left and Right hand events with variations of red/blue
+
+    Returns
+    -------
+    fig : matplotlib Figure
+        A matplotlib figure displaying all events across the run
+    ax : matplotlib Axis
+        The corresponding axis
+    """
 
     matplotlib.rc('xtick', labelsize=20)
     matplotlib.rc('ytick', labelsize=40)
