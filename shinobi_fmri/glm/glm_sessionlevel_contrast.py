@@ -100,7 +100,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             design_matrix = nilearn.glm.first_level.make_first_level_design_matrix(frame_times,
                                                                                    events=allruns_events[idx],
                                                                                   drift_model=None,
-                                                                                  add_regs=confounds[# build modelidx],
+                                                                                  add_regs=confounds[idx],
                                                                               add_reg_names=confounds_cnames[idx])
             b, a = signal.butter(3, 0.01, btype='high')
 
