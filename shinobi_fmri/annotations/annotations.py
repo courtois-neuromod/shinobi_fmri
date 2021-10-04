@@ -5,12 +5,28 @@ import matplotlib.pyplot as plt
 from shinobi_behav.features.features import filter_run, compute_framewise_aps
 import matplotlib
 import matplotlib.collections as mc
+from shinobi_behav.params import actions
 
 
-def generate_key_events(var, key, FS=60):
-    '''
-    var = action variable, directly from allvars dict
-    '''
+def generate_key_events(repvars, key, FS=60):
+    """Create a Nilearn compatible events dataframe containing Health Loss events
+
+    Parameters
+    ----------
+    repvars : list
+        A dict containing all the variables of a single repetition
+    key : string
+        Name of the action variable to process
+    FS : int
+        The sampling rate of the .bk2 file
+
+    Returns
+    -------
+    events_df :
+        An events DataFrame in Nilearn-compatible format containing the
+        corresponding action events.
+    """
+    var = repvars[key]
     # always keep the first and last value as 0 so diff will register the state transition
     var[0] = 0
     var[-1] = 0
@@ -28,7 +44,26 @@ def generate_key_events(var, key, FS=60):
     return events_df
 
 
-def generate_aps_events(framewise_aps, FS=60, min_dur=1):
+def generate_aps_events(repvars, FS=60, min_dur=1):
+    """Create a Nilearn compatible events dataframe containing Low and High APS
+    events, based on a median split.
+
+    Parameters
+    ----------
+    repvars : list
+        A dict containing all the variables of a single repetition.
+    FS : int
+        The sampling rate of the .bk2 file
+    min_dur : float
+        Minimal duration of a Low or High APS segment, defaults to 1 (sec)
+
+    Returns
+    -------
+    events_df :
+        An events DataFrame in Nilearn-compatible format containing the
+        Low and High APS events.
+    """
+    framewise_aps = compute_framewise_aps(repvars, actions=actions, FS=FS)
     filtered_aps = filter_run(framewise_aps, order=3, cutoff=0.002)
     var = filtered_aps
 
@@ -69,15 +104,25 @@ def generate_aps_events(framewise_aps, FS=60, min_dur=1):
                                    'trial_type':trial_type})
     return events_df
 
-def generate_healthloss_events(health, FS=60, dur=0.1):
-    '''
-    health : variable 'health' from the runvars structure
-    FS : sampling frequency, 60 by default
-    dur : arbitrary duration of the event
+def generate_healthloss_events(repvars, FS=60, dur=0.1):
+    """Create a Nilearn compatible events dataframe containing Health Loss events
 
-    returns events_df : a bids-like events dataframe
+    Parameters
+    ----------
+    repvars : list
+        A dict containing all the variables of a single repetition
+    FS : int
+        The sampling rate of the .bk2 file
+    dur : float
+        Arbitrary duration of the generated event, defaults to 0.1
 
-    '''
+    Returns
+    -------
+    events_df :
+        An events DataFrame in Nilearn-compatible format containing the
+        Health Loss and Gain events.
+    """
+    health = repvars['health']
     diff_health = np.diff(health, n=1)
 
     onset = []
@@ -124,7 +169,7 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
     Returns
     -------
     events_df :
-        An events DataFrame in Nilearn-compatible format.  
+        An events DataFrame in Nilearn-compatible format.
     """
 
     # init df list
@@ -132,21 +177,19 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
     for idx, repvars in enumerate(runvars):
         if get_actions:
             for act in actions:
-                var = repvars[act]
-                temp_df = generate_key_events(var, act, FS=FS)
+                temp_df = generate_key_events(repvars, act, FS=FS)
                 temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
                 temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
                 all_df.append(temp_df)
 
         if get_aps:
-            framewise_aps = compute_framewise_aps(repvars, actions=actions, FS=FS)
-            temp_df = generate_aps_events(framewise_aps, FS=FS)
+            temp_df = generate_aps_events(repvars, FS=FS, min_dur=1)
             temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
             temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
             all_df.append(temp_df)
 
         if get_healthloss:
-            temp_df = generate_healthloss_events(repvars['health'], FS=FS, dur=0.1)
+            temp_df = generate_healthloss_events(repvars, FS=FS, dur=0.1)
             temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
             temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
             all_df.append(temp_df)
