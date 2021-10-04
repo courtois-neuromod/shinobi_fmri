@@ -16,7 +16,7 @@ import nilearn
 from scipy import signal
 from scipy.stats import zscore
 from shinobi_fmri.annotations.annotations import trim_events_df
-from shinobi_behav.params import path_to_data
+from shinobi_behav.params import path_to_data, actions
 import argparse
 #import shinobi_fmri
 
@@ -28,7 +28,13 @@ parser.add_argument(
     type=str,
     help="Subject to process",
 )
-
+parser.add_argument(
+    "-c",
+    "--contrast",
+    default='Jump-Hit',
+    type=str,
+    help="Contrast or conditions to compute",
+)
 args = parser.parse_args()
 
 figures_path = '/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'#shinobi_behav.figures_path
@@ -37,15 +43,13 @@ path_to_data = '/media/storage/neuromod/shinobi_data/'#shinobi_behav.path_to_dat
  # Set constants
 sub = 'sub-' + args.subject
 
-actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']
-dpath = path_to_data + 'shinobi/'
-contrast = 'Jump'
+contrast = args.contrast
 
 if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
     os.makedirs(path_to_data + 'processed/cmaps/' + contrast)
 
 
-seslist= os.listdir(dpath + sub)
+seslist= os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     runs = [filename[-13] for filename in os.listdir(dpath + '{}/{}/func'.format(sub, ses)) if 'bold.nii.gz' in filename]
@@ -57,8 +61,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     print('Processing {}'.format(ses))
     print('Runs to process : {}'.format(runs))
     for run in sorted(runs):
-        data_fname = dpath + 'derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
-        confounds_fname = dpath + 'derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
+        data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
+        confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
         cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
@@ -82,7 +86,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     trimmed_df = trim_events_df(run_events, trim_by='LvR')
                 elif 'Jump' in contrast or 'Hit' in contrast:
                     trimmed_df = trim_events_df(run_events, trim_by='JvH')
-                else:
+                elif 'HealthLoss' in contrast:
                     trimmed_df = trim_events_df(run_events, trim_by='healthloss')
                 allruns_events.append(trimmed_df)
             else:

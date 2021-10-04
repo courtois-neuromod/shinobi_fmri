@@ -392,6 +392,10 @@ def plot_gameevents(events_df, colors='rand'):
     ax.margins(0.1)
     return fig, ax
 
+
+
+
+
 ################# DEPRECATED
 def plot_bidsevents(merged_df):
     event_ends = []
