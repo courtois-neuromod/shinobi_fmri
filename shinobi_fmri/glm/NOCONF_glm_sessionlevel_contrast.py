@@ -55,7 +55,7 @@ if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
 
 seslist= os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
-print(seslist)
+print(path_to_data)
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     print(cmap_fname)
