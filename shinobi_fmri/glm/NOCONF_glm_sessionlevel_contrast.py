@@ -7,7 +7,7 @@ from nilearn import image
 import os
 import numpy as np
 from nilearn.plotting import plot_design_matrix
-from nistats.thresholding import map_threshold
+from nilearn.glm import threshold_stats_img
 from nilearn.glm.first_level import FirstLevelModel
 from nilearn.input_data import NiftiMasker
 import load_confounds
@@ -138,8 +138,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 output_type='z_score', stat_type='F')
 
             # compute thresholds
-            clean_map, threshold = map_threshold(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
-            uncorr_map, threshold = map_threshold(z_map, alpha=.001, height_control='fpr')
+            clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+            uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
             # save images
             print('Generating views')
