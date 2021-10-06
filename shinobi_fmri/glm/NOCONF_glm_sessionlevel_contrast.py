@@ -55,6 +55,7 @@ if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
 
 seslist= os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
+print(seslist)
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     print(cmap_fname)
@@ -67,7 +68,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         allruns_events = []
         print('Processing {}'.format(ses))
         print('Runs to process : {}'.format(runs))
-        for run in tqdm(sorted(runs)):
+        for run in sorted(runs):
             data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
             confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
             anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
