@@ -8,4 +8,4 @@
 
 module load python/3.8.0
 
-/lustre03/project/6003287/hyruuk/.virtualenvs/hyruuk_shinobi_behav/bin/python /project/rrg-pbellec/hyruuk/shinobi_fmri/shinobi_fmri/glm/NOCONF_glm_sessionlevel_contrast.py -s 01
+/home/hyruuk/python_env/shinobi_env/bin/python /project/rrg-pbellec/hyruuk/shinobi_fmri/shinobi_fmri/glm/NOCONF_glm_sessionlevel_contrast.py -s 01
