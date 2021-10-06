@@ -16,14 +16,13 @@ import nilearn
 from scipy import signal
 from scipy.stats import zscore
 from shinobi_fmri.annotations.annotations import trim_events_df
-import shinobi_behav
 import argparse
 import pdb
 from tqdm import tqdm
 from nilearn.signal import clean
 from nilearn.image import clean_img
+print('Start !!!')
 #import shinobi_fmri
-
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
