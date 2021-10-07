@@ -102,7 +102,9 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 drift_model=None,
                 add_regs=None,
                 add_reg_names=None)
-                design_matrices.append(design_matrix)
+                clean_regs = clean(design_matrix.to_numpy())
+                clean_designmat = pd.DataFrame(clean_regs, design_matrix.columns.to_list())
+                design_matrices.append(clean_designmat)
             else:
                 print('Events dataframe empty for {} {} run-0{}.'.format(sub, ses, run))
             #pdb.set_trace()
