@@ -48,14 +48,14 @@ sub = 'sub-' + args.subject
 contrast = args.contrast
 t_r = 1.49
 
-if not os.path.isdir(path_to_data + 'processed/cmaps_CLEAN/' + contrast):
-    os.makedirs(path_to_data + 'processed/cmaps_CLEAN/' + contrast)
+if not os.path.isdir(path_to_data + 'processed/cmaps_COSINES/' + contrast):
+    os.makedirs(path_to_data + 'processed/cmaps_COSINES/' + contrast)
 
 
 seslist = os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
-for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
-    cmap_fname = path_to_data + 'processed/cmaps_CLEAN/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
+for ses in sorted(seslist): 
+    cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     if not os.path.exists(cmap_fname):
         runs = [filename[-12] for filename in os.listdir(path_to_data + '/shinobi/{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename]
         fmri_imgs = []
@@ -74,7 +74,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             run_events = pd.read_csv(events_fname)
             if not run_events.empty:
                 print('run : {}'.format(run))
-                fmri_img = clean_img(image.concat_imgs(data_fname), t_r=t_r)
+                fmri_img = image.concat_imgs(data_fname)
 
                 bold_shape = fmri_img.shape
 
@@ -94,14 +94,11 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 frame_times = np.arange(n_slices) * t_r
 
                 design_matrix = nilearn.glm.first_level.make_first_level_design_matrix(frame_times,
-                                                                                        events=trimmed_df,
-                                                                                        drift_model=None,
-                                                                                        add_regs=None,
-                                                                                        add_reg_names=None)
-                clean_regs = clean(design_matrix.to_numpy())
-                clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
-                clean_designmat['constant'] = 1
-                design_matrices.append(clean_designmat)
+                events=trimmed_df,
+                drift_model='cosine',
+                add_regs=None,
+                add_reg_names=None)
+                design_matrices.append(design_matrix)
 
             else:
                 print('Events dataframe empty for {} {} run-0{}.'.format(sub, ses, run))
@@ -129,7 +126,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             cmap.to_filename(cmap_fname)
             print('cmap saved')
             report = fmri_glm.generate_report(contrasts=[contrast])
-            report.save_as_html(figures_path + 'clean' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
+            report.save_as_html(figures_path + 'cosines' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
 
             # get stats map
             z_map = fmri_glm.compute_contrast(contrast,
@@ -142,10 +139,10 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             # save images
             print('Generating views')
             view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-            view.save_as_html(figures_path + 'clean' + '/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
+            view.save_as_html(figures_path + 'cosines' + '/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
             # save also uncorrected map
             view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
-            view.save_as_html(figures_path + 'clean' + '/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
+            view.save_as_html(figures_path + 'cosines' + '/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
 
         except Exception as e:
             print(e)
