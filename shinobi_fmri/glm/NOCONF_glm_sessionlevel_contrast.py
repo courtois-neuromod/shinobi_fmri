@@ -22,7 +22,7 @@ from tqdm import tqdm
 from nilearn.signal import clean
 from nilearn.image import clean_img
 print('Start !!!')
-#import shinobi_fmri
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
@@ -56,10 +56,10 @@ if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
 seslist= os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
 print(path_to_data)
+print(seslist)
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
-    print(cmap_fname)
-    if not os.path.exists(cmap_fname):
+    if not os.path.exists(cmap_fname) and seslist != []:
         runs = [filename[-12] for filename in os.listdir(path_to_data + '/shinobi/{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename]
         fmri_imgs = []
         design_matrices = []
