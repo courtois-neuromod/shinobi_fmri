@@ -21,7 +21,6 @@ import pdb
 from tqdm import tqdm
 from nilearn.signal import clean
 from nilearn.image import clean_img
-print('Start !!!')
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -53,13 +52,11 @@ if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
     os.makedirs(path_to_data + 'processed/cmaps/' + contrast)
 
 
-seslist= os.listdir(path_to_data + 'shinobi/' + sub)
+seslist = os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
-print(path_to_data)
-print(seslist)
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
-    if not os.path.exists(cmap_fname) and seslist != []:
+    if not os.path.exists(cmap_fname):
         runs = [filename[-12] for filename in os.listdir(path_to_data + '/shinobi/{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename]
         fmri_imgs = []
         design_matrices = []

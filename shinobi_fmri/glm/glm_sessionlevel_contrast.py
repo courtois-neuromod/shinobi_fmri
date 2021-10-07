@@ -18,6 +18,7 @@ from scipy.stats import zscore
 from shinobi_fmri.annotations.annotations import trim_events_df
 from shinobi_behav.params import path_to_data, actions
 import argparse
+import pdb
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
@@ -52,7 +53,7 @@ if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
 seslist= os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
-    runs = [filename[-13] for filename in os.listdir(dpath + '{}/{}/func'.format(sub, ses)) if 'bold.nii.gz' in filename]
+    runs = [filename[-12] for filename in os.listdir(path_to_data + '/shinobi/{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename]
     fmri_imgs = []
     design_matrices = []
     confounds = []
@@ -74,14 +75,17 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 fmri_img = image.concat_imgs(data_fname)
                 masker = NiftiMasker()
                 masker.fit(anat_fname)
+                pdb.set_trace()
+
                 confounds.append(pd.DataFrame.from_records(load_confounds.Params36().load(confounds_fname)))
                 fmri_imgs.append(fmri_img)
+
+                # This is just to load the columns names
                 conf=load_confounds.Params36()
                 conf.load(confounds_fname)
                 confounds_cnames.append(conf.columns_)
 
                 # load events
-
                 if 'Left' in contrast or 'Right' in contrast:
                     trimmed_df = trim_events_df(run_events, trim_by='LvR')
                 elif 'Jump' in contrast or 'Hit' in contrast:
