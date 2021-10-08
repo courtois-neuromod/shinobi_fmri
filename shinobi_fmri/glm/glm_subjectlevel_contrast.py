@@ -23,14 +23,14 @@ path_to_data = shinobi_behav.path_to_data
 sub = 'sub-01'
 actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']
 dpath = path_to_data + 'shinobi/'
-contrast = 'Hit'
+contrast = 'Jump'
 
 
 #seslist= os.listdir(dpath + sub)
 cmaps = []
 # load nifti imgs
-for ses in ['ses-002','ses-003','ses-004','ses-005','ses-006','ses-007','ses-008']:#sorted(seslist):
-    cmap_name = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
+for ses in ['ses-002','ses-003','ses-006','ses-007']:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
+    cmap_name = path_to_data + 'processed/cmaps_CONF/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     cmaps.append(cmap_name)
 
 
@@ -44,7 +44,7 @@ second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
 z_map = second_level_model.compute_contrast(output_type='z_score')
-z_map.to_filename('data/processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
+z_map.to_filename(path_to_data + '/processed/cmaps_CONF/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
 report = second_level_model.generate_report(contrasts=['intercept'])
 report.save_as_html(figures_path + '/{}_{}_slm.html'.format(sub, contrast))
 
