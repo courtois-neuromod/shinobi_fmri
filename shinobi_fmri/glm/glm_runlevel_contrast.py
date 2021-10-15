@@ -7,6 +7,7 @@ import numpy as np
 import pdb
 import argparse
 import nilearn
+import shinobi_behav
 from nilearn.glm.first_level import make_first_level_design_matrix
 
 parser = argparse.ArgumentParser()
@@ -29,8 +30,8 @@ args = parser.parse_args()
 
 
 # Set constants
-figures_path = '/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'#shinobi_behav.figures_path
-path_to_data = '/media/storage/neuromod/shinobi_data/'#shinobi_behav.path_to_data
+figures_path = shinobi_behav.figures_path#'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+path_to_data = shinobi_behav.path_to_data#'/media/storage/neuromod/shinobi_data/'
 sub = 'sub-' + args.subject
 contrast = args.contrast
 
@@ -81,7 +82,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                standardize=False,
                                                hrf_model='spm',
                                                drift_model=None,
-                                               high_pass=.01,
+                                               high_pass=None,
                                                n_jobs=16,
                                                smoothing_fwhm=5,
                                                mask_img=anat_fname)
