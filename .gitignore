@@ -5,6 +5,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Input/Output folders
+data/
+reports/
+
 # Distribution / packaging
 .Python
 env/
