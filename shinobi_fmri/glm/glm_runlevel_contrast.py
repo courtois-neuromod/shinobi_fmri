@@ -8,7 +8,8 @@ import pdb
 import argparse
 import nilearn
 import shinobi_behav
-from nilearn.glm.first_level import make_first_level_design_matrix
+from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
+from nilearn.glm import threshold_stats_img
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -94,23 +95,23 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     cmap.to_filename(cmap_fname)
                     print('cmap saved')
                     report = fmri_glm.generate_report(contrasts=[contrast])
-                    report.save_as_html(figures_path + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
+                    report.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm.html'.format(sub, ses, run, contrast))
 
                     # get stats map
                     z_map = fmri_glm.compute_contrast(contrast,
                         output_type='z_score', stat_type='F')
 
                     # compute thresholds
-                    clean_map, threshold = map_threshold(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
-                    uncorr_map, threshold = map_threshold(z_map, alpha=.001, height_control='fpr')
+                    clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+                    uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
                     # save images
                     print('Generating views')
                     view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-                    view.save_as_html(figures_path + '/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
+                    view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, run, contrast))
                     # save also uncorrected map
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
-                    view.save_as_html(figures_path + '/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
+                    view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, run, contrast))
                 except Exception as e:
                     print(e)
                     print('Session map not computed.')
