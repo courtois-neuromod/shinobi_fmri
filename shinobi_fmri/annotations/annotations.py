@@ -9,7 +9,7 @@ from shinobi_behav.params import actions
 
 
 def generate_key_events(repvars, key, FS=60):
-    """Create a Nilearn compatible events dataframe containing Health Loss events
+    """Create a Nilearn compatible events dataframe containing key (actions) events
 
     Parameters
     ----------
@@ -381,7 +381,7 @@ def plot_gameevents(events_df, colors='rand'):
 
     # create figure
     lc = mc.LineCollection(segs, colors=colors_segs, linewidths=77)
-    fig, ax = plt.subplots(figsize=(15,10))
+    fig, ax = plt.subplots(figsize=(20,10))
 
     ax.add_collection(lc)
     ax.set_yticks(np.arange(len(trial_types))+1)
