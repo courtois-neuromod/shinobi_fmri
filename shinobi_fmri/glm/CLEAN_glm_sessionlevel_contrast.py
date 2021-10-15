@@ -74,7 +74,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             run_events = pd.read_csv(events_fname)
             if not run_events.empty:
                 print('run : {}'.format(run))
-                fmri_img = clean_img(image.concat_imgs(data_fname), t_r=t_r)
+                fmri_img = clean_img(image.concat_imgs(data_fname), detrend=False, high_pass=0.01, t_r=t_r)
 
                 bold_shape = fmri_img.shape
 
@@ -98,7 +98,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                                         drift_model=None,
                                                                                         add_regs=None,
                                                                                         add_reg_names=None)
-                clean_regs = clean(design_matrix.to_numpy())
+                clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01,)
                 clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
                 clean_designmat['constant'] = 1
                 design_matrices.append(clean_designmat)
@@ -112,7 +112,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         try:
             # build model
             print('Fitting a GLM')
-            fmri_glm = FirstLevelModel(t_r=1.49,
+            fmri_glm = FirstLevelModel(t_r=t_r,
                                        noise_model='ar1',
                                        standardize=True,
                                        hrf_model='spm',

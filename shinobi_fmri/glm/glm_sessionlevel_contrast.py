@@ -61,17 +61,17 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     allruns_events = []
     print('Processing {}'.format(ses))
     print('Runs to process : {}'.format(runs))
+    cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     for run in sorted(runs):
         data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
         confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
-        cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
         if not os.path.exists(cmap_fname):
             # Open annotations
             run_events = pd.read_csv(events_fname)
             if not run_events.empty:
-                print('run : {}'.format(run))
+                print('Run : {}'.format(run))
                 fmri_img = image.concat_imgs(data_fname)
                 masker = NiftiMasker()
                 masker.fit(anat_fname)

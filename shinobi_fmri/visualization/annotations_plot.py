@@ -16,7 +16,7 @@ def main():
         if not events_df.empty:
             trimmed_df = trim_events_df(events_df, trim_by='event')
             fig, ax = plot_gameevents(trimmed_df)
-            plt.savefig(fig_path + file[:-3] + 'png')
+            plt.savefig(fig_path + file[:-3] + 'png', bbox_inches='tight')
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

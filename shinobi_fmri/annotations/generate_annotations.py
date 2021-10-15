@@ -1,5 +1,5 @@
 from shinobi_behav.params import actions, path_to_data, subjects
-from shinobi_behav.data.data import retrieve_scanvariables, extract_variables
+from shinobi_behav.data.data import extract_variables
 from shinobi_behav.annotations.annotations import create_runevents
 import pickle
 import os
@@ -15,7 +15,7 @@ def main():
     for sub in subjects:
         sessions = os.listdir(path_to_data + 'shinobi/' + sub)
         for ses in sorted(sessions):
-            runs = [filename[-13] for filename in os.listdir(path_to_data + 'shinobi/' + '{}/{}/func'.format(sub, ses)) if 'bold.nii.gz' in filename] # change here to events.tsv
+            runs = [filename[-12] for filename in os.listdir(path_to_data + 'shinobi/' + '{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename] # change here to events.tsv
             for run in sorted(runs):
                 events_fname = path_to_data + 'shinobi/{}/{}/func/{}_{}_task-shinobi_run-0{}_events.tsv'.format(sub, ses, sub, ses, run)
                 eventsdf_path = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)

@@ -79,8 +79,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 bold_shape = fmri_img.shape
 
                 confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
-                                                motion="full", wm_csf='full',
-                                                global_signal='full').load(data_fname)
+                                                motion="full", wm_csf='basic', global_signal='full').load(data_fname)
                 fmri_imgs.append(fmri_img)
                 # trim events
                 if 'Left' in contrast or 'Right' in contrast:
@@ -97,10 +96,10 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 frame_times = np.arange(n_slices) * t_r
 
                 design_matrix = nilearn.glm.first_level.make_first_level_design_matrix(frame_times,
-                events=trimmed_df,
-                drift_model=None,
-                add_regs=confounds,
-                add_reg_names=None)
+                                                                                events=trimmed_df,
+                                                                                drift_model=None,
+                                                                                add_regs=None,
+                                                                                add_reg_names=None)
                 design_matrices.append(design_matrix)
             else:
                 print('Events dataframe empty for {} {} run-0{}.'.format(sub, ses, run))

@@ -54,7 +54,7 @@ if not os.path.isdir(path_to_data + 'processed/cmaps_COSINES/' + contrast):
 
 seslist = os.listdir(path_to_data + 'shinobi/' + sub)
 # load nifti imgs
-for ses in sorted(seslist): 
+for ses in sorted(seslist):
     cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     if not os.path.exists(cmap_fname):
         runs = [filename[-12] for filename in os.listdir(path_to_data + '/shinobi/{}/{}/func'.format(sub, ses)) if 'events.tsv' in filename]
