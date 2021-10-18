@@ -10,6 +10,7 @@ import nilearn
 import shinobi_behav
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
 from nilearn.glm import threshold_stats_img
+from nilearn import plotting
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
