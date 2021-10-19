@@ -109,7 +109,7 @@ def generate_healthloss_events(repvars, FS=60, dur=0.1):
 
     Parameters
     ----------
-    repvars : list
+    repvars : dict
         A dict containing all the variables of a single repetition
     FS : int
         The sampling rate of the .bk2 file
@@ -118,7 +118,7 @@ def generate_healthloss_events(repvars, FS=60, dur=0.1):
 
     Returns
     -------
-    events_df :
+    events_df : pandas.DataFrame
         An events DataFrame in Nilearn-compatible format containing the
         Health Loss and Gain events.
     """
@@ -320,7 +320,7 @@ def trim_events_df(events_df, trim_by='LvR'):
                            events_df[events_df['trial_type'] == '5-0_C']
                           ]).sort_values(by='onset').reset_index(drop=True)
         rh_hit['trial_type'] = 'Hit'
-        trimmed_df = pd.concat([rh_jump, rh_hit]).sort_values(by='onset').reset_index(drop=True)
+        trimmed_df = pd.concat([rh_jump, rh_hit]).sort_values(by='onset').reset_index(drop=True).iloc[: , 1:]
 
     return trimmed_df
 
