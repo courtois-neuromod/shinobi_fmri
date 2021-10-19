@@ -12,6 +12,7 @@ from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelMo
 from nilearn.glm import threshold_stats_img
 from nilearn import plotting
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
@@ -40,6 +41,9 @@ contrast = args.contrast
 if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
     os.makedirs(path_to_data + 'processed/cmaps/' + contrast)
 
+if not os.path.isdir(figures_path + 'design_matrices'):
+    os.makedirs(figures_path + 'design_matrices')
+
 seslist = os.listdir(path_to_data + 'shinobi/' + sub)
 
 for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
@@ -52,9 +56,13 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
         cmap_fname = path_to_data + 'processed/cmaps/{}/{}_{}_run-0{}.nii.gz'.format(contrast, sub, ses, run)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
-        if not os.path.exists(cmap_fname):
+        if os.path.exists(cmap_fname):
+            print('Cmap already exists')
+        else:
             run_events = pd.read_csv(events_fname)
-            if not run_events.empty:
+            if run_events.empty:
+                print('run_events is empty')
+            else:
                 try:
                     fmri_img = image.concat_imgs(data_fname)
                     bold_shape = fmri_img.shape
@@ -63,11 +71,13 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                     global_signal='full').load(data_fname)
                     # trim events
                     if 'Left' in contrast or 'Right' in contrast:
-                        trimmed_df = trim_events_df(run_events, trim_by='LvR').iloc[: , 1:]
+                        trim_by = 'LvR'
                     elif 'Jump' in contrast or 'Hit' in contrast:
-                        trimmed_df = trim_events_df(run_events, trim_by='JvH').iloc[: , 1:]
+                        trim_by = 'JvH'
                     elif 'HealthLoss' in contrast:
-                        trimmed_df = trim_events_df(run_events, trim_by='healthloss').iloc[: , 1:]
+                        trim_by = 'healthloss'
+
+                    trimmed_df = trim_events_df(run_events, trim_by=trim_by)
 
                     # create design matrix
                     n_slices = bold_shape[-1]
@@ -113,6 +123,9 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     # save also uncorrected map
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
                     view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, run, contrast))
+                    # save design matrix plot
+                    dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}.png'
+                    plotting.plot_design_matrix(design_matrix, output_file=)
                 except Exception as e:
                     print(e)
-                    print('Session map not computed.')
+                    print('Run map not computed.')
