@@ -124,7 +124,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
                     view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, run, contrast))
                     # save design matrix plot
-                    dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}.png'
+                    dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
                 except Exception as e:
                     print(e)
