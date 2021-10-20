@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from nilearn import image, signal
 from load_confounds import Confounds
-from shinobi_fmri.annotations.annotations import trim_events_df
+from shinobi_fmri.annotations.annotations import trim_events_df, get_scrub_regressor
 import numpy as np
 import pdb
 import argparse
@@ -88,6 +88,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 drift_model=None,
                                                                 add_regs=confounds,
                                                                 add_reg_names=None)
+                    design_matrix = get_scrub_regressor(run_events, design_matrix)
 
                     fmri_glm = FirstLevelModel(t_r=1.49,
                                                noise_model='ar1',

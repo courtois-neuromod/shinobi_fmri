@@ -212,6 +212,40 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
         events_df = pd.DataFrame()
     return events_df
 
+def get_scrub_regressor(run_events, design_matrix):
+    """Creates a scrub regressor that indicates when a repetition (with available bk2)
+    is ongoing or not. If no bk2 is available, the repetition will be ignored and
+    scrubbed as 0.
+
+    Parameters
+    ----------
+    run_events : DataFrame
+        The original dataframe created with create_runevents, containing all the events of one run
+    design_matrix : DataFrame
+        Design matrix as created by Nilearn's make_first_level_design_matrix
+
+    Returns
+    -------
+    design_matrix : DataFrame
+        Same design_matrix as above, with the addition of a scrub confounds.
+    """
+    reps = []
+    # Get repetition segments
+    for i in range(len(run_events)):
+        if 'level' in run_events['trial_type'][i]:
+            reps.append(run_events.iloc[i,:])
+
+    # Get time vector
+    time = np.array(design_matrix.index)
+
+    scrub_regressor = np.zeros(len(time))
+    # Generate binary regressor
+    for i in range(len(time)):
+        for rep in reps:
+            if time[i] >= rep['onset'] and time[i] <= rep['onset']+rep['duration']:
+                scrub_regressor[i] = 1.0
+    design_matrix['scrub'] = scrub_regressor
+    return design_matrix
 
 def trim_events_df(events_df, trim_by='LvR'):
     """Creates a new events_df that contains only the conditions of interest.
