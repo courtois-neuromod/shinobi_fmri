@@ -15,23 +15,40 @@ import nilearn
 from scipy import signal
 from scipy.stats import zscore
 from nilearn.glm.second_level import SecondLevelModel
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-s",
+    "--subject",
+    default='01',
+    type=str,
+    help="Subject to process",
+)
+parser.add_argument(
+    "-c",
+    "--contrast",
+    default='Jump',
+    type=str,
+    help="Contrast or conditions to compute",
+)
+args = parser.parse_args()
 
 
 figures_path = shinobi_behav.figures_path
 path_to_data = shinobi_behav.path_to_data
  # Set constants
-sub = 'sub-01'
+sub = 'sub-' + args.subject
 actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']
-dpath = path_to_data + 'shinobi/'
-contrast = 'Jump'
+contrast = args.contrast
 
-
-#seslist= os.listdir(dpath + sub)
 cmaps = []
 # load nifti imgs
-for ses in ['ses-002','ses-003','ses-006','ses-007']:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
-    cmap_name = path_to_data + 'processed/cmaps_CONF/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
-    cmaps.append(cmap_name)
+files = os.listdir(path_to_data + 'processed/cmaps/' + contrast)
+for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
+    if sub in file:
+        cmap_name = path_to_data + 'processed/cmaps/' + contrast + '/' + file
+        cmaps.append(cmap_name)
 
 
 second_level_input = cmaps
@@ -44,7 +61,7 @@ second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
 z_map = second_level_model.compute_contrast(output_type='z_score')
-z_map.to_filename(path_to_data + '/processed/cmaps_CONF/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
+z_map.to_filename(path_to_data + '/processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
 report = second_level_model.generate_report(contrasts=['intercept'])
 report.save_as_html(figures_path + '/{}_{}_slm.html'.format(sub, contrast))
 
