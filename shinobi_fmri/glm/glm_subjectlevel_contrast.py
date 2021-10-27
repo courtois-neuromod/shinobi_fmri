@@ -1,6 +1,6 @@
 import pandas as pd
 import os.path as op
-from shinobi_fmri.params import figures_path, path_to_data
+from shinobi_behav import figures_path, path_to_data
 from nilearn import plotting
 from nilearn import image
 import os
