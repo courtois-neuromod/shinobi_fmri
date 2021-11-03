@@ -2,7 +2,7 @@
 #SBATCH --account=rrg-pbellec
 #SBATCH --time=12:00:00
 #SBATCH --job-name=shinobi_secondlevel_fmricontrast
-#SBATCH --mem=128G
+#SBATCH --mem=12G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
 
