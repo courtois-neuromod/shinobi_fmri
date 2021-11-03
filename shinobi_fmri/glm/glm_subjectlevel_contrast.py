@@ -35,8 +35,8 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-figures_path = shinobi_behav.figures_path
-path_to_data = shinobi_behav.path_to_data
+figures_path = figures_path
+path_to_data = path_to_data
  # Set constants
 sub = 'sub-' + args.subject
 actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']
