@@ -44,10 +44,10 @@ contrast = args.contrast
 
 cmaps = []
 # load nifti imgs
-files = os.listdir(path_to_data + 'processed/cmaps/' + contrast)
+files = os.listdir(path_to_data + 'processed/cmaps/run-level/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        cmap_name = path_to_data + 'processed/cmaps/' + contrast + '/' + file
+        cmap_name = path_to_data + 'processed/cmaps/run-level/' + contrast + '/' + file
         cmaps.append(cmap_name)
 
 
