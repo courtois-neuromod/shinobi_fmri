@@ -61,7 +61,7 @@ second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
 z_map = second_level_model.compute_contrast(output_type='z_score')
-z_map.to_filename(path_to_data + '/processed/cmaps/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
+z_map.to_filename(path_to_data + '/processed/cmaps/run-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
 report = second_level_model.generate_report(contrasts=['intercept'])
 report.save_as_html(figures_path + '/{}_{}_slm.html'.format(sub, contrast))
 
