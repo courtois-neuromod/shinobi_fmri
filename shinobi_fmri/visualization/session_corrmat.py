@@ -33,7 +33,7 @@ fnames = []
 mapnames = []
 for contrast in contrasts:
     files = os.listdir(path_to_data + 'processed/cmaps/run-level/{}/'.format(contrast))
-    for file in files[:3]:
+    for file in files:
         fpath = path_to_data + 'processed/cmaps/run-level/{}/'.format(contrast) + file
         sub = file[0:6]
         ses = file[7:14]
