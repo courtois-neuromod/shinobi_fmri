@@ -6,7 +6,7 @@ from nilearn import image
 import os
 import numpy as np
 from nilearn.plotting import plot_design_matrix
-from nistats.thresholding import map_threshold
+from nilearn.glm import threshold_stats_img
 from nilearn.glm.first_level import FirstLevelModel
 from nilearn.input_data import NiftiMasker
 import load_confounds
@@ -60,14 +60,16 @@ second_level_model = SecondLevelModel(smoothing_fwhm=None)
 second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
+cmap_name = path_to_data + '/processed/cmaps/run-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
 z_map = second_level_model.compute_contrast(output_type='z_score')
-z_map.to_filename(path_to_data + '/processed/cmaps/run-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast))
+z_map.to_filename(cmap_name)
+print('Saved {}'.format(cmap_name))
 report = second_level_model.generate_report(contrasts=['intercept'])
 report.save_as_html(figures_path + '/{}_{}_slm.html'.format(sub, contrast))
 
 # compute thresholds
-clean_map, threshold = map_threshold(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
-uncorr_map, threshold = map_threshold(z_map, alpha=.001, height_control='fpr')
+clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
 # save images
 print('Generating views')
@@ -76,3 +78,4 @@ view.save_as_html(figures_path + '/{}_{}_slm_FDRcluster_fwhm5.html'.format(sub, 
 # save also uncorrected map
 view = plotting.view_img(uncorr_map, threshold=3, title='{} contrast (p<0.001), uncorr'.format(contrast))
 view.save_as_html(figures_path + '/{}_{}_slm_uncorr_fwhm5.html'.format(sub, contrast))
+print('Done')
