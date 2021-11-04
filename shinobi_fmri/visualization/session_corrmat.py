@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sbn
 from nilearn.input_data import NiftiMasker
 import psutil
+import pickle
 
 def mem_used():
     tot = psutil.virtual_memory().total / 10**9
@@ -78,7 +79,6 @@ for i in range(len(maps)):
         imap_trim = np.array([x for x in imap if x != 0])
         jmap = maps[j]
         jmap_trim = np.array([x for x in jmap if x != 0])
-        print('i : {}, j : {}'.format(i,j))
         coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
         corr_matrix[i,j] = coeff
 
