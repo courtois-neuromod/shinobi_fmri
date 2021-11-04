@@ -2,7 +2,7 @@
 #SBATCH --account=rrg-pbellec
 #SBATCH --time=12:00:00
 #SBATCH --job-name=shinobi_corrmat
-#SBATCH --mem=256G
+#SBATCH --mem=32G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 
