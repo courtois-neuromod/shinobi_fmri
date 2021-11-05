@@ -44,10 +44,10 @@ contrast = args.contrast
 
 cmaps = []
 # load nifti imgs
-files = os.listdir(path_to_data + 'processed/cmaps/run-level/' + contrast)
+files = os.listdir(path_to_data + 'processed/cmaps/subject-level/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        cmap_name = path_to_data + 'processed/cmaps/run-level/' + contrast + '/' + file
+        cmap_name = path_to_data + 'processed/cmaps/subject-level/' + contrast + '/' + file
         cmaps.append(cmap_name)
 
 
@@ -60,7 +60,7 @@ second_level_model = SecondLevelModel(smoothing_fwhm=None)
 second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
-cmap_name = path_to_data + '/processed/cmaps/run-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
+cmap_name = path_to_data + '/processed/cmaps/subject-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
 z_map = second_level_model.compute_contrast(output_type='z_score')
 z_map.to_filename(cmap_name)
 print('Saved {}'.format(cmap_name))
