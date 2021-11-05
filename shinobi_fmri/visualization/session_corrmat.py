@@ -17,7 +17,7 @@ def mem_used():
 
 ## Set constants
 contrasts = ['HealthLoss', 'Jump', 'Hit']
-#subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -53,11 +53,14 @@ for contrast in contrasts:
 
 print('loading done')
 mem_used()
-
+mask_fnames = []
+for sub in subjects:
+    list = [x for x in fnames if sub in x]
+    mask_fnames.append(list[0])
 
 # Create common masker
 masker = NiftiMasker()
-masker.fit(fnames)
+masker.fit(mask_fnames)
 print('masks done')
 mem_used()
 masked_maps = []
