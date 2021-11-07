@@ -8,6 +8,7 @@ import seaborn as sbn
 from nilearn.input_data import NiftiMasker
 import psutil
 import pickle
+import tqdm
 
 def mem_used():
     tot = psutil.virtual_memory().total / 10**9
@@ -75,15 +76,15 @@ maps = np.array(masked_maps).squeeze()
 
 # compute corrcoefs
 corr_matrix = np.zeros((len(maps), len(maps)))
-for i in range(len(maps)):
-    for j in range(len(maps)):
-        #if j>i:
-        imap = maps[i]
-        imap_trim = np.array([x for x in imap if x != 0])
-        jmap = maps[j]
-        jmap_trim = np.array([x for x in jmap if x != 0])
-        coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
-        corr_matrix[i,j] = coeff
+for i in tqdm.tqdm(range(len(maps))):
+    for j in tqdm.tqdm(range(len(maps))):
+        if j>i:
+            imap = maps[i]
+            imap_trim = np.array([x for x in imap if x != 0])
+            jmap = maps[j]
+            jmap_trim = np.array([x for x in jmap if x != 0])
+            coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
+            corr_matrix[i,j] = coeff
 
 
 dict = {'corr_matrix': corr_matrix,
