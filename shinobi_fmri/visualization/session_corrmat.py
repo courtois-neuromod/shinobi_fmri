@@ -72,20 +72,34 @@ mem_used()
 
 maps = np.array(masked_maps).squeeze()
 
-#sess_idx = [x for x in range(maps.shape[0])]
+# Create the corr_matrix files or load it if it already exists
+results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/cmaps/runlevel_maps_corrs.pkl'
+if not os.path.isfile(results_path):
+    corr_matrix = np.zeros((len(maps), len(maps)))
+    dict = {'corr_matrix': corr_matrix,
+            'fnames': fnames,
+            'subj': subj_arr,
+            'ses': sess_arr,
+            'run': run_arr,
+            'cond': cond_arr}
+    with open(results_path, 'wb') as f:
+        pickle.dump(dict, f)
+else:
+    with open(results_path, 'rb') as f:
+        dict = pickle.load(f)
+        corr_matrix = dict['corr_matrix']
 
 # compute corrcoefs
-corr_matrix = np.zeros((len(maps), len(maps)))
 for i in tqdm.tqdm(range(len(maps))):
     for j in tqdm.tqdm(range(len(maps))):
         if j>i:
-            imap = maps[i]
-            imap_trim = np.array([x for x in imap if x != 0])
-            jmap = maps[j]
-            jmap_trim = np.array([x for x in jmap if x != 0])
-            coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
-            corr_matrix[i,j] = coeff
-
+            if corr_matrix[i,j] == 0:
+                imap = maps[i]
+                imap_trim = np.array([x for x in imap if x != 0])
+                jmap = maps[j]
+                jmap_trim = np.array([x for x in jmap if x != 0])
+                coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
+                corr_matrix[i,j] = coeff
 
 dict = {'corr_matrix': corr_matrix,
         'fnames': fnames,
