@@ -19,6 +19,7 @@ def mem_used():
 ## Set constants
 contrasts = ['HealthLoss', 'Jump', 'Hit']
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/cmaps/runlevel_maps_corrs.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -73,7 +74,6 @@ mem_used()
 maps = np.array(masked_maps).squeeze()
 
 # Create the corr_matrix files or load it if it already exists
-results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/cmaps/runlevel_maps_corrs.pkl'
 if not os.path.isfile(results_path):
     corr_matrix = np.zeros((len(maps), len(maps)))
     dict = {'corr_matrix': corr_matrix,
@@ -100,17 +100,15 @@ for i in tqdm.tqdm(range(len(maps))):
                 jmap_trim = np.array([x for x in jmap if x != 0])
                 coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
                 corr_matrix[i,j] = coeff
-
-dict = {'corr_matrix': corr_matrix,
-        'fnames': fnames,
-        'subj': subj_arr,
-        'ses': sess_arr,
-        'run': run_arr,
-        'cond': cond_arr}
-
-results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/cmaps/runlevel_maps_corrs.pkl'
-with open(results_path, 'wb') as f:
-    pickle.dump(dict, f)
+                # immediately saves the result
+                dict = {'corr_matrix': corr_matrix,
+                        'fnames': fnames,
+                        'subj': subj_arr,
+                        'ses': sess_arr,
+                        'run': run_arr,
+                        'cond': cond_arr}
+                with open(results_path, 'wb') as f:
+                    pickle.dump(dict, f)
 
 
 fig, ax = plt.subplots(figsize=(15,15))
