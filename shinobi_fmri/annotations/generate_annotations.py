@@ -1,6 +1,6 @@
 from shinobi_behav.params import actions, path_to_data, subjects
 from shinobi_behav.data.data import extract_variables
-from shinobi_behav.annotations.annotations import create_runevents
+from shinobi_fmri.annotations.annotations import create_runevents
 import pickle
 import os
 import logging
@@ -31,8 +31,9 @@ def main():
                             repvars['rep_onset'] = startevents['onset'][idx]
                             repvars['rep_duration'] = startevents['duration'][idx]
                             runvars.append(repvars)
-                    events_df = create_runevents(runvars, startevents, actions=actions)
+                    events_df = create_runevents(runvars, actions=actions)
                     events_df.to_csv(eventsdf_path)
+
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
