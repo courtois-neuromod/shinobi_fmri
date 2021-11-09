@@ -111,7 +111,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
-                    0/0
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
                     cmap = fmri_glm.compute_contrast(contrast,
                                               stat_type='F',
