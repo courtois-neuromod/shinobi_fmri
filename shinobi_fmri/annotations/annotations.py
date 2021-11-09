@@ -386,8 +386,8 @@ def trim_events_df(events_df, trim_by='LvR'):
                            events_df[events_df['trial_type'] == '5-0_Kill']
                           ]).sort_values(by='onset').reset_index(drop=True)
         kill['trial_type'] = 'Kill'
-        
-        trimmed_df = pd.concat([lh_l, lh_r, lh_u, lh_d, rh_jump, rh_hit, '''hl,''' kill]).sort_values(by='onset').reset_index(drop=True)
+
+        trimmed_df = pd.concat([lh_l, lh_r, lh_u, lh_d, rh_jump, rh_hit, kill]).sort_values(by='onset').reset_index(drop=True)
 
     if trim_by=='healthloss':
         hl = pd.concat([events_df[events_df['trial_type'] == '1-0_HealthLoss'],
