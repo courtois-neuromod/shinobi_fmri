@@ -97,6 +97,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                n_jobs=16,
                                                smoothing_fwhm=5,
                                                mask_img=anat_fname)
+
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
@@ -107,7 +108,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     cmap.to_filename(cmap_fname)
                     print('cmap saved')
                     report = fmri_glm.generate_report(contrasts=[contrast])
-                    report.save_as_html(figures_path + '/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
+                    report.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
 
                     # get stats map
                     z_map = fmri_glm.compute_contrast(contrast,
