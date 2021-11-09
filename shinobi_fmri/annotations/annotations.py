@@ -43,6 +43,48 @@ def generate_key_events(repvars, key, FS=60):
                                    'trial_type':trial_type})
     return events_df
 
+def generate_kill_events(repvars, FS=60, dur=0.1):
+    """Create a Nilearn compatible events dataframe containing kill events,
+    based on a sudden increase of score.
+    + 200 pts : basic enemies (all levels)
+    + 300 pts : mortars and machineguns (lvl 5)
+    + 400 pts : cauldron-heads (level 1)
+    + 500 pts : anti-riot cop (lvl 5) ; hovering ninja (lvl 4)
+
+
+    Parameters
+    ----------
+    repvars : list
+        A dict containing all the variables of a single repetition.
+    FS : int
+        The sampling rate of the .bk2 file
+    min_dur : float
+        Minimal duration of a kill segment, defaults to 1 (sec)
+
+    Returns
+    -------
+    events_df :
+        An events DataFrame in Nilearn-compatible format containing the
+        kill events.
+    """
+    instant_score = repvars['score_Instant']
+    diff_score = np.diff(instant_score, n=1)
+
+    onset = []
+    duration = []
+    trial_type = []
+    for idx, x in enumerate(diff_score):
+        if x in [200,300]:
+            onset.append(idx/FS)
+            duration.append(dur)
+            trial_type.append('Kill')
+
+    #build df
+    events_df = pd.DataFrame(data={'onset':onset,
+                               'duration':duration,
+                               'trial_type':trial_type})
+    return events_df
+
 
 def generate_aps_events(repvars, FS=60, min_dur=1):
     """Create a Nilearn compatible events dataframe containing Low and High APS
@@ -144,7 +186,7 @@ def generate_healthloss_events(repvars, FS=60, dur=0.1):
                                'trial_type':trial_type})
     return events_df
 
-def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actions=True, get_healthloss=True, get_startend=True):
+def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actions=True, get_healthloss=True, get_startend=True, get_kills=True):
     """Create a Nilearn compatible events dataframe from game variables and start/duration info of repetitions
 
     Parameters
@@ -202,8 +244,13 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
                                      columns=['duration', 'onset', 'trial_type'])
             all_df.append(temp_df)
 
+        if get_kills:
+            temp_df = generate_kill_events(repvars, FS=FS, dur=0.1)
+            temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
+            temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
+            all_df.append(temp_df)
+
         #todo : if get_endstart -- what did I mean by that ?
-        #todo : if get_kills
 
     try:
         events_df = pd.concat(all_df).sort_values(by='onset').reset_index(drop=True)
@@ -332,7 +379,12 @@ def trim_events_df(events_df, trim_by='LvR'):
                            events_df[events_df['trial_type'] == '5-0_HealthLoss']
                           ]).sort_values(by='onset').reset_index(drop=True)
         hl['trial_type'] = 'Health loss'
-        trimmed_df = pd.concat([lh_l, lh_r, lh_u, lh_d, rh_jump, rh_hit, hl]).sort_values(by='onset').reset_index(drop=True)
+        kill = pd.concat([events_df[events_df['trial_type'] == '1-0_Kill'],
+                           events_df[events_df['trial_type'] == '4-1_Kill'],
+                           events_df[events_df['trial_type'] == '5-0_Kill']
+                          ]).sort_values(by='onset').reset_index(drop=True)
+        kill['trial_type'] = 'Kill'
+        trimmed_df = pd.concat([lh_l, lh_r, lh_u, lh_d, rh_jump, rh_hit, hl, kill]).sort_values(by='onset').reset_index(drop=True)
 
     if trim_by=='healthloss':
         hl = pd.concat([events_df[events_df['trial_type'] == '1-0_HealthLoss'],
@@ -341,6 +393,15 @@ def trim_events_df(events_df, trim_by='LvR'):
                           ]).sort_values(by='onset').reset_index(drop=True)
         hl['trial_type'] = 'HealthLoss'
         trimmed_df = hl
+
+    if trim_by=='kill':
+        kill = pd.concat([events_df[events_df['trial_type'] == '1-0_Kill'],
+                           events_df[events_df['trial_type'] == '4-1_Kill'],
+                           events_df[events_df['trial_type'] == '5-0_Kill']
+                          ]).sort_values(by='onset').reset_index(drop=True)
+        kill['trial_type'] = 'Kill'
+        trimmed_df = kill
+
 
     if trim_by=='JvH':
         # Jump vs Hit df
