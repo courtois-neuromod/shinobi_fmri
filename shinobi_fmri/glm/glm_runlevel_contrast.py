@@ -78,7 +78,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                         hrf_model = 'spm'
                     elif 'Jump' in contrast or 'Hit' in contrast:
                         trim_by = 'JvH'
-                        hrf_model = ['spm', 'fir']
+                        hrf_model = ['fir', 'spm']
                     elif 'HealthLoss' in contrast:
                         trim_by = 'healthloss'
                         hrf_model = 'fir'
