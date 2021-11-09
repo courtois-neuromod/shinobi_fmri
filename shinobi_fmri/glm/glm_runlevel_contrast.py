@@ -24,7 +24,7 @@ parser.add_argument(
 parser.add_argument(
     "-c",
     "--contrast",
-    default='Jump',
+    default='Kill',
     type=str,
     help="Contrast or conditions to compute",
 )
@@ -78,7 +78,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                         hrf_model = 'spm'
                     elif 'Jump' in contrast or 'Hit' in contrast:
                         trim_by = 'JvH'
-                        hrf_model = ['fir', 'spm']
+                        hrf_model = 'fir'
                     elif 'HealthLoss' in contrast:
                         trim_by = 'healthloss'
                         hrf_model = 'fir'
@@ -99,18 +99,20 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 add_regs=confounds,
                                                                 add_reg_names=None)
                     design_matrix = get_scrub_regressor(run_events, design_matrix)
-
                     fmri_glm = FirstLevelModel(t_r=1.49,
                                                noise_model='ar1',
                                                standardize=False,
-                                               hrf_model='spm',
+                                               hrf_model=hrf_model,
                                                drift_model=None,
                                                high_pass=None,
                                                n_jobs=16,
                                                smoothing_fwhm=5,
                                                mask_img=anat_fname)
+                    # save design matrix plot
+                    dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
+                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
+                    0/0
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
-
                     cmap = fmri_glm.compute_contrast(contrast,
                                               stat_type='F',
                                               output_type='z_score')
