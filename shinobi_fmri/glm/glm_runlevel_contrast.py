@@ -38,8 +38,11 @@ path_to_data = shinobi_behav.path_to_data#'/media/storage/neuromod/shinobi_data/
 sub = 'sub-' + args.subject
 contrast = args.contrast
 
-if not os.path.isdir(path_to_data + 'processed/cmaps/' + contrast):
-    os.makedirs(path_to_data + 'processed/cmaps/' + contrast)
+if not os.path.isdir(path_to_data + 'processed/cmaps/run-level/' + contrast):
+    os.makedirs(path_to_data + 'processed/cmaps/run-level/' + contrast)
+
+if not os.path.isdir(figures_path + '/run-level/' + contrast):
+    os.makedirs(figures_path + '/run-level/' + contrast)
 
 if not os.path.isdir(figures_path + 'design_matrices'):
     os.makedirs(figures_path + 'design_matrices')
@@ -72,10 +75,16 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     # trim events
                     if 'Left' in contrast or 'Right' in contrast:
                         trim_by = 'LvR'
+                        hrf_model = 'spm'
                     elif 'Jump' in contrast or 'Hit' in contrast:
                         trim_by = 'JvH'
+                        hrf_model = ['spm', 'fir']
                     elif 'HealthLoss' in contrast:
                         trim_by = 'healthloss'
+                        hrf_model = 'fir'
+                    elif 'Kill' in contrast:
+                        trim_by = 'kill'
+                        hrf_model = 'fir'
 
                     trimmed_df = trim_events_df(run_events, trim_by=trim_by)
 
@@ -86,6 +95,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     design_matrix = make_first_level_design_matrix(frame_times,
                                                                 events=trimmed_df,
                                                                 drift_model=None,
+                                                                hrf_model=hrf_model,
                                                                 add_regs=confounds,
                                                                 add_reg_names=None)
                     design_matrix = get_scrub_regressor(run_events, design_matrix)
@@ -107,7 +117,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     cmap.to_filename(cmap_fname)
                     print('cmap saved')
                     report = fmri_glm.generate_report(contrasts=[contrast])
-                    report.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm.html'.format(sub, ses, run, contrast))
+                    report.save_as_html(figures_path + '/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
 
                     # get stats map
                     z_map = fmri_glm.compute_contrast(contrast,
@@ -120,10 +130,10 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     # save images
                     print('Generating views')
                     view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-                    view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, run, contrast))
+                    view.save_as_html(figures_path + '/run-level/{}/{}_{}_run-0{}_{}_flm_FDRcluster_fwhm5.html'.format(contrast, sub, ses, run, contrast))
                     # save also uncorrected map
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
-                    view.save_as_html(figures_path + '/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, run, contrast))
+                    view.save_as_html(figures_path + '/run-level/{}/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(contrast, sub, ses, run, contrast))
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
