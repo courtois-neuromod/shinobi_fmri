@@ -66,7 +66,7 @@ masker.fit(mask_fnames)
 print('masks done')
 mem_used()
 masked_maps = []
-for map in maps:
+for map in tqdm.tqdm(maps):
     masked_maps.append(masker.transform(map))
 print('transforms done')
 mem_used()
@@ -107,8 +107,8 @@ for i in tqdm.tqdm(range(len(maps))):
                         'ses': sess_arr,
                         'run': run_arr,
                         'cond': cond_arr}
-                with open(results_path, 'wb') as f:
-                    pickle.dump(dict, f)
+    with open(results_path, 'wb') as f:
+        pickle.dump(dict, f)
 
 
 fig, ax = plt.subplots(figsize=(15,15))
