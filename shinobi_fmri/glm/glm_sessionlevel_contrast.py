@@ -24,14 +24,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default='04',
+    default='01',
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-c",
     "--contrast",
-    default='Jump-Hit',
+    default='Kill',
     type=str,
     help="Contrast or conditions to compute",
 )
@@ -78,36 +78,28 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 confound = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
-                confounds.append(confound)
+
                 fmri_imgs.append(fmri_img)
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
                 allruns_events.append(trimmed_df)
+                t_r = 1.49
+                n_slices = confound.shape[0]
+                frame_times = np.arange(n_slices) * t_r
+
+                design_matrix = nilearn.glm.first_level.make_first_level_design_matrix(frame_times,
+                                                                                       events=trimmed_df,
+                                                                                       drift_model=None,
+                                                                                       hrf_model='spm',
+                                                                                       add_regs=confound,
+                                                                                       add_reg_names=None)
+                design_matrix = get_scrub_regressor(run_events, design_matrix)
+                design_matrices.append(design_matrix)
             else:
                 print('Events dataframe empty for {} {} run-0{}.'.format(sub, ses, run))
-
-
-
-    # create design matrices
+    print(len(fmri_imgs))
     try:
-        for idx, run in enumerate(sorted(runs)):
-            t_r = 1.49
-            n_slices = confounds[idx].shape[0]
-            frame_times = np.arange(n_slices) * t_r
-
-            design_matrix = nilearn.glm.first_level.make_first_level_design_matrix(frame_times,
-                                                                                   events=allruns_events[idx],
-                                                                                   drift_model=None,
-                                                                                   hrf_model='spm',
-                                                                                   add_regs=confounds[idx],
-                                                                                   add_reg_names=None)
-            design_matrix = get_scrub_regressor(run_events, design_matrix)
-            design_matrices.append(design_matrix)
-
-
-
-     #build model
-
+        #build model
         print('Fitting a GLM')
         fmri_glm = FirstLevelModel(t_r=1.49,
                                    noise_model='ar1',
@@ -126,7 +118,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         cmap.to_filename(cmap_fname)
         print('cmap saved')
         report = fmri_glm.generate_report(contrasts=[contrast])
-        report.save_as_html(figures_path + '/session-level-allregs/' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
+        report.save_as_html(figures_path + '/session-level-allregs' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
 
         # get stats map
         z_map = fmri_glm.compute_contrast(contrast,
