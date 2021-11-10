@@ -348,38 +348,38 @@ def trim_events_df(events_df, trim_by='LvR'):
                            events_df[events_df['trial_type'] == '4-1_LEFT'],
                            events_df[events_df['trial_type'] == '5-0_LEFT']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        lh_l['trial_type'] = 'Left hand - Move left'
+        lh_l['trial_type'] = 'Move left'
         lh_r = pd.concat([ events_df[events_df['trial_type'] == '1-0_RIGHT'],
                            events_df[events_df['trial_type'] == '4-1_RIGHT'],
                            events_df[events_df['trial_type'] == '5-0_RIGHT']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        lh_r['trial_type'] = 'Left hand - Move right'
+        lh_r['trial_type'] = 'Move right'
         lh_d = pd.concat([ events_df[events_df['trial_type'] == '1-0_DOWN'],
                            events_df[events_df['trial_type'] == '4-1_DOWN'],
                            events_df[events_df['trial_type'] == '5-0_DOWN'],
                           ]).sort_values(by='onset').reset_index(drop=True)
-        lh_d['trial_type'] = 'Left hand - Move down'
+        lh_d['trial_type'] = 'Move down'
         lh_u = pd.concat([ events_df[events_df['trial_type'] == '1-0_UP'],
                            events_df[events_df['trial_type'] == '4-1_UP'],
                            events_df[events_df['trial_type'] == '5-0_UP']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        lh_u['trial_type'] = 'Left hand - Move up'
+        lh_u['trial_type'] = 'Move up'
         rh_jump = pd.concat([events_df[events_df['trial_type'] == '1-0_B'],
                            events_df[events_df['trial_type'] == '4-1_B'],
                             events_df[events_df['trial_type'] == '5-0_B']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        rh_jump['trial_type'] = 'Right hand - Jump'
+        rh_jump['trial_type'] = 'Jump'
         rh_hit = pd.concat([events_df[events_df['trial_type'] == '1-0_C'],
                            events_df[events_df['trial_type'] == '4-1_C'],
                            events_df[events_df['trial_type'] == '5-0_C']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        rh_hit['trial_type'] = 'Right hand - Hit'
+        rh_hit['trial_type'] = 'Hit'
         '''
         hl = pd.concat([events_df[events_df['trial_type'] == '1-0_HealthLoss'],
                            events_df[events_df['trial_type'] == '4-1_HealthLoss'],
                            events_df[events_df['trial_type'] == '5-0_HealthLoss']
                           ]).sort_values(by='onset').reset_index(drop=True)
-        hl['trial_type'] = 'Health loss'
+        hl['trial_type'] = 'HealthLoss'
         '''
         kill = pd.concat([events_df[events_df['trial_type'] == '1-0_Kill'],
                            events_df[events_df['trial_type'] == '4-1_Kill'],
