@@ -42,8 +42,8 @@ path_to_data = shinobi_behav.path_to_data#'/media/storage/neuromod/shinobi_data/
 sub = 'sub-' + args.subject
 contrast = args.contrast
 
-if not os.path.isdir(path_to_data + 'processed/cmaps/run-level-allregs/' + contrast):
-    os.makedirs(path_to_data + 'processed/cmaps/run-level-allregs/' + contrast)
+if not os.path.isdir(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast):
+    os.makedirs(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast)
 
 if not os.path.isdir(figures_path + '/run-level-allregs/' + contrast):
     os.makedirs(figures_path + '/run-level-allregs/' + contrast)
@@ -61,10 +61,10 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
         confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
-        cmap_fname = path_to_data + 'processed/cmaps/run-level-allregs/{}/{}_{}_run-0{}.nii.gz'.format(contrast, sub, ses, run)
+        z_map_fname = path_to_data + 'processed/z_maps/run-level-allregs/{}/{}_{}_run-0{}.nii.gz'.format(contrast, sub, ses, run)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
-        if os.path.exists(cmap_fname):
-            print('Cmap already exists')
+        if os.path.exists(z_map_fname):
+            print('z_map already exists')
         else:
             run_events = pd.read_csv(events_fname)
             if run_events.empty:
@@ -111,7 +111,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
                     # get stats map
                     z_map = fmri_glm.compute_contrast(contrast, output_type='z_score', stat_type='F')
-                    z_map.to_filename(cmap_fname)
+                    z_map.to_filename(z_map_fname)
                     print('z_map saved')
                     report = fmri_glm.generate_report(contrasts=[contrast])
                     report.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
