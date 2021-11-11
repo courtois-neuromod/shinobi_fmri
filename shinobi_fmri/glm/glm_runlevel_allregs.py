@@ -101,7 +101,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                n_jobs=16,
                                                smoothing_fwhm=5,
                                                mask_img=anat_fname,
-                                               minimize_memory=False))
+                                               minimize_memory=False)
 
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
