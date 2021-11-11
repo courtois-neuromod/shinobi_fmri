@@ -11,6 +11,7 @@ import shinobi_behav
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
 from nilearn.glm import threshold_stats_img
 from nilearn import plotting
+from nilearn.image import clean_img
 
 
 parser = argparse.ArgumentParser()
@@ -67,7 +68,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 print('run_events is empty')
             else:
                 try:
-                    fmri_img = image.concat_imgs(data_fname)
+                    fmri_img = clean_img(image.concat_imgs(data_fname))
                     bold_shape = fmri_img.shape
                     confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
                                                     motion="full", wm_csf='basic',
