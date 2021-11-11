@@ -18,6 +18,7 @@ from shinobi_fmri.annotations.annotations import trim_events_df, get_scrub_regre
 import argparse
 import pdb
 from load_confounds import Confounds
+from nilearn.image import clean_img
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
@@ -44,8 +45,8 @@ path_to_data = shinobi_behav.path_to_data #'/media/storage/neuromod/shinobi_data
 sub = 'sub-' + args.subject
 contrast = args.contrast
 
-if not os.path.isdir(path_to_data + 'processed/cmaps/session-level-allregs/' + contrast):
-    os.makedirs(path_to_data + 'processed/cmaps/session-level-allregs/' + contrast)
+if not os.path.isdir(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast):
+    os.makedirs(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast)
 
 if not os.path.isdir(figures_path + '/session-level-allregs/' + contrast):
     os.makedirs(figures_path + '/session-level-allregs/' + contrast)
@@ -62,18 +63,18 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     allruns_events = []
     print('Processing {}'.format(ses))
     print('Runs to process : {}'.format(sorted(runs)))
-    cmap_fname = path_to_data + 'processed/cmaps/session-level-allregs/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
+    z_map_fname = path_to_data + 'processed/z_maps/session-level-allregs/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     for run in sorted(runs):
         data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
         confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
-        if not os.path.exists(cmap_fname):
+        if not os.path.exists(z_map_fname):
             # Open annotations
             run_events = pd.read_csv(events_fname)
             if not run_events.empty:
                 print('Run : {}'.format(run))
-                fmri_img = image.concat_imgs(data_fname)
+                fmri_img = clean_img(image.concat_imgs(data_fname))
                 bold_shape = fmri_img.shape
                 confound = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
                                                 motion="full", wm_csf='basic',
@@ -112,17 +113,13 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                    mask_img=anat_fname)
         fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
 
-        cmap = fmri_glm.compute_contrast(contrast,
+        z_map = fmri_glm.compute_contrast(contrast,
                                           stat_type='F',
                                           output_type='z_score')
-        cmap.to_filename(cmap_fname)
-        print('cmap saved')
+        z_map.to_filename(z_map_fname)
+        print('z_map saved')
         report = fmri_glm.generate_report(contrasts=[contrast])
         report.save_as_html(figures_path + '/session-level-allregs' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
-
-        # get stats map
-        z_map = fmri_glm.compute_contrast(contrast,
-            output_type='z_score', stat_type='F')
 
         # compute thresholds
         clean_map, threshold = map_threshold(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
@@ -131,10 +128,10 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         # save images
         print('Generating views')
         view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-        view.save_as_html(figures_path + '/session-level-allregs/' + '/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
+        view.save_as_html(figures_path + '/session-level-allregs/' + '/{}/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
         # save also uncorrected map
         view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
-        view.save_as_html(figures_path + '/session-level-allregs/' + '/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
+        view.save_as_html(figures_path + '/session-level-allregs/' + '/{}/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
 
     except Exception as e:
         print(e)

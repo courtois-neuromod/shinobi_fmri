@@ -1,6 +1,6 @@
 import pandas as pd
 import os.path as op
-from shinobi_behav import figures_path, path_to_data
+import shinobi_behav
 from nilearn import plotting
 from nilearn import image
 import os
@@ -35,37 +35,41 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-figures_path = figures_path
-path_to_data = path_to_data
+figures_path = shinobi_behav.figures_path
+path_to_data = shinobi_behav.path_to_data
  # Set constants
 sub = 'sub-' + args.subject
-actions = ['B', 'A', 'MODE', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'C', 'Y', 'X', 'Z']
+actions = shinobi_behav.actions
 contrast = args.contrast
 
-cmaps = []
+if not os.path.isdir(path_to_data + 'processed/z_maps/subject-level/' + contrast):
+    os.makedirs(path_to_data + 'processed/z_maps/subject-level/' + contrast)
+
+if not os.path.isdir(figures_path + '/subject-level/' + contrast):
+    os.makedirs(figures_path + '/subject-level/' + contrast)
+
+z_maps = []
 # load nifti imgs
-files = os.listdir(path_to_data + 'processed/cmaps/subject-level/' + contrast)
+files = os.listdir(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        cmap_name = path_to_data + 'processed/cmaps/subject-level/' + contrast + '/' + file
-        cmaps.append(cmap_name)
+        z_map_name = path_to_data d+ 'processed/z_maps/run-level-allregs/' + contrast + '/' + file
+        z_maps.append(z_map_name)
 
-
-second_level_input = cmaps
+second_level_input = z_maps
 second_design_matrix = pd.DataFrame([1] * len(second_level_input),
                              columns=['intercept'])
-
 
 second_level_model = SecondLevelModel(smoothing_fwhm=None)
 second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
-cmap_name = path_to_data + '/processed/cmaps/subject-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
+z_map_name = path_to_data + '/processed/z_maps/subject-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
 z_map = second_level_model.compute_contrast(output_type='z_score')
-z_map.to_filename(cmap_name)
-print('Saved {}'.format(cmap_name))
+z_map.to_filename(z_map_name)
+print('Saved {}'.format(z_map_name))
 report = second_level_model.generate_report(contrasts=['intercept'])
-report.save_as_html(figures_path + '/{}_{}_slm.html'.format(sub, contrast))
+report.save_as_html(figures_path + '/subject-level/{}_{}_slm.html'.format(sub, contrast))
 
 # compute thresholds
 clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)

@@ -12,6 +12,9 @@ from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelMo
 from nilearn.glm import threshold_stats_img
 from nilearn import plotting
 from nilearn.image import clean_img
+from nilearn.reporting import get_clusters_table
+from nilearn import input_data
+from nilearn import plotting
 
 
 parser = argparse.ArgumentParser()
@@ -97,7 +100,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                high_pass=None,
                                                n_jobs=16,
                                                smoothing_fwhm=5,
-                                               mask_img=anat_fname)
+                                               mask_img=anat_fname,
+                                               minimize_memory=False))
 
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
@@ -105,17 +109,14 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
                     # fit glm and get contrast
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
-                    cmap = fmri_glm.compute_contrast(contrast,
-                                              stat_type='F',
-                                              output_type='z_score')
-                    cmap.to_filename(cmap_fname)
-                    print('cmap saved')
+                    # get stats map
+                    z_map = fmri_glm.compute_contrast(contrast, output_type='z_score', stat_type='F')
+                    z_map.to_filename(cmap_fname)
+                    print('z_map saved')
                     report = fmri_glm.generate_report(contrasts=[contrast])
                     report.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
 
-                    # get stats map
-                    z_map = fmri_glm.compute_contrast(contrast,
-                        output_type='z_score', stat_type='F')
+                    mean_img = image.mean_img(fmri_img)
 
                     # compute thresholds
                     clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
@@ -129,6 +130,38 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
                     view.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(contrast, sub, ses, run, contrast))
 
+
+                    ### Extract activation clusters
+                    table = get_clusters_table(z_map, stat_threshold=3.1,
+                                               cluster_threshold=20).set_index('Cluster ID', drop=True)
+                    # get the 3 largest clusters' max x, y, and z coordinates
+                    coords = table.loc[range(1, 4), ['X', 'Y', 'Z']].values
+                    # extract time series from each coordinate
+                    masker = input_data.NiftiSpheresMasker(coords)
+                    real_timeseries = masker.fit_transform(fmri_img)
+                    predicted_timeseries = masker.fit_transform(fmri_glm.predicted[0])
+                    # Plot figure
+                    # colors for each of the clusters
+                    colors = ['blue', 'navy', 'purple', 'magenta', 'olive', 'teal']
+                    # plot the time series and corresponding locations
+
+                    fig1, axs1 = plt.subplots(2, 3)
+                    for i in range(0, 3):
+                        # plotting time series
+                        axs1[0, i].set_title('Cluster peak {}\n'.format(coords[i]))
+                        axs1[0, i].plot(real_timeseries[:, i], c=colors[i], lw=2)
+                        axs1[0, i].plot(predicted_timeseries[:, i], c='r', ls='--', lw=2)
+                        axs1[0, i].set_xlabel('Time')
+                        axs1[0, i].set_ylabel('Signal intensity', labelpad=0)
+                        # plotting image below the time series
+                        roi_img = plotting.plot_stat_map(
+                            z_map, cut_coords=[coords[i][2]], threshold=3.1, figure=fig1,
+                            axes=axs1[1, i], display_mode='z', colorbar=False, bg_img=mean_img)
+                        roi_img.add_markers([coords[i]], colors[i], 300)
+
+                    fig1.set_size_inches(24, 14)
+                    signals_plot_name = figures_path + 'run-level-allregs/{}/signals_{}_{}_run-0{}.png'.format(contrast, sub, ses, run)
+                    fig1.savefig(signals_plot_name)
                 except Exception as e:
                     print(e)
                     print('Run map not computed.')
