@@ -15,20 +15,21 @@ from nilearn.image import clean_img
 from nilearn.reporting import get_clusters_table
 from nilearn import input_data
 from nilearn import plotting
-
+import matplotlib.pyplot as plt
+from nilearn.signal import clean
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default='01',
+    default='02',
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-c",
     "--contrast",
-    default='Kill',
+    default='Hit',
     type=str,
     help="Contrast or conditions to compute",
 )
@@ -41,6 +42,7 @@ figures_path = shinobi_behav.figures_path#'/home/hyruuk/GitHub/neuromod/shinobi_
 path_to_data = shinobi_behav.path_to_data#'/media/storage/neuromod/shinobi_data/'
 sub = 'sub-' + args.subject
 contrast = args.contrast
+t_r = 1.49
 
 if not os.path.isdir(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast):
     os.makedirs(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast)
@@ -71,7 +73,9 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 print('run_events is empty')
             else:
                 try:
-                    fmri_img = clean_img(image.concat_imgs(data_fname))
+
+                    raw_fmri_img = image.concat_imgs(data_fname)
+                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r)
                     bold_shape = fmri_img.shape
                     confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
                                                     motion="full", wm_csf='basic',
@@ -83,7 +87,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
                     # create design matrix
                     n_slices = bold_shape[-1]
-                    t_r = 1.49
                     frame_times = np.arange(n_slices) * t_r
                     design_matrix = make_first_level_design_matrix(frame_times,
                                                                 events=trimmed_df,
@@ -91,7 +94,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 hrf_model=hrf_model,
                                                                 add_regs=confounds,
                                                                 add_reg_names=None)
-                    design_matrix = get_scrub_regressor(run_events, design_matrix)
                     fmri_glm = FirstLevelModel(t_r=1.49,
                                                noise_model='ar1',
                                                standardize=False,
@@ -104,11 +106,18 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                minimize_memory=False)
 
                     # save design matrix plot
+                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01)
+                    clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
+                    clean_designmat['constant'] = 1
+                    design_matrix = clean_designmat
+                    design_matrix = get_scrub_regressor(run_events, design_matrix)
+
                     dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
 
-                    # fit glm and get contrast
+                    # fit glm
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
+
                     # get stats map
                     z_map = fmri_glm.compute_contrast(contrast, output_type='z_score', stat_type='F')
                     z_map.to_filename(z_map_fname)
@@ -116,7 +125,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     report = fmri_glm.generate_report(contrasts=[contrast])
                     report.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
 
-                    mean_img = image.mean_img(fmri_img)
+                    mean_img = image.mean_img(raw_fmri_img)
 
                     # compute thresholds
                     clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
