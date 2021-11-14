@@ -17,6 +17,8 @@ from nilearn import input_data
 from nilearn import plotting
 import matplotlib.pyplot as plt
 from nilearn.signal import clean
+import nibabel as nib
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -74,17 +76,18 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             else:
                 try:
 
-                    raw_fmri_img = image.concat_imgs(data_fname)
-                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r)
-                    bold_shape = fmri_img.shape
                     confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
-                                                    motion="full", wm_csf='basic',
-                                                    global_signal='full').load(data_fname)
+                                                        motion="full", wm_csf='basic',
+                                                        global_signal='full').load(data_fname)
+                    raw_fmri_img = image.concat_imgs(data_fname)
+                    #fmri_img = nib.Nifti1Image(fmri_img.get_fdata()[:,:,:,:10], affine=fmri_img.affine)
+                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True)
+                    mean_img = image.mean_img(raw_fmri_img)
+                    bold_shape = fmri_img.shape
 
 
                     hrf_model = 'spm'
                     trimmed_df = trim_events_df(run_events, trim_by='event')
-
                     # create design matrix
                     n_slices = bold_shape[-1]
                     frame_times = np.arange(n_slices) * t_r
@@ -92,8 +95,23 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 events=trimmed_df,
                                                                 drift_model=None,
                                                                 hrf_model=hrf_model,
-                                                                add_regs=confounds,
+                                                                add_regs=None,
                                                                 add_reg_names=None)
+
+                    dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
+                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
+
+
+                    # save design matrix plot
+                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True)
+                    clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
+                    clean_designmat['constant'] = 1
+                    design_matrix = clean_designmat
+                    design_matrix = get_scrub_regressor(run_events, design_matrix)
+                    #design_matrix = design_matrix.head(10)
+
+
+                    # fit glm
                     fmri_glm = FirstLevelModel(t_r=1.49,
                                                noise_model='ar1',
                                                standardize=False,
@@ -104,18 +122,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                smoothing_fwhm=5,
                                                mask_img=anat_fname,
                                                minimize_memory=False)
-
-                    # save design matrix plot
-                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01)
-                    clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
-                    clean_designmat['constant'] = 1
-                    design_matrix = clean_designmat
-                    design_matrix = get_scrub_regressor(run_events, design_matrix)
-
-                    dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
-                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
-
-                    # fit glm
                     fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix)
 
                     # get stats map
@@ -125,7 +131,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     report = fmri_glm.generate_report(contrasts=[contrast])
                     report.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm.html'.format(contrast, sub, ses, run, contrast))
 
-                    mean_img = image.mean_img(raw_fmri_img)
+
 
                     # compute thresholds
                     clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
@@ -174,3 +180,4 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 except Exception as e:
                     print(e)
                     print('Run map not computed.')
+                    0/0
