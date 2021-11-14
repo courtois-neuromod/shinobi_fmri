@@ -180,4 +180,3 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 except Exception as e:
                     print(e)
                     print('Run map not computed.')
-                    0/0
