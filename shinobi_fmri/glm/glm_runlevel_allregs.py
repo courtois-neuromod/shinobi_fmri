@@ -75,8 +75,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 print('run_events is empty')
             else:
                 try:
-
-                    confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
+                    confounds = Confounds(strategy=['high_pass', 'motion', 'global'],
                     #confounds = Confounds(strategy=['wm_csf'], # KEEP TRYING THIS
                                                         motion="full", wm_csf='full',
                                                         global_signal='full').load(data_fname)
