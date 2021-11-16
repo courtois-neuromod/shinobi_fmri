@@ -77,15 +77,16 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 try:
 
                     confounds = Confounds(strategy=['high_pass', 'motion', 'global', 'wm_csf'],
-                                                        motion="full", wm_csf='basic',
+                    #confounds = Confounds(strategy=['wm_csf'], # KEEP TRYING THIS
+                                                        motion="full", wm_csf='full',
                                                         global_signal='full').load(data_fname)
                     raw_fmri_img = image.concat_imgs(data_fname)
-                    #fmri_img = nib.Nifti1Image(fmri_img.get_fdata()[:,:,:,:10], affine=fmri_img.affine)
-                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True)
+                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
                     mean_img = image.mean_img(raw_fmri_img)
                     bold_shape = fmri_img.shape
 
 
+                    # forcer confounds en float (ou autres types)
                     hrf_model = 'spm'
                     trimmed_df = trim_events_df(run_events, trim_by='event')
                     # create design matrix
@@ -98,17 +99,15 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 add_regs=None,
                                                                 add_reg_names=None)
 
-                    dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
-                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
-
-
                     # save design matrix plot
-                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True)
+                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
                     clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
                     clean_designmat['constant'] = 1
                     design_matrix = clean_designmat
                     design_matrix = get_scrub_regressor(run_events, design_matrix)
-                    #design_matrix = design_matrix.head(10)
+
+                    dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
+                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
 
 
                     # fit glm
