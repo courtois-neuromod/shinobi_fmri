@@ -75,12 +75,12 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             if not run_events.empty:
                 print('Run : {}'.format(run))
                 raw_fmri_img = image.concat_imgs(data_fname)
-                bold_shape = fmri_img.shape
                 confound = Confounds(strategy=['high_pass', 'motion'],
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
 
                 fmri_img = clean_img(clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confound))
+                bold_shape = fmri_img.shape
                 fmri_imgs.append(fmri_img)
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
