@@ -19,6 +19,7 @@ import pdb
 from load_confounds import Confounds
 from nilearn.image import clean_img
 from nilearn.glm import threshold_stats_img
+from nilearn.signal import clean
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
