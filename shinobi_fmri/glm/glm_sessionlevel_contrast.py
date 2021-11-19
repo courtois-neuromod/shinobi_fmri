@@ -44,6 +44,7 @@ path_to_data = shinobi_behav.path_to_data #'/media/storage/neuromod/shinobi_data
  # Set constants
 sub = 'sub-' + args.subject
 contrast = args.contrast
+t_r = 1.49
 
 if not os.path.isdir(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast):
     os.makedirs(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast)
@@ -85,7 +86,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
                 allruns_events.append(trimmed_df)
-                t_r = 1.49
                 n_slices = confound.shape[0]
                 frame_times = np.arange(n_slices) * t_r
 
