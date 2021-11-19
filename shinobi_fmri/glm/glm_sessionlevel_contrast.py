@@ -45,6 +45,7 @@ path_to_data = shinobi_behav.path_to_data #'/media/storage/neuromod/shinobi_data
 sub = 'sub-' + args.subject
 contrast = args.contrast
 t_r = 1.49
+hrf_model = 'spm'
 
 if not os.path.isdir(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast):
     os.makedirs(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast)
