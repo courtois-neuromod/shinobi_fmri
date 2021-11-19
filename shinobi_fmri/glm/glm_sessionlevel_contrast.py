@@ -7,8 +7,7 @@ from nilearn import image
 import os
 import numpy as np
 from nilearn.plotting import plot_design_matrix
-from nistats.thresholding import map_threshold
-from nilearn.glm.first_level import FirstLevelModel
+from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
 from nilearn.input_data import NiftiMasker
 import pickle
 import nilearn
@@ -19,6 +18,7 @@ import argparse
 import pdb
 from load_confounds import Confounds
 from nilearn.image import clean_img
+from nilearn.glm import threshold_stats_img
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
@@ -129,8 +129,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         report.save_as_html(figures_path + '/session-level-allregs' + '/{}_{}_{}_flm.html'.format(sub, ses, contrast))
 
         # compute thresholds
-        clean_map, threshold = map_threshold(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
-        uncorr_map, threshold = map_threshold(z_map, alpha=.001, height_control='fpr')
+        clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+        uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
         # save images
         print('Generating views')
