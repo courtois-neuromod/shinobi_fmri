@@ -99,6 +99,9 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 add_reg_names=None)
 
                     # save design matrix plot
+                    dm_fname = figures_path + 'design_matrices-allregs' + '/dm-preclean_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
+                    plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
+
                     clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
                     clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
                     clean_designmat['constant'] = 1
