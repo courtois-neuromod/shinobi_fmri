@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default='02',
+    default='01',
     type=str,
     help="Subject to process",
 )
@@ -75,12 +75,16 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 print('run_events is empty')
             else:
                 try:
-                    confounds = Confounds(strategy=['high_pass', 'motion'],
                     #confounds = Confounds(strategy=['wm_csf'], # KEEP TRYING THIS
+                    confounds = Confounds(strategy=['high_pass', 'motion'],
                                                         motion="full", wm_csf='full',
                                                         global_signal='full').load(data_fname)
+
+
                     raw_fmri_img = image.concat_imgs(data_fname)
                     fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
+
+
                     mean_img = image.mean_img(raw_fmri_img)
                     bold_shape = fmri_img.shape
 
