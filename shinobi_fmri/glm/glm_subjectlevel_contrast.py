@@ -53,7 +53,7 @@ z_maps = []
 files = os.listdir(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        z_map_name = path_to_data d+ 'processed/z_maps/run-level-allregs/' + contrast + '/' + file
+        z_map_name = path_to_data + 'processed/z_maps/run-level-allregs/' + contrast + '/' + file
         z_maps.append(z_map_name)
 
 second_level_input = z_maps
