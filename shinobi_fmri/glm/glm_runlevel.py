@@ -32,19 +32,14 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-def create_output_folders(path_to_data, figures_path, contrast):
+def create_output_folders(path_to_data, figures_path, contrasts):
     # Create output folders if needed
-    if not os.path.isdir(op.join(figures_path, "design_matrices")):
-        os.makedirs(op.join(figures_path, "design_matrices"))
+    os.makedirs(op.join(figures_path, "design_matrices"), exist_ok=True)
+    os.makedirs(op.join(path_to_data, "processed", "run-level"), exist_ok=True)
     for contrast in contrasts:
-        if not os.path.isdir(
-            op.join(path_to_data, "processed", "z_maps", "run-level", contrast)
-        ):
-            os.makedirs(
-                op.join(path_to_data, "processed", "z_maps", "run-level", contrast)
-            )
-        if not os.path.isdir(op.join(figures_path, "run-level", contrast)):
-            os.makedirs(op.join(figures_path, "run-level", contrast))
+        os.makedirs(
+            op.join(path_to_data, "processed", "z_maps", "run-level", contrast), exist_ok=True)
+        os.makedirs(op.join(figures_path, "run-level", contrast), exist_ok=True)
 
 
 def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True):
@@ -207,7 +202,7 @@ def plot_signals(z_map, fmri_img, fmri_fname):
 def process_run(sub, ses, run):
     print(f"Processing run 0{run}")
     glm_fname = op.join(
-        path_to_data, "processed", "run-level", f"glm_{sub}_{ses}_{run}.pkl"
+        path_to_data, "processed", "run-level", f"glm_{sub}_{ses}_run-0{run}.pkl"
     )
     if os.path.exists(glm_fname):
         print("GLM already exists")
@@ -299,7 +294,7 @@ def process_run(sub, ses, run):
 
 
 def main():
-    create_output_folders(path_to_data, figures_path, contrast)
+    create_output_folders(path_to_data, figures_path, contrasts)
     sessions = os.listdir(op.join(path_to_data, "shinobi", sub))
     for ses in sorted(sessions):
         print(f"Processing {sub} {ses}")
