@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from nilearn.signal import clean
 import nibabel as nib
 import logging
+import pickle
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -116,7 +117,7 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
             regressors_clean, columns=design_matrix_raw.columns.to_list()
         )
         design_matrix_clean["constant"] = 1
-        # design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean) # TODO : one regressor per scrubbed volume
+        design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean) # TODO : one regressor per scrubbed volume
 
         if savefigs:
             design_matrix_raw_fname = op.join(
@@ -311,9 +312,7 @@ def main():
 
 if __name__ == "__main__":
     # Set constants
-    figures_path = (
-        shinobi_behav.figures_path
-    )  #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+    figures_path = shinobi_behav.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.path_to_data  #'/media/storage/neuromod/shinobi_data/'
     sub = "sub-" + args.subject
     t_r = 1.49
