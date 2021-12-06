@@ -285,13 +285,19 @@ def get_scrub_regressor(run_events, design_matrix):
     # Get time vector
     time = np.array(design_matrix.index)
 
-    scrub_regressor = np.zeros(len(time))
+    to_scrub = np.zeros(len(time))
     # Generate binary regressor
     for i in range(len(time)):
         for rep in reps:
             if time[i] >= rep['onset'] and time[i] <= rep['onset']+rep['duration']:
-                scrub_regressor[i] = 1.0
-    design_matrix['scrub'] = scrub_regressor
+                to_scrub[i] = 1.0
+    scrub_idx = 1
+    for idx, timepoint in enumerate(to_scrub):
+        if timepoint == 0.0:
+            scrub_regressor = np.zeros(len(time))
+            scrub_regressor[idx] = 1.0
+            design_matrix[f'scrub{scrub_idx}'] = scrub_regressor
+            scrub_idx += 1
     return design_matrix
 
 def trim_events_df(events_df, trim_by='LvR'):
