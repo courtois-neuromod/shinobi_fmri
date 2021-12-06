@@ -223,75 +223,75 @@ def process_run(sub, ses, run):
             print("GLM not computed")
             print(e)
             return
-    for contrast in contrasts:
-        print(f"Computing contrast : {contrast}")
-        # Compute contrast
-        z_map_fname = op.join(
-            path_to_data,
-            "processed",
-            "z_maps",
-            "run-level",
-            contrast,
-            f"{sub}_{ses}_run-0{run}.nii.gz",
-        )
-        if not (os.path.exists(z_map_fname)):
-            z_map = fmri_glm.compute_contrast(
-                contrast, output_type="z_score", stat_type="F"
-            )
-            z_map.to_filename(z_map_fname)
-            # Save report
-            report_fname = op.join(
-                figures_path,
+        for contrast in contrasts:
+            print(f"Computing contrast : {contrast}")
+            # Compute contrast
+            z_map_fname = op.join(
+                path_to_data,
+                "processed",
+                "z_maps",
                 "run-level",
                 contrast,
-                f"{sub}_{ses}_run-0{run}_{contrast}_flm.html",
+                f"{sub}_{ses}_run-0{run}.nii.gz",
             )
-            report = fmri_glm.generate_report(contrasts=[contrast])
-            report.save_as_html(report_fname)
-            # Save images
-            print("Generating views")
-            # FDR corrected image
-            clean_map, threshold = threshold_stats_img(
-                z_map, alpha=0.05, height_control="fdr", cluster_threshold=10
-            )
-            view = plotting.view_img(
-                clean_map,
-                threshold=3,
-                title=f"{contrast} (FDR<0.05), Noyaux > 10 voxels",
-            )
-            view.save_as_html(
-                op.join(
+            if not (os.path.exists(z_map_fname)):
+                z_map = fmri_glm.compute_contrast(
+                    contrast, output_type="z_score", stat_type="F"
+                )
+                z_map.to_filename(z_map_fname)
+                # Save report
+                report_fname = op.join(
                     figures_path,
                     "run-level",
                     contrast,
-                    f"{sub}_{ses}_run-0{run}_{contrast}_flm_FDRcluster_fwhm5.html",
+                    f"{sub}_{ses}_run-0{run}_{contrast}_flm.html",
                 )
-            )
-            # Uncorrected image
-            uncorr_map, threshold = threshold_stats_img(
-                z_map, alpha=0.001, height_control="fpr"
-            )
-            view = plotting.view_img(
-                uncorr_map, threshold=3, title=f"{contrast} (p<0.001), uncorr"
-            )
-            view.save_as_html(
-                op.join(
+                report = fmri_glm.generate_report(contrasts=[contrast])
+                report.save_as_html(report_fname)
+                # Save images
+                print("Generating views")
+                # FDR corrected image
+                clean_map, threshold = threshold_stats_img(
+                    z_map, alpha=0.05, height_control="fdr", cluster_threshold=10
+                )
+                view = plotting.view_img(
+                    clean_map,
+                    threshold=3,
+                    title=f"{contrast} (FDR<0.05), Noyaux > 10 voxels",
+                )
+                view.save_as_html(
+                    op.join(
+                        figures_path,
+                        "run-level",
+                        contrast,
+                        f"{sub}_{ses}_run-0{run}_{contrast}_flm_FDRcluster_fwhm5.html",
+                    )
+                )
+                # Uncorrected image
+                uncorr_map, threshold = threshold_stats_img(
+                    z_map, alpha=0.001, height_control="fpr"
+                )
+                view = plotting.view_img(
+                    uncorr_map, threshold=3, title=f"{contrast} (p<0.001), uncorr"
+                )
+                view.save_as_html(
+                    op.join(
+                        figures_path,
+                        "run-level",
+                        contrast,
+                        f"{sub}_{ses}_run-0{run}_{contrast}_flm_uncorr_fwhm5.html",
+                    )
+                )
+                # Observed VS predicted values for top clusters
+                fig_signals = plot_signals(z_map, fmri_img, fmri_glm, fmri_fname)
+                signals_plot_name = op.join(
                     figures_path,
                     "run-level",
                     contrast,
-                    f"{sub}_{ses}_run-0{run}_{contrast}_flm_uncorr_fwhm5.html",
+                    f"signals_{sub}_{ses}_run-0{run}_{contrast}.png",
                 )
-            )
-            # Observed VS predicted values for top clusters
-            fig_signals = plot_signals(z_map, fmri_img, fmri_glm, fmri_fname)
-            signals_plot_name = op.join(
-                figures_path,
-                "run-level",
-                contrast,
-                f"signals_{sub}_{ses}_run-0{run}_{contrast}.png",
-            )
-            fig_signals.savefig(signals_plot_name)
-            print("Done")
+                fig_signals.savefig(signals_plot_name)
+                print("Done")
 
 
 def main():
