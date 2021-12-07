@@ -206,10 +206,14 @@ def process_run(sub, ses, run):
         path_to_data, "processed", 'z_maps', "run-level", f"glm_{sub}_{ses}_run-0{run}.pkl"
     )
     if os.path.exists(glm_fname):
-        print("GLM already exists")
-        with open(glm_fname, "rb") as f:
-            fmri_glm = pickle.load(f)
-            print("GLM loaded")
+        try:
+            print("GLM already exists")
+            with open(glm_fname, "rb") as f:
+                fmri_glm = pickle.load(f)
+                print("GLM loaded")
+        except Exception as e:
+            print(e)
+            print("GLM not loaded")
     else:
         try:
             print("Computing GLM")
@@ -223,6 +227,7 @@ def process_run(sub, ses, run):
             print("GLM not computed")
             print(e)
             return
+    try:
         for contrast in contrasts:
             print(f"Computing contrast : {contrast}")
             # Compute contrast
@@ -292,6 +297,9 @@ def process_run(sub, ses, run):
                 )
                 fig_signals.savefig(signals_plot_name)
                 print("Done")
+    except Exception as e:
+        print(e)
+        print('Views not generated')
 
 
 def main():
