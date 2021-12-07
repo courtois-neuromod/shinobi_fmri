@@ -188,7 +188,7 @@ def plot_signals(z_map, fmri_img, fmri_glm, fmri_fname):
             z_map,
             cut_coords=[coords[i][2]],
             threshold=3.1,
-            figure=fig1,
+            figure=fig_signals,
             axes=axs[1, i],
             display_mode="z",
             colorbar=False,
