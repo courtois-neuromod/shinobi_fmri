@@ -78,11 +78,11 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             if not run_events.empty:
                 print('Run : {}'.format(run))
                 raw_fmri_img = image.concat_imgs(data_fname)
-                confound = Confounds(strategy=['high_pass', 'motion'],
+                confounds = Confounds(strategy=['high_pass', 'motion'],
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
 
-                fmri_img = clean_img(clean_img(raw_fmri_img, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True))
+                fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True)
                 bold_shape = fmri_img.shape
                 fmri_imgs.append(fmri_img)
 
