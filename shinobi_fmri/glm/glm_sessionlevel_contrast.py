@@ -82,7 +82,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
 
-                fmri_img = clean_img(clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confound))
+                fmri_img = clean_img(clean_img(raw_fmri_img, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True))
                 bold_shape = fmri_img.shape
                 fmri_imgs.append(fmri_img)
 
@@ -95,11 +95,11 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                             events=trimmed_df,
                                                             drift_model=None,
                                                             hrf_model=hrf_model,
-                                                            add_regs=None,
+                                                            add_regs=confounds,
                                                             add_reg_names=None)
 
                 # save design matrix plot
-                clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confound)
+                clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True)
                 clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
                 clean_designmat['constant'] = 1
                 design_matrix = clean_designmat
