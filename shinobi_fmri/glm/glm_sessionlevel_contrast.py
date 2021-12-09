@@ -88,7 +88,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
                 allruns_events.append(trimmed_df)
-                n_slices = confound.shape[0]
+                n_slices = confounds.shape[0]
                 frame_times = np.arange(n_slices) * t_r
 
                 design_matrix = make_first_level_design_matrix(frame_times,
