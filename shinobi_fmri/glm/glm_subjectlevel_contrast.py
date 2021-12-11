@@ -32,6 +32,13 @@ parser.add_argument(
     type=str,
     help="Contrast or conditions to compute",
 )
+parser.add_argument(
+    "-f",
+    "--from_level",
+    default='run',
+    type=str,
+    help="First-level models to take as input. Can be run or session",
+)
 args = parser.parse_args()
 
 
@@ -41,6 +48,7 @@ path_to_data = shinobi_behav.path_to_data
 sub = 'sub-' + args.subject
 actions = shinobi_behav.actions
 contrast = args.contrast
+from_level = args.from_level
 
 if not os.path.isdir(path_to_data + 'processed/z_maps/subject-level/' + contrast):
     os.makedirs(path_to_data + 'processed/z_maps/subject-level/' + contrast)
@@ -50,10 +58,10 @@ if not os.path.isdir(figures_path + '/subject-level/' + contrast):
 
 z_maps = []
 # load nifti imgs
-files = os.listdir(path_to_data + 'processed/z_maps/run-level-allregs/' + contrast)
+files = os.listdir(path_to_data + 'processed/z_maps/' + from_level + '-level/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        z_map_name = path_to_data + 'processed/z_maps/run-level-allregs/' + contrast + '/' + file
+        z_map_name = path_to_data + 'processed/z_maps/' + from_level + '-level/' + contrast + '/' + file
         z_maps.append(z_map_name)
 
 second_level_input = z_maps
