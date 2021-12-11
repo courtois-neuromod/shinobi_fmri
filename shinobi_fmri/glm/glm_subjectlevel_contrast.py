@@ -50,11 +50,10 @@ actions = shinobi_behav.actions
 contrast = args.contrast
 from_level = args.from_level
 
-if not os.path.isdir(path_to_data + 'processed/z_maps/subject-level/' + contrast):
-    os.makedirs(path_to_data + 'processed/z_maps/subject-level/' + contrast)
 
-if not os.path.isdir(figures_path + '/subject-level/' + contrast):
-    os.makedirs(figures_path + '/subject-level/' + contrast)
+os.makedirs(path_to_data + f'processed/z_maps/subject-level-from-{from_level}/' + contrast, exist_ok=True)
+
+os.makedirs(figures_path + f'/subject-level-from-{from_level}/' + contrast, exist_ok=True)
 
 z_maps = []
 # load nifti imgs
@@ -72,12 +71,12 @@ second_level_model = SecondLevelModel(smoothing_fwhm=None)
 second_level_model = second_level_model.fit(second_level_input,
                                             design_matrix=second_design_matrix)
 
-z_map_name = path_to_data + '/processed/z_maps/subject-level/{}/{}_{}.nii.gz'.format(contrast, sub, contrast)
+z_map_name = path_to_data + f'/processed/z_maps/subject-level-from-{from_level}/{contrast}/{sub}_{contrast}.nii.gz'
 z_map = second_level_model.compute_contrast(output_type='z_score')
 z_map.to_filename(z_map_name)
 print('Saved {}'.format(z_map_name))
 report = second_level_model.generate_report(contrasts=['intercept'])
-report.save_as_html(figures_path + '/subject-level/{}_{}_slm.html'.format(sub, contrast))
+report.save_as_html(figures_path + f'/subject-level-from-{from_level}/{sub}_{contrast}_slm.html')
 
 # compute thresholds
 clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
@@ -86,8 +85,8 @@ uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='f
 # save images
 print('Generating views')
 view = plotting.view_img(clean_map, threshold=3, title='{} contrast (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-view.save_as_html(figures_path + '/{}_{}_slm_FDRcluster_fwhm5.html'.format(sub, contrast))
+view.save_as_html(figures_path + f'/{sub}_{contrast}_from-{from_level}_slm_FDRcluster_fwhm5.html')
 # save also uncorrected map
 view = plotting.view_img(uncorr_map, threshold=3, title='{} contrast (p<0.001), uncorr'.format(contrast))
-view.save_as_html(figures_path + '/{}_{}_slm_uncorr_fwhm5.html'.format(sub, contrast))
+view.save_as_html(figures_path + f'/{sub}_{contrast}_from-{from_level}_slm_uncorr_fwhm5.html')
 print('Done')
