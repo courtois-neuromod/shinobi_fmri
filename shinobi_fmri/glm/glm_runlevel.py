@@ -86,10 +86,10 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
 
 
         if downsample:
-            aff_orig = nb.load(fmri_fname).affine[:, -1]
+            aff_orig = nb.load(anat_img).affine[:, -1]
             target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
-            fmri_img = image.resample_img(fmri_fname, target_affine=target_affine,
-                                     target_shape=(10, 10, 10))
+            fmri_img = image.resample_img(fmri_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape)
+
             fmri_img = clean_img(fmri_img,
                         standardize=True,
                         detrend=True,
@@ -108,6 +108,12 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
                 ensure_finite=True,
                 confounds=None,
             )
+
+        # Load and resample anat mask
+        aff_orig = nb.load(fmri_fname).affine[:, -1]
+        target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
+        anat_img = image.resample_img(anat_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
+
         # Generate design matrix
         bold_shape = fmri_img.shape
         n_slices = bold_shape[-1]
@@ -163,7 +169,7 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
             high_pass=None,
             n_jobs=16,
             smoothing_fwhm=5,
-            mask_img=anat_fname,
+            mask_img=anat_img,
             minimize_memory=False,
         )
         fmri_glm = fmri_glm.fit(fmri_img, design_matrices=design_matrix_clean)

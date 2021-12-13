@@ -68,8 +68,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     print('Runs to process : {}'.format(sorted(runs)))
     z_map_fname = path_to_data + 'processed/z_maps/session-level-allregs/{}/{}_{}.nii.gz'.format(contrast, sub, ses)
     for run in sorted(runs):
-        #data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
-        data_fname = '/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/' + '{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
+        data_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
+        #data_fname = '/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/' + '{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
         #confounds_fname = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_desc-confounds_timeseries.tsv'.format(sub, ses, sub, ses, run)
         anat_fname = path_to_data + 'anat/derivatives/fmriprep-20.2lts/fmriprep/{}/anat/{}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'.format(sub, sub)
         events_fname = path_to_data + 'processed/annotations/{}_{}_run-0{}.csv'.format(sub, ses, run)
@@ -86,6 +86,14 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True)
                 bold_shape = fmri_img.shape
                 fmri_imgs.append(fmri_img)
+
+                # Load and resample anat mask
+                aff_orig = nb.load(fmri_fname).affine[:, -1]
+                target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
+                anat_img = image.resample_img(anat_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
+                print('--------')
+                print(anat_img.get_fdata().shape)
+                print('--------')
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
                 allruns_events.append(trimmed_df)
@@ -120,7 +128,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                    high_pass=.01,
                                    n_jobs=16,
                                    smoothing_fwhm=5,
-                                   mask_img=anat_fname)
+                                   mask_img=anat_img)
         fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
 
         z_map = fmri_glm.compute_contrast(contrast,
