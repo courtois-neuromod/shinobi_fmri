@@ -36,21 +36,21 @@ args = parser.parse_args()
 def create_output_folders(path_to_data, figures_path, contrasts):
     # Create output folders if needed
     os.makedirs(op.join(figures_path, "design_matrices"), exist_ok=True)
-    os.makedirs(op.join(path_to_data, "processed", "run-level"), exist_ok=True)
     for contrast in contrasts:
         os.makedirs(
             op.join(path_to_data, "processed", "z_maps", "run-level", contrast), exist_ok=True)
         os.makedirs(op.join(figures_path, "run-level", contrast), exist_ok=True)
 
 
-def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True):
+def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True, downsample=False):
     # Generate fnames
     fmri_fname = op.join(
-        path_to_data,
-        "shinobi",
-        "derivatives",
-        "fmriprep-20.2lts",
-        "fmriprep",
+        #path_to_data,
+        #"shinobi",
+        #"derivatives",
+        #"fmriprep-20.2lts",
+        #"fmriprep",
+        '/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/',
         sub,
         ses,
         "func",
@@ -82,16 +82,32 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
             wm_csf="full",
             global_signal="full",
         ).load(fmri_fname)
-        fmri_img = clean_img(
-            fmri_fname,
-            standardize=True,
-            detrend=True,
-            high_pass=None,
-            t_r=t_r,
-            ensure_finite=True,
-            confounds=None,
-        )
 
+
+
+        if downsample:
+            aff_orig = nb.load(fmri_fname).affine[:, -1]
+            target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
+            fmri_img = image.resample_img(fmri_fname, target_affine=target_affine,
+                                     target_shape=(10, 10, 10))
+            fmri_img = clean_img(fmri_img,
+                        standardize=True,
+                        detrend=True,
+                        high_pass=None,
+                        t_r=t_r,
+                        ensure_finite=True,
+                        confounds=None
+                    )
+        else:
+            fmri_img = clean_img(
+                fmri_fname,
+                standardize=True,
+                detrend=True,
+                high_pass=None,
+                t_r=t_r,
+                ensure_finite=True,
+                confounds=None,
+            )
         # Generate design matrix
         bold_shape = fmri_img.shape
         n_slices = bold_shape[-1]
@@ -117,7 +133,7 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
             regressors_clean, columns=design_matrix_raw.columns.to_list()
         )
         design_matrix_clean["constant"] = 1
-        design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean) # TODO : one regressor per scrubbed volume
+        design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean)
 
         if savefigs:
             design_matrix_raw_fname = op.join(
