@@ -79,17 +79,16 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             run_events = pd.read_csv(events_fname)
             if not run_events.empty:
                 print('Run : {}'.format(run))
-                raw_fmri_img = image.concat_imgs(data_fname)
                 confounds = Confounds(strategy=["high_pass", "motion", "global", "wm_csf"],
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
 
-                fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True)
+                fmri_img = clean_img(data_fname, detrend=False, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None, standardize=True)
                 bold_shape = fmri_img.shape
                 fmri_imgs.append(fmri_img)
 
                 # Load and resample anat mask
-                aff_orig = nb.load(fmri_fname).affine[:, -1]
+                aff_orig = nb.load(data_fname).affine[:, -1]
                 target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
                 anat_img = image.resample_img(anat_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
                 print('--------')
