@@ -20,6 +20,7 @@ from load_confounds import Confounds
 from nilearn.image import clean_img
 from nilearn.glm import threshold_stats_img
 from nilearn.signal import clean
+import nibabel as nb
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
@@ -79,7 +80,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
             if not run_events.empty:
                 print('Run : {}'.format(run))
                 raw_fmri_img = image.concat_imgs(data_fname)
-                confounds = Confounds(strategy=['high_pass', 'motion'],
+                confounds = Confounds(strategy=["high_pass", "motion", "global", "wm_csf"],
                                                 motion="full", wm_csf='basic',
                                                 global_signal='full').load(data_fname)
 

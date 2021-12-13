@@ -45,12 +45,12 @@ def create_output_folders(path_to_data, figures_path, contrasts):
 def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True, downsample=False):
     # Generate fnames
     fmri_fname = op.join(
-        #path_to_data,
-        #"shinobi",
-        #"derivatives",
-        #"fmriprep-20.2lts",
-        #"fmriprep",
-        '/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/',
+        path_to_data,
+        "shinobi",
+        "derivatives",
+        "fmriprep-20.2lts",
+        "fmriprep",
+        #'/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/',
         sub,
         ses,
         "func",
@@ -77,9 +77,9 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
         events_df = trim_events_df(run_events, trim_by="event")
         # Load inputs
         confounds = Confounds(
-            strategy=["high_pass", "motion"],
+            strategy=["high_pass", "motion", "global", "wm_csf"],
             motion="full",
-            wm_csf="full",
+            wm_csf="basic",
             global_signal="full",
         ).load(fmri_fname)
 
