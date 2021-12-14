@@ -35,7 +35,7 @@ parser.add_argument(
 parser.add_argument(
     "-f",
     "--from_level",
-    default='run',
+    default='session',
     type=str,
     help="First-level models to take as input. Can be run or session",
 )
@@ -57,10 +57,10 @@ os.makedirs(figures_path + f'/subject-level-from-{from_level}/' + contrast, exis
 
 z_maps = []
 # load nifti imgs
-files = os.listdir(path_to_data + 'processed/z_maps/' + from_level + '-level/' + contrast)
+files = os.listdir(path_to_data + 'processed/z_maps/' + from_level + '-level-allregs/' + contrast)
 for file in files:#,'ses-006','ses-007','ses-008']:#sorted(seslist):
     if sub in file:
-        z_map_name = path_to_data + 'processed/z_maps/' + from_level + '-level/' + contrast + '/' + file
+        z_map_name = path_to_data + 'processed/z_maps/' + from_level + '-level-allregs/' + contrast + '/' + file
         z_maps.append(z_map_name)
 
 second_level_input = z_maps
@@ -85,8 +85,8 @@ uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='f
 # save images
 print('Generating views')
 view = plotting.view_img(clean_map, threshold=3, title='{} contrast (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-view.save_as_html(figures_path + f'/{sub}_{contrast}_from-{from_level}_slm_FDRcluster_fwhm5.html')
+view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_FDRcluster_fwhm5.html'))
 # save also uncorrected map
 view = plotting.view_img(uncorr_map, threshold=3, title='{} contrast (p<0.001), uncorr'.format(contrast))
-view.save_as_html(figures_path + f'/{sub}_{contrast}_from-{from_level}_slm_uncorr_fwhm5.html')
+view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_uncorr_fwhm5.html'))
 print('Done')
