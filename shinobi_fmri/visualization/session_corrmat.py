@@ -11,15 +11,15 @@ import pickle
 import tqdm
 
 def mem_used():
-    tot = psutil.virtual_memory().total / 10**9
-    used = psutil.virtual_memory().used / 10**9
+    tot = psutil.virtual_memory().total / 2**30
+    used = psutil.virtual_memory().used / 2**30
     print('Memory currently used : {} Go/{} Go'.format(used, tot))
 
 
 ## Set constants
-contrasts = ['HealthLoss', 'Jump', 'Hit']
+contrasts = ['Kill', 'Jump', 'Hit']
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/cmaps/runlevel_maps_corrs.pkl'
+results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/runlevel_maps_corrs.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -34,9 +34,9 @@ cond_arr = []
 fnames = []
 mapnames = []
 for contrast in contrasts:
-    files = os.listdir(path_to_data + 'processed/cmaps/run-level/{}/'.format(contrast))
+    files = os.listdir(path_to_data + 'processed/z_maps/session-level-allregs/{}/'.format(contrast))
     for file in files:
-        fpath = path_to_data + 'processed/cmaps/run-level/{}/'.format(contrast) + file
+        fpath = path_to_data + 'processed/z_maps/session-level-allregs/{}/'.format(contrast) + file
         sub = file[0:6]
         ses = file[7:14]
         run = file[20]
@@ -51,6 +51,7 @@ for contrast in contrasts:
         #raw_data.append(image.concat_imgs(raw_dpath))
         fnames.append(raw_dpath)
         mapnames.append(fpath)
+
 
 
 print('loading done')
@@ -84,6 +85,7 @@ if not os.path.isfile(results_path):
             'cond': cond_arr}
     with open(results_path, 'wb') as f:
         pickle.dump(dict, f)
+
 else:
     with open(results_path, 'rb') as f:
         dict = pickle.load(f)
