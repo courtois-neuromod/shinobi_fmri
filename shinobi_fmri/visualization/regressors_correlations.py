@@ -52,8 +52,8 @@ for sub in subjects:
                     f"{sub}_{ses}_task-shinobi_run-{run}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
                 )
                 confounds_obj = Confounds(
-                    strategy=["high_pass", "motion"],
-                    motion="full")
+                    strategy=["high_pass", "motion", 'global', 'wm_csf'],
+                    motion="full", wm_csf='basic', global_signal='full')
                 confounds = confounds_obj.load(fmri_fname)
                 run_events = pd.read_csv(events_fname)
                 events_df = trim_events_df(run_events, trim_by="event")
@@ -102,14 +102,14 @@ for sub in subjects:
 
 
 regressors_dict_fname = op.join(
-    path_to_data, "processed", 'z_maps', "run-level", "regressors_dict.pkl"
+    path_to_data, "processed", "regressors_dict.pkl"
 )
 with open(regressors_dict_fname, "wb") as f:
     pickle.dump(regressors_dict, f)
 0/0
 
-#with open(regressors_dict_fname, "rb") as f:
-#    regressors_dict = pickle.load(f)
+with open(regressors_dict_fname, "rb") as f:
+    regressors_dict = pickle.load(f)
 
 regressors_dict['corr_mat'] = []
 for run_idx, run in enumerate(regressors_dict['regressors']):
