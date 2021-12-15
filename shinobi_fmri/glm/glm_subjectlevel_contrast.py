@@ -76,32 +76,25 @@ second_level_model = second_level_model.fit(second_level_input,
 z_map_name = path_to_data + f'/processed/z_maps/subject-level-from-{from_level}/{contrast}/{sub}_{contrast}.nii.gz'
 z_map = second_level_model.compute_contrast(output_type='z_score')
 z_map.to_filename(z_map_name)
-print('Saved {}'.format(z_map_name))￼
+#print('Saved {}'.format(z_map_name))￼
 
 
-### Plots
-ses = 'ses-005'
-run = '2'
-fmri_fname = op.join(
+anat_fname = op.join(
     path_to_data,
-    "shinobi",
+    "anat",
     "derivatives",
     "fmriprep-20.2lts",
     "fmriprep",
-    #'/lustre03/project/6003287/datasets/cneuromod_processed/fmriprep/shinobi/',
     sub,
-    ses,
-    "func",
-    f"{sub}_{ses}_task-shinobi_run-{run}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+    "anat",
+    f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
 )
-fmri_img = nb.load(fmri_fname)
-# Make an average
-bg_img = image.mean_img(fmri_img)
+bg_img = nb.load(anat_fname)
+
 
 # Plot surface
 plot_img_on_surf(z_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{contrast}.png'))
-plot_stat_map(z_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices.png'))
-
+plot_stat_map(z_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices.png'))
 
 # Plot report
 report = second_level_model.generate_report(contrasts=['intercept'])
@@ -111,16 +104,16 @@ report.save_as_html(figures_path + f'/subject-level-from-{from_level}/{contrast}
 clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
 uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
-# save images
+# save FDR map
 print('Generating views')
 view = plotting.view_img(clean_map, threshold=3, title='{} contrast (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
 view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_FDRcluster_fwhm5.html'))
 plot_img_on_surf(clean_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{contrast}_FDR.png'))
-plot_stat_map(clean_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices_FDR.png'))
+plot_stat_map(clean_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices_FDR.png'))
 
 # save also uncorrected map
 view = plotting.view_img(uncorr_map, threshold=3, title='{} contrast (p<0.001), uncorr'.format(contrast))
 view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_uncorr_fwhm5.html'))
 plot_img_on_surf(uncorr_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_uncorr.png'))
-plot_stat_map(uncorr_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices_uncorr.png'))
+plot_stat_map(uncorr_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{contrast}_slices_uncorr.png'))
 print('Done')
