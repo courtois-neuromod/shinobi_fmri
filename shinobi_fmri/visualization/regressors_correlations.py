@@ -52,7 +52,7 @@ for sub in subjects:
                     f"{sub}_{ses}_task-shinobi_run-{run}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
                 )
                 confounds_obj = Confounds(
-                    strategy=["high_pass", "motion", 'global', 'wm_csf'],
+                    strategy=["motion", 'global', 'wm_csf'],
                     motion="full", wm_csf='basic', global_signal='full')
                 confounds = confounds_obj.load(fmri_fname)
                 run_events = pd.read_csv(events_fname)
@@ -108,6 +108,8 @@ with open(regressors_dict_fname, "wb") as f:
     pickle.dump(regressors_dict, f)
 0/0
 
+
+
 with open(regressors_dict_fname, "rb") as f:
     regressors_dict = pickle.load(f)
 
@@ -116,15 +118,22 @@ for run_idx, run in enumerate(regressors_dict['regressors']):
     sub = regressors_dict['subject'][run_idx]
     ses = regressors_dict['session'][run_idx]
     run = regressors_dict['run'][run_idx]
-    confounds_fname = op.join(path_to_data, 'shinobi',
-                                            'derivatives',
-                                            'fmriprep-20.2lts',
-                                            'fmriprep',
-                                            sub, ses,
-                                            'func',
-                                            f'{sub}_{ses}_task-shinobi_run-{run}_desc-confounds_timeseries.tsv')
+
     corr = regressors_dict['regressors'][run_idx].corr()
     regressors_dict['corr_mat'].append(corr)
+
+    mask = np.triu(np.ones_like(regressors_dict['corr_mat'], dtype=bool))
+
+    # Heatmap
+    f, ax = plt.subplots(figsize=(30, 25))
+    sns.heatmap(regressors_dict['corr_mat'], mask=mask, center=0,
+            square=True, linewidths=.5, annot=True, cbar_kws={"shrink": .5}).set_title(f'{sub}')
+    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}.png')
+    plt.savefig(fig_fname)
+    plt.close()
+
+
+
 
 for sub in subjects:
     subj_corrs = []
@@ -134,15 +143,22 @@ for sub in subjects:
 
     averaged_corr_mat = pd.concat(subj_corrs, axis=0).groupby(level=0).mean()
 
-
     mask = np.triu(np.ones_like(averaged_corr_mat, dtype=bool))
-    f, ax = plt.subplots(figsize=(30, 25))
 
+    # Heatmap
+    f, ax = plt.subplots(figsize=(30, 25))
     sns.heatmap(averaged_corr_mat, mask=mask, center=0,
             square=True, linewidths=.5, annot=True, cbar_kws={"shrink": .5}).set_title(f'{sub}')
     fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}.png')
     plt.savefig(fig_fname)
     plt.close()
 
+    # Cluster map
+    f, ax = plt.subplots(figsize=(30, 25))
+    sns.clustermap(averaged_corr_mat, mask=mask, center=0,
+            square=True, linewidths=.5, annot=True, cbar_kws={"shrink": .5}).set_title(f'{sub}')
+    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}.png')
+    plt.savefig(fig_fname)
+    plt.close()
 
     # Scatter + density plots
