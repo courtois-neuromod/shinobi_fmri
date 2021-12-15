@@ -120,18 +120,25 @@ for run_idx, run in enumerate(regressors_dict['regressors']):
     run = regressors_dict['run'][run_idx]
 
     corr = regressors_dict['regressors'][run_idx].corr()
+    corr = corr.copy().drop(index='constant').drop(columns='constant')
     regressors_dict['corr_mat'].append(corr)
 
-    mask = np.triu(np.ones_like(regressors_dict['corr_mat'], dtype=bool))
+    mask = np.triu(np.ones_like(corr, dtype=bool))
 
     # Heatmap
     f, ax = plt.subplots(figsize=(30, 25))
-    sns.heatmap(regressors_dict['corr_mat'], mask=mask, center=0,
-            square=True, linewidths=.5, annot=True, cbar_kws={"shrink": .5}).set_title(f'{sub}')
-    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}.png')
+    sns.heatmap(corr, mask=mask, center=0,
+            square=True, linewidths=.5, annot=False, cbar_kws={"shrink": .5}).set_title(f'{sub}')
+    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}_{ses}_run-0{run}.png')
     plt.savefig(fig_fname)
     plt.close()
 
+    # Cluster map
+    f, ax = plt.subplots(figsize=(30, 25))
+    sns.clustermap(corr, mask=mask)
+    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}_{ses}_run-0{run}_cluster.png')
+    plt.savefig(fig_fname)
+    plt.close()
 
 
 
@@ -157,7 +164,7 @@ for sub in subjects:
     f, ax = plt.subplots(figsize=(30, 25))
     sns.clustermap(averaged_corr_mat, mask=mask, center=0,
             square=True, linewidths=.5, annot=True, cbar_kws={"shrink": .5}).set_title(f'{sub}')
-    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}.png')
+    fig_fname = op.join(figures_path, 'design_matrices', f'regressor_correlations_{sub}_cluster.png')
     plt.savefig(fig_fname)
     plt.close()
 
