@@ -91,6 +91,15 @@ for sub in subjects:
                 design_matrix_clean = pd.DataFrame(
                     regressors_clean, columns=design_matrix_raw.columns.to_list()
                 )
+                # TODO : plot DM
+                design_matrix_clean_fname = op.join(
+                    figures_path,
+                    "design_matrices",
+                    f"design_matrix_clean_{sub}_{ses}_run-0{run}.png",
+                )
+                plotting.plot_design_matrix(
+                    design_matrix_clean, output_file=design_matrix_clean_fname
+                )
                 regressors_dict['regressors'].append(design_matrix_clean)
                 regressors_dict['subject'].append(sub)
                 regressors_dict['session'].append(ses)
