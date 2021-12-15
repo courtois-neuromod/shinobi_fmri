@@ -86,7 +86,7 @@ def compute_runlevel_glm(sub, ses, run, t_r=1.49, hrf_model="spm", savefigs=True
 
 
         if downsample:
-            aff_orig = nb.load(anat_img).affine[:, -1]
+            aff_orig = nb.load(anat_fname).affine[:, -1]
             target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
             fmri_img = image.resample_img(fmri_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape)
 
