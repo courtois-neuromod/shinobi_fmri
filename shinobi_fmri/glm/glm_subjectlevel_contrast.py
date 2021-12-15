@@ -75,6 +75,7 @@ z_map_name = path_to_data + f'/processed/z_maps/subject-level-from-{from_level}/
 z_map = second_level_model.compute_contrast(output_type='z_score')
 z_map.to_filename(z_map_name)
 print('Saved {}'.format(z_map_name))
+plot_img_on_surf(z_map, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', f'{sub}_{contrast}.png'))
 report = second_level_model.generate_report(contrasts=['intercept'])
 report.save_as_html(figures_path + f'/subject-level-from-{from_level}/{sub}_{contrast}_slm.html')
 
@@ -86,7 +87,9 @@ uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='f
 print('Generating views')
 view = plotting.view_img(clean_map, threshold=3, title='{} contrast (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
 view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_FDRcluster_fwhm5.html'))
+plot_img_on_surf(clean_map, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', f'{sub}_{contrast}_FDR.png'))
 # save also uncorrected map
 view = plotting.view_img(uncorr_map, threshold=3, title='{} contrast (p<0.001), uncorr'.format(contrast))
 view.save_as_html(op.join(figures_path, f'subject-level-from-{from_level}', f'{contrast}', f'{sub}_{contrast}_slm_uncorr_fwhm5.html'))
+plot_img_on_surf(uncorr_map, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', f'{sub}_{contrast}_uncorr.png'))
 print('Done')
