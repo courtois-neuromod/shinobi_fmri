@@ -91,9 +91,6 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                 aff_orig = nb.load(data_fname).affine[:, -1]
                 target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
                 anat_img = image.resample_img(anat_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
-                print('--------')
-                print(anat_img.get_fdata().shape)
-                print('--------')
 
                 trimmed_df = trim_events_df(run_events, trim_by='event')
                 allruns_events.append(trimmed_df)
@@ -168,12 +165,12 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         # save images
         print('Generating views')
         view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
-        view.save_as_html(figures_path + '/session-level-allregs/' + '{}/{}_{}_{}_flm_FDRcluster_fwhm5.html'.format(sub, ses, contrast))
+        view.save_as_html(op.join(figures_path, 'session-level-allregs',contrast, f'{sub}_{ses}_{contrast}_flm_FDRcluster_fwhm5.html'))
         plot_img_on_surf(clean_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{ses}_{contrast}_FDR.png'))
         plot_stat_map(clean_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_FDR.png'))
         # save also uncorrected map
         view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
-        view.save_as_html(figures_path + '/session-level-allregs/' + '{}/{}_{}_{}_flm_uncorr_fwhm5.html'.format(sub, ses, contrast))
+        view.save_as_html(op.join(figures_path, 'session-level-allregs', contrast, f'{sub}_{ses}_{contrast}_flm_uncorr_fwhm5.html'))
         plot_img_on_surf(uncorr_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_uncorr.png'))
         plot_stat_map(uncorr_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_uncorr.png'))
 
