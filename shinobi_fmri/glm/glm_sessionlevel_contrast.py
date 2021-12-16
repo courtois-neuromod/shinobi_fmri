@@ -21,6 +21,7 @@ from nilearn.image import clean_img
 from nilearn.glm import threshold_stats_img
 from nilearn.signal import clean
 import nibabel as nb
+from nilearn.plotting import plot_img_on_surf, plot_stat_map
 #import shinobi_fmri
 
 parser = argparse.ArgumentParser()
