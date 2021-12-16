@@ -49,11 +49,9 @@ contrast = args.contrast
 t_r = 1.49
 hrf_model = 'spm'
 
-if not os.path.isdir(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast):
-    os.makedirs(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast)
+os.makedirs(path_to_data + 'processed/z_maps/session-level-allregs/' + contrast, exist_ok=True)
 
-if not os.path.isdir(figures_path + '/session-level-allregs/' + contrast):
-    os.makedirs(figures_path + '/session-level-allregs/' + contrast)
+os.makedirs(figures_path + '/session-level-allregs/' + contrast, exist_ok=True)
 
 
 seslist= os.listdir(path_to_data + 'shinobi/' + sub)
