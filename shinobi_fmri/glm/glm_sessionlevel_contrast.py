@@ -148,8 +148,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
         # Raw map
         # Plot surface
-        plot_img_on_surf(z_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{ses}_{contrast}.png'))
-        plot_stat_map(z_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices.png'))
+        plot_img_on_surf(z_map, bg_img=bg_img, vmax=6, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{ses}_{contrast}.png'))
+        plot_stat_map(z_map, bg_img=bg_img, vmax=6, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices.png'))
 
 
         # Report
@@ -164,13 +164,13 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
         print('Generating views')
         view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
         view.save_as_html(op.join(figures_path, 'session-level-allregs',contrast, f'{sub}_{ses}_{contrast}_flm_FDRcluster_fwhm5.html'))
-        plot_img_on_surf(clean_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{ses}_{contrast}_FDR.png'))
-        plot_stat_map(clean_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_FDR.png'))
+        plot_img_on_surf(clean_map, bg_img=bg_img, vmax=6, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast,f'{sub}_{ses}_{contrast}_FDR.png'))
+        plot_stat_map(clean_map, bg_img=bg_img, vmax=6, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_FDR.png'))
         # save also uncorrected map
         view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
         view.save_as_html(op.join(figures_path, 'session-level-allregs', contrast, f'{sub}_{ses}_{contrast}_flm_uncorr_fwhm5.html'))
-        plot_img_on_surf(uncorr_map, bg_img=bg_img, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_uncorr.png'))
-        plot_stat_map(uncorr_map, bg_img=bg_img, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_uncorr.png'))
+        plot_img_on_surf(uncorr_map, bg_img=bg_img, vmax=6, output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_uncorr.png'))
+        plot_stat_map(uncorr_map, bg_img=bg_img, vmax=6, display_mode='x', output_file=op.join(shinobi_behav.figures_path, 'subject-level-from-session', contrast, f'{sub}_{ses}_{contrast}_slices_uncorr.png'))
 
 
     except Exception as e:
