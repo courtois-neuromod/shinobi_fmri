@@ -106,7 +106,7 @@ for sub in subjects:
         report.save_as_html(figures_path + f'/subject-level-from-{from_level}/{contrast}/{sub}_{contrast}_slm.html')
 
         # compute thresholds
-        clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+        clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=5)
         uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
         # save FDR map
