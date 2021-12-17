@@ -77,8 +77,8 @@ for ses_id in range(15):
 
 
         # Report
-        report = fmri_glm.generate_report(contrasts=[contrast])
-        report.save_as_html(figures_path + '/session-level-allregs' + '/{}/{}_{}_{}_flm.html'.format(contrast, sub, ses, contrast))
+        #   report = fmri_glm.generate_report(contrasts=[contrast])
+        #report.save_as_html(figures_path + '/session-level-allregs' + '/{}/{}_{}_{}_flm.html'.format(contrast, sub, ses, contrast))
 
         # compute thresholds
         clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
