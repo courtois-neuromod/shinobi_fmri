@@ -81,7 +81,7 @@ for ses_id in range(15):
         #report.save_as_html(figures_path + '/session-level-allregs' + '/{}/{}_{}_{}_flm.html'.format(contrast, sub, ses, contrast))
 
         # compute thresholds
-        clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
+        clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=5)
         uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
 
         # save images
