@@ -72,14 +72,16 @@ for sub in subjects:
         second_design_matrix = pd.DataFrame([1] * len(second_level_input),
                                      columns=['intercept'])
 
-        second_level_model = SecondLevelModel(smoothing_fwhm=None)
-        second_level_model = second_level_model.fit(second_level_input,
-                                                    design_matrix=second_design_matrix)
-
-        z_map_name = path_to_data + f'/processed/z_maps/subject-level-from-{from_level}/{contrast}/{sub}_{contrast}.nii.gz'
-        z_map = second_level_model.compute_contrast(output_type='z_score')
-        z_map.to_filename(z_map_name)
-        #print('Saved {}'.format(z_map_name))￼
+        z_map_name = op.join(path_to_data, 'processed', 'z_maps', f'subject-level-from-{from_level}', contrast, f'{sub}_{contrast}.nii.gz')
+        if not op.exists(z_map_name):
+            second_level_model = SecondLevelModel(smoothing_fwhm=None)
+            second_level_model = second_level_model.fit(second_level_input,
+                                                        design_matrix=second_design_matrix)
+            z_map = second_level_model.compute_contrast(output_type='z_score')
+            z_map.to_filename(z_map_name)
+            #print(f'Saved {z_map_name}')￼
+        else:
+            z_map = nb.load(z_map_name)
 
 
         anat_fname = op.join(

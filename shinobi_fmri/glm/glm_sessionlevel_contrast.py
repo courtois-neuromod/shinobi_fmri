@@ -115,23 +115,26 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
     print(len(fmri_imgs))
     try:
         #build model
-        print('Fitting a GLM')
-        fmri_glm = FirstLevelModel(t_r=1.49,
-                                   noise_model='ar1',
-                                   standardize=False,
-                                   hrf_model='spm',
-                                   drift_model=None,
-                                   high_pass=.01,
-                                   n_jobs=16,
-                                   smoothing_fwhm=5,
-                                   mask_img=anat_img)
-        fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
+        if not op.exists(z_map_fname):
+            print('Fitting a GLM')
+            fmri_glm = FirstLevelModel(t_r=1.49,
+                                       noise_model='ar1',
+                                       standardize=False,
+                                       hrf_model='spm',
+                                       drift_model=None,
+                                       high_pass=.01,
+                                       n_jobs=16,
+                                       smoothing_fwhm=5,
+                                       mask_img=anat_img)
+            fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
 
-        z_map = fmri_glm.compute_contrast(contrast,
-                                          stat_type='F',
-                                          output_type='z_score')
-        z_map.to_filename(z_map_fname)
-        print('z_map saved')
+            z_map = fmri_glm.compute_contrast(contrast,
+                                              stat_type='F',
+                                              output_type='z_score')
+            z_map.to_filename(z_map_fname)
+            print('z_map saved')
+        else:
+            z_map = nb.load(z_map_fname)
 
 
         ### Plots
