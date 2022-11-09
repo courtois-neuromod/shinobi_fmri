@@ -2,10 +2,10 @@ import math
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from shinobi_behav.features.features import filter_run, compute_framewise_aps
+#from shinobi_behav.features import filter_run, compute_framewise_aps
 import matplotlib
 import matplotlib.collections as mc
-from shinobi_behav.params import actions
+from shinobi_behav import ACTIONS
 
 
 def generate_key_events(repvars, key, FS=60):
@@ -86,65 +86,66 @@ def generate_kill_events(repvars, FS=60, dur=0.1):
     return events_df
 
 
-def generate_aps_events(repvars, FS=60, min_dur=1):
-    """Create a Nilearn compatible events dataframe containing Low and High APS
-    events, based on a median split.
+#def generate_aps_events(repvars, FS=60, min_dur=1):
+#    """Create a Nilearn compatible events dataframe containing Low and High APS
+#    events, based on a median split.
+#
+#    Parameters
+#    ----------
+#    repvars : list
+#        A dict containing all the variables of a single repetition.
+#    FS : int
+#        The sampling rate of the .bk2 file
+#    min_dur : float
+#        Minimal duration of a Low or High APS segment, defaults to 1 (sec)
+#
+#    Returns
+#    -------
+#    events_df :
+#        An events DataFrame in Nilearn-compatible format containing the
+#        Low and High APS events.
+#    """
+#    framewise_aps = compute_framewise_aps(repvars, actions=actions, FS=FS)
+#    filtered_aps = filter_run(framewise_aps, order=3, cutoff=0.002)
+#    var = filtered_aps
+#
+#    median = np.median(var)
+#
+#    mask_high = np.zeros(len(var))
+#    mask_low = np.zeros(len(var))
+#
+#    for i, timestep in enumerate(var[1:-1]): # always keep the first and last value as 0 so diff will register the state transition
+#        if timestep < median:
+#            mask_low[i+1] = 1
+#        if timestep > median:
+#            mask_high[i+1] = 1
+#
+#    diff_high = np.diff(mask_high, n=1)
+#    diff_low = np.diff(mask_low, n=1)
+#
+#    durations_high = np.array([i for i, x in enumerate(diff_high) if x == -1]) - np.array([i for i, x in enumerate(diff_high) if x == 1])
+#    durations_low = np.array([i for i, x in enumerate(diff_low) if x == -1]) - np.array([i for i, x in enumerate(diff_low) if x == 1])
+#
+#    #build df
+#    onset = []
+#    duration = []
+#    trial_type = []
+#    for i, dur in enumerate(durations_high):
+#        if dur >= (min_dur*FS):
+#            onset.append(np.array([i for i, x in enumerate(diff_high) if x == 1])[i]/FS)
+#            duration.append(durations_high[i]/FS)
+#            trial_type.append('high_APS')
+#    for i, dur in enumerate(durations_low):
+#        if dur >= (min_dur*FS):
+#            onset.append(np.array([i for i, x in enumerate(diff_low) if x == 1])[i]/FS)
+#            duration.append(durations_low[i]/FS)
+#            trial_type.append('low_APS')
+#
+#    events_df = pd.DataFrame(data={'onset':onset,
+#                                   'duration':duration,
+#                                   'trial_type':trial_type})
+#    return events_df
 
-    Parameters
-    ----------
-    repvars : list
-        A dict containing all the variables of a single repetition.
-    FS : int
-        The sampling rate of the .bk2 file
-    min_dur : float
-        Minimal duration of a Low or High APS segment, defaults to 1 (sec)
-
-    Returns
-    -------
-    events_df :
-        An events DataFrame in Nilearn-compatible format containing the
-        Low and High APS events.
-    """
-    framewise_aps = compute_framewise_aps(repvars, actions=actions, FS=FS)
-    filtered_aps = filter_run(framewise_aps, order=3, cutoff=0.002)
-    var = filtered_aps
-
-    median = np.median(var)
-
-    mask_high = np.zeros(len(var))
-    mask_low = np.zeros(len(var))
-
-    for i, timestep in enumerate(var[1:-1]): # always keep the first and last value as 0 so diff will register the state transition
-        if timestep < median:
-            mask_low[i+1] = 1
-        if timestep > median:
-            mask_high[i+1] = 1
-
-    diff_high = np.diff(mask_high, n=1)
-    diff_low = np.diff(mask_low, n=1)
-
-    durations_high = np.array([i for i, x in enumerate(diff_high) if x == -1]) - np.array([i for i, x in enumerate(diff_high) if x == 1])
-    durations_low = np.array([i for i, x in enumerate(diff_low) if x == -1]) - np.array([i for i, x in enumerate(diff_low) if x == 1])
-
-    #build df
-    onset = []
-    duration = []
-    trial_type = []
-    for i, dur in enumerate(durations_high):
-        if dur >= (min_dur*FS):
-            onset.append(np.array([i for i, x in enumerate(diff_high) if x == 1])[i]/FS)
-            duration.append(durations_high[i]/FS)
-            trial_type.append('high_APS')
-    for i, dur in enumerate(durations_low):
-        if dur >= (min_dur*FS):
-            onset.append(np.array([i for i, x in enumerate(diff_low) if x == 1])[i]/FS)
-            duration.append(durations_low[i]/FS)
-            trial_type.append('low_APS')
-
-    events_df = pd.DataFrame(data={'onset':onset,
-                                   'duration':duration,
-                                   'trial_type':trial_type})
-    return events_df
 
 def generate_healthloss_events(repvars, FS=60, dur=0.1):
     """Create a Nilearn compatible events dataframe containing Health Loss events
@@ -224,11 +225,11 @@ def create_runevents(runvars, actions, FS=60, min_dur=1, get_aps=True, get_actio
                 temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
                 all_df.append(temp_df)
 
-        if get_aps:
-            temp_df = generate_aps_events(repvars, FS=FS, min_dur=1)
-            temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
-            temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
-            all_df.append(temp_df)
+#        if get_aps:
+#            temp_df = generate_aps_events(repvars, FS=FS, min_dur=1)
+#            temp_df['onset'] = temp_df['onset'] + repvars['rep_onset']
+#            temp_df['trial_type'] = repvars['level'] + '_' + temp_df['trial_type']
+#            all_df.append(temp_df)
 
         if get_healthloss:
             temp_df = generate_healthloss_events(repvars, FS=FS, dur=0.1)
