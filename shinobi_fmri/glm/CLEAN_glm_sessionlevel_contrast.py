@@ -98,7 +98,7 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                                         drift_model=None,
                                                                                         add_regs=None,
                                                                                         add_reg_names=None)
-                clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01,)
+                clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01)
                 clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
                 clean_designmat['constant'] = 1
                 design_matrices.append(clean_designmat)
