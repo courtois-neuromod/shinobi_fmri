@@ -81,11 +81,14 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                         global_signal='full').load(data_fname)
 
 
-                    raw_fmri_img = image.concat_imgs(data_fname)
-                    fmri_img = clean_img(raw_fmri_img, detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
+                    #fmri_img = image.concat_imgs(data_fname)
+                    fmri_img = clean_img(data_fname, standardize=True, detrend=True, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None)
 
+                    #fmri_img = image.resample_img(fmri_img, target_affine=fmri_img.affine, target_shape=(10, 10, 10))
+                    #anat_ds = image.resample_img(anat_fname, target_affine=fmri_img.affine, target_shape=(10, 10, 10))
+                    #fmri_img = fmri_ds
 
-                    mean_img = image.mean_img(raw_fmri_img)
+                    mean_img = image.mean_img(data_fname)
                     bold_shape = fmri_img.shape
 
 
@@ -99,18 +102,18 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                                                                 events=trimmed_df,
                                                                 drift_model=None,
                                                                 hrf_model=hrf_model,
-                                                                add_regs=None,
+                                                                add_regs=confounds,
                                                                 add_reg_names=None)
 
                     # save design matrix plot
                     dm_fname = figures_path + 'design_matrices-allregs' + '/dm-preclean_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
 
-                    clean_regs = clean(design_matrix.to_numpy(), detrend=False, high_pass=0.01, t_r=t_r, ensure_finite=True, confounds=confounds)
+                    clean_regs = clean(design_matrix.to_numpy(), detrend=True, standardize=True, high_pass=None, t_r=t_r, ensure_finite=True, confounds=None) # remove signal.clean when passing confounds to DM
                     clean_designmat = pd.DataFrame(clean_regs, columns=design_matrix.columns.to_list())
-                    clean_designmat['constant'] = 1
-                    design_matrix = clean_designmat
-                    design_matrix = get_scrub_regressor(run_events, design_matrix)
+                    clean_designmat['constant'] = 1 # rename design_matrix_clean
+                    #design_matrix = clean_designmat
+                    #design_matrix = get_scrub_regressor(run_events, design_matrix)
 
                     dm_fname = figures_path + 'design_matrices-allregs' + '/dm_plot_{}_{}_run-0{}_{}.png'.format(sub, ses, run, contrast)
                     plotting.plot_design_matrix(design_matrix, output_file=dm_fname)
@@ -138,15 +141,13 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
 
 
 
-                    # compute thresholds
-                    clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
-                    uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
-
                     # save images
                     print('Generating views')
+                    clean_map, threshold = threshold_stats_img(z_map, alpha=.05, height_control='fdr', cluster_threshold=10)
                     view = plotting.view_img(clean_map, threshold=3, title='{} (FDR<0.05), Noyaux > 10 voxels'.format(contrast))
                     view.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm_FDRcluster_fwhm5.html'.format(contrast, sub, ses, run, contrast))
                     # save also uncorrected map
+                    uncorr_map, threshold = threshold_stats_img(z_map, alpha=.001, height_control='fpr')
                     view = plotting.view_img(uncorr_map, threshold=3, title='{} (p<0.001), uncorr'.format(contrast))
                     view.save_as_html(figures_path + '/run-level-allregs/{}/{}_{}_run-0{}_{}_flm_uncorr_fwhm5.html'.format(contrast, sub, ses, run, contrast))
 
@@ -160,6 +161,8 @@ for ses in sorted(seslist): #['ses-001', 'ses-002', 'ses-003', 'ses-004']:
                     masker = input_data.NiftiSpheresMasker(coords)
                     real_timeseries = masker.fit_transform(fmri_img)
                     predicted_timeseries = masker.fit_transform(fmri_glm.predicted[0])
+                    # TODO : fit transform de la z_map pour obtenir la valeur du test
+
                     # Plot figure
                     # colors for each of the clusters
                     colors = ['blue', 'navy', 'purple', 'magenta', 'olive', 'teal']
