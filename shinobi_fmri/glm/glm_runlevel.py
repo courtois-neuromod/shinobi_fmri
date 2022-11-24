@@ -21,6 +21,7 @@ from nilearn.signal import clean
 import nibabel as nib
 import logging
 import pickle
+from nilearn.plotting import plot_img_on_surf, plot_stat_map
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
