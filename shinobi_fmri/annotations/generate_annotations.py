@@ -1,3 +1,5 @@
+## DEPRECATED
+
 from shinobi_behav import ACTIONS, path_to_data, subjects
 from shinobi_behav.data.data import extract_variables
 from shinobi_fmri.annotations.annotations import create_runevents
@@ -5,6 +7,7 @@ import pickle
 import os
 import logging
 import pandas as pd
+
 
 
 def main():
