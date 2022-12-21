@@ -34,7 +34,7 @@ def main():
                             repvars['rep_onset'] = startevents['onset'][idx]
                             repvars['rep_duration'] = startevents['duration'][idx]
                             runvars.append(repvars)
-                    events_df = create_runevents(runvars, actions=actions)
+                    events_df = create_runevents(runvars, actions=ACTIONS)
                     events_df.to_csv(eventsdf_path)
 
 
