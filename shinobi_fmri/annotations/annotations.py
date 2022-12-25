@@ -280,21 +280,22 @@ def get_scrub_regressor(run_events, design_matrix):
     reps = []
     # Get repetition segments
     for i in range(len(run_events)):
-        if 'level' in run_events['trial_type'][i]:
+        if run_events['trial_type'][i] == "gym-retro_game":
             reps.append(run_events.iloc[i,:])
-
+    
     # Get time vector
     time = np.array(design_matrix.index)
 
-    to_scrub = np.zeros(len(time))
+    to_keep = np.zeros(len(time))
     # Generate binary regressor
     for i in range(len(time)):
         for rep in reps:
-            if time[i] >= rep['onset'] and time[i] <= rep['onset']+rep['duration']:
-                to_scrub[i] = 1.0
+            if time[i]*1.49 >= rep['onset'] and time[i]*1.49 <= rep['onset'] + rep['duration']:
+                to_keep[i] = 1.0
+                
     scrub_idx = 1
-    for idx, timepoint in enumerate(to_scrub):
-        if timepoint == 0.0:
+    for idx, timepoint in enumerate(to_keep):
+        if timepoint == 0.0: # If to_keep is zero create a scrub regressor to remove this frame
             scrub_regressor = np.zeros(len(time))
             scrub_regressor[idx] = 1.0
             design_matrix[f'scrub{scrub_idx}'] = scrub_regressor
