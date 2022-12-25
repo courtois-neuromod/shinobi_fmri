@@ -3,7 +3,7 @@ import os.path as op
 import pandas as pd
 from nilearn import image, signal
 from load_confounds import Confounds
-from shinobi_fmri.annotations.annotations import trim_events_df, get_scrub_regressor
+from shinobi_fmri.annotations.annotations import get_scrub_regressor
 import numpy as np
 import pdb
 import argparse
@@ -211,8 +211,8 @@ def main():
     
 
 if __name__ == "__main__":
-    figures_path = shinobi_behav.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-    path_to_data = shinobi_behav.path_to_data  #'/media/storage/neuromod/shinobi_data/'
+    figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+    path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     sub = args.subject
     ses = args.session
     run = args.run
@@ -220,6 +220,9 @@ if __name__ == "__main__":
     hrf_model = "spm"
     # Log job info
     log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    print(f"Processing : {sub} {ses} {run}")
+    print(figures_path)
+    print(path_to_data)
     logging.basicConfig(level=logging.INFO, format=log_fmt)
 
     main()
