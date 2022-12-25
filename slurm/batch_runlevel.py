@@ -2,7 +2,7 @@ import os
 import glob
 from shinobi_behav import DATA_PATH
 
-filelist = glob.glob(op.join(DATA_PATH, "shinobi.fmriprep", "*", "*", "*", "*.nii.gz"))
+filelist = glob.glob(op.join(DATA_PATH, "shinobi.fmriprep", "*", "*", "*", "*_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"))
 
 for file in filelist:
     sub = file.split("/")[-1].split("_")[0]
