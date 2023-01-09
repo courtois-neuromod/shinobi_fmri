@@ -11,4 +11,4 @@ for name in filelist:
             seslist = os.listdir(op.join(DATA_PATH, "shinobi.fmriprep", name))
             seslist = [x for x in seslist if "ses-" in x]
             for ses in seslist:
-                os.system(f"sbatch ./slurm/subm_sesslevel.sh -s {sub} -ses {ses}")
+                os.system(f"sbatch ./slurm/subm_sesslevel.sh {sub} {ses}")
