@@ -187,7 +187,7 @@ def load_session(sub, ses, run_list, path_to_data):
         design_matrix_clean, fmri_img, anat_img = load_run(fmri_fname, anat_fname, events_fname)
     design_matrices.append(design_matrix_clean)
     fmri_imgs.append(fmri_img)
-    return fmri_imgs, design_matrices
+    return fmri_imgs, design_matrices, anat_img
 
 def process_ses(sub, ses, path_to_data):
     ses_fpath = op.join(path_to_data,"shinobi.fmriprep",sub,ses,"func")
@@ -203,7 +203,7 @@ def process_ses(sub, ses, path_to_data):
                 f"{sub}_{ses}_fullmodel_fitted_glm.pkl")
     if not (os.path.exists(glm_fname)):
         print(f"GLM not found, computing : {glm_fname}")
-        fmri_imgs, design_matrices = load_session(sub, ses, run_list, path_to_data)
+        fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
         # Fit GLM with all regressors
         fmri_glm = make_and_fit_glm(fmri_imgs, design_matrices, anat_img)
         with open(glm_fname, "wb") as f:
@@ -244,7 +244,7 @@ def process_ses(sub, ses, path_to_data):
                     f"{sub}_{ses}_{regressor_name}_fitted_glm.pkl")
         if not (os.path.exists(glm_fname)):
             print(f"GLM not found, computing : {glm_fname}")
-            fmri_imgs, design_matrices = load_session(sub, ses, run_list, path_to_data)
+            fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
             fmri_fname, anat_fname, events_fname = get_filenames(sub, ses, 1, path_to_data)
             _, anat_img = load_image_and_mask(fmri_fname, anat_fname)
             # Trim the design matrices from unwanted regressors
