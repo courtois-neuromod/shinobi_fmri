@@ -250,10 +250,12 @@ def process_ses(sub, ses, path_to_data):
             print(f"GLM not found, computing : {glm_fname}")
             fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
             # Trim the design matrices from unwanted regressors
-            regressors_to_remove = CONDS_LIST.remove(regressor_name)
+            regressors_to_remove = CONDS_LIST.copy()
+            regressors_to_remove.remove(regressor_name)
             trimmed_design_matrices = []
             for design_matrix in design_matrices:
-                trimmed_design_matrix = design_matrix.drop(regressors_to_remove, axis=1)
+                print(design_matrix)
+                trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
                 trimmed_design_matrices.append(trimmed_design_matrix)
             
             fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, anat_img)
