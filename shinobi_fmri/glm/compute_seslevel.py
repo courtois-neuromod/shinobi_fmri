@@ -207,7 +207,7 @@ def process_ses(sub, ses, path_to_data):
         # Fit GLM with all regressors
         fmri_glm = make_and_fit_glm(fmri_imgs, design_matrices, anat_img)
         with open(glm_fname, "wb") as f:
-            pickle.dump(fmri_glm, f)
+            pickle.dump(fmri_glm, f, protocol=4)
     else:
         with open(glm_fname, "rb") as f:
             print(f"GLM found, loading : {glm_fname}")
@@ -257,7 +257,7 @@ def process_ses(sub, ses, path_to_data):
             fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, anat_img)
 
             with open(glm_fname, "wb") as f:
-                pickle.dump(fmri_glm, f)
+                pickle.dump(fmri_glm, f, protocol=4)
         else:
             with open(glm_fname, "rb") as f:
                 print(f"GLM found, loading : {glm_fname}")
