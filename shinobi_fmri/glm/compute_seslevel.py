@@ -254,7 +254,6 @@ def process_ses(sub, ses, path_to_data):
             regressors_to_remove.remove(regressor_name)
             trimmed_design_matrices = []
             for design_matrix in design_matrices:
-                print(design_matrix)
                 trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
                 trimmed_design_matrices.append(trimmed_design_matrix)
             
