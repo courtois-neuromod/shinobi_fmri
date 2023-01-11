@@ -197,10 +197,11 @@ def process_ses(sub, ses, path_to_data):
 
     # First do the full glm
     glm_fname = op.join(path_to_data,
-                "processed25122022",
+                "processed",
                 "glm",
                 "ses-level",
                 f"{sub}_{ses}_fullmodel_fitted_glm.pkl")
+    os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
     if not (os.path.exists(glm_fname)):
         print(f"GLM not found, computing : {glm_fname}")
         fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
@@ -224,6 +225,7 @@ def process_ses(sub, ses, path_to_data):
                 regressor_name,
                 f"{sub}_{ses}_fullmodel_{regressor_name}.nii.gz",
             )
+        os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
         if not (os.path.exists(z_map_fname)):
             print(f"Z map not found, computing : {z_map_fname}")
             report_fname = op.join(
@@ -233,20 +235,20 @@ def process_ses(sub, ses, path_to_data):
                 "report",
                 f"{sub}_{ses}_fullmodel_{regressor_name}_report.html",
             )
+            os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
             z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
 
     # Then a GLM with each regressor separately
     for regressor_name in CONDS_LIST:
         glm_fname = op.join(path_to_data,
-                    "processed25122022",
+                    "processed",
                     "glm",
                     "ses-level",
                     f"{sub}_{ses}_{regressor_name}_fitted_glm.pkl")
+        os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
         if not (os.path.exists(glm_fname)):
             print(f"GLM not found, computing : {glm_fname}")
             fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
-            fmri_fname, anat_fname, events_fname = get_filenames(sub, ses, 1, path_to_data)
-            _, anat_img = load_image_and_mask(fmri_fname, anat_fname)
             # Trim the design matrices from unwanted regressors
             regressors_to_remove = CONDS_LIST.remove(regressor_name)
             trimmed_design_matrices = []
@@ -255,7 +257,6 @@ def process_ses(sub, ses, path_to_data):
                 trimmed_design_matrices.append(trimmed_design_matrix)
             
             fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, anat_img)
-
             with open(glm_fname, "wb") as f:
                 pickle.dump(fmri_glm, f, protocol=4)
         else:
@@ -273,6 +274,7 @@ def process_ses(sub, ses, path_to_data):
                 regressor_name,
                 f"{sub}_{ses}_{regressor_name}.nii.gz",
             )
+        os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
         if not (os.path.exists(z_map_fname)):
             print(f"Z map not found, computing : {z_map_fname}")
             report_fname = op.join(
@@ -282,6 +284,7 @@ def process_ses(sub, ses, path_to_data):
                 "report",
                 f"{sub}_{ses}_{regressor_name}_report.html",
             )
+            os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
             z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
     return
 
