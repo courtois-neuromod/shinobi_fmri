@@ -282,7 +282,7 @@ def get_scrub_regressor(run_events, design_matrix):
     for i in range(len(run_events)):
         if run_events['trial_type'][i] == "gym-retro_game":
             reps.append(run_events.iloc[i,:])
-    
+
     # Get time vector
     time = np.array(design_matrix.index)
 
@@ -290,8 +290,9 @@ def get_scrub_regressor(run_events, design_matrix):
     # Generate binary regressor
     for i in range(len(time)):
         for rep in reps:
-            if time[i]*1.49 >= rep['onset'] and time[i]*1.49 <= rep['onset'] + rep['duration']:
-                to_keep[i] = 1.0
+            if rep["stim_file"] != "Missing file" and type(rep["stim_file"]) != float:
+                if time[i]*1.49 >= rep['onset'] and time[i]*1.49 <= rep['onset'] + rep['duration']:
+                    to_keep[i] = 1.0
                 
     scrub_idx = 1
     for idx, timepoint in enumerate(to_keep):
