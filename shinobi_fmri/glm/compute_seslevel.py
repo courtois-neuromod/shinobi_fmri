@@ -47,6 +47,23 @@ args = parser.parse_args()
 
 
 def get_filenames(sub, ses, run, path_to_data):
+    """
+    Returns file names for fMRI, anatomy and annotation events.
+    Parameters
+    ----------
+    subject : str
+        Subject id
+    session : str
+        Session id
+    run : str
+        Run number
+    path_to_data : str
+        Path to the data folder
+    Returns
+    -------
+    tuple
+        Tuple containing file names of fMRI, anatomy, and annotated events
+    """
     fmri_fname = op.join(
         path_to_data,
         "shinobi.fmriprep",
@@ -62,7 +79,7 @@ def get_filenames(sub, ses, run, path_to_data):
         "smriprep",
         sub,
         "anat",
-        f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
+        f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
     )
     assert op.isfile(anat_fname), f"sMRI file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
@@ -77,6 +94,19 @@ def get_filenames(sub, ses, run, path_to_data):
     return fmri_fname, anat_fname, events_fname
 
 def load_image_and_mask(fmri_fname, anat_fname):
+    """
+    Load and clean 4d image and resample anat mask
+    Parameters
+    ----------
+    fmri_fname : str
+        File name of fMRI image
+    anat_fname : str
+        File name of anatomy image
+    Returns
+    -------
+    tuple
+        Tuple containing cleaned fMRI and resampled anatomy images
+    """
     # Load and clean 4d image
     fmri_img = clean_img(
         fmri_fname,
@@ -94,6 +124,23 @@ def load_image_and_mask(fmri_fname, anat_fname):
     return fmri_img, anat_img
 
 def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
+    """
+    Load confounds, create design matrix and return a cleaned matrix
+    Parameters
+    ----------
+    fmri_fname : str
+        File name of fMRI image
+    fmri_img : nifti-image
+        Cleaned fMRI image
+    annotation_events : dataframe
+        Dataframe containing annotation events
+    run_events : dataframe
+        Dataframe containing run events
+    Returns
+    -------
+    matrix
+        Design matrix after cleaning
+    """
     # Load confounds
     confounds = Confounds(
         strategy=["high_pass", "motion", "global", "wm_csf"],
@@ -135,6 +182,20 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     return design_matrix_clean
 
 def make_and_fit_glm(fmri_imgs, design_matrices, anat_img):
+    """
+    Perform GLM analysis and threshold the results
+    Parameters
+    ----------
+    fmri_img : nifti-image
+        Cleaned fMRI image
+    anat_img : nifti-image
+        Resampled anatomy image
+    cleaned_matrix : pandas.DataFrame
+        Design matrix after cleaning
+    Returns
+    -------
+    None
+    """
     fmri_glm = FirstLevelModel(
         t_r=t_r,
         noise_model="ar1",
