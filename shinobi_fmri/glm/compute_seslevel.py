@@ -305,7 +305,7 @@ def process_ses(sub, ses, path_to_data):
                     "processed",
                     "glm",
                     "ses-level",
-                    f"{sub}_{ses}_{regressor_name}_fitted_glm.pkl")
+                    f"{sub}_{ses}_{regressor_name}_simplemodel_fitted_glm.pkl")
         os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
         if not (os.path.exists(glm_fname)):
             print(f"GLM not found, computing : {glm_fname}")
@@ -334,7 +334,7 @@ def process_ses(sub, ses, path_to_data):
                 "z_maps",
                 "ses-level",
                 regressor_name,
-                f"{sub}_{ses}_{regressor_name}.nii.gz",
+                f"{sub}_{ses}_simplemodel_{regressor_name}.nii.gz",
             )
         os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
         if not (os.path.exists(z_map_fname)):
@@ -344,7 +344,7 @@ def process_ses(sub, ses, path_to_data):
                 "ses-level",
                 regressor_name,
                 "report",
-                f"{sub}_{ses}_{regressor_name}_report.html",
+                f"{sub}_{ses}_simplemodel_{regressor_name}_report.html",
             )
             os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
             z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
