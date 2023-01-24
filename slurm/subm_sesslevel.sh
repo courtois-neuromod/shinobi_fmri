@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=rrg-pbellec
-#SBATCH --time=12:00:00
+#SBATCH --time=4:00:00
 #SBATCH --job-name=shi_sesslevel
-#SBATCH --mem=128G
+#SBATCH --mem=16G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 
