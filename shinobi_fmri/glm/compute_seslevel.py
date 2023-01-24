@@ -82,6 +82,15 @@ def get_filenames(sub, ses, run, path_to_data):
         f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
     )
     assert op.isfile(anat_fname), f"sMRI file not found for {sub}_{ses}_{run}"
+    mask_fname = op.join(
+        path_to_data,
+        "cneuromod.processed",
+        "smriprep",
+        sub,
+        "anat",
+        f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
+    )
+    assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
         path_to_data, 
         "shinobi", 
@@ -91,9 +100,9 @@ def get_filenames(sub, ses, run, path_to_data):
         f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv"
     )
     assert op.isfile(events_fname), f"Annotated events file not found for {sub}_{ses}_{run}" 
-    return fmri_fname, anat_fname, events_fname
+    return fmri_fname, anat_fname, events_fname, mask_fname
 
-def load_image_and_mask(fmri_fname, anat_fname):
+def load_image_and_mask(fmri_fname, mask_fname):
     """
     Load and clean 4d image and resample anat mask
     Parameters
@@ -120,8 +129,8 @@ def load_image_and_mask(fmri_fname, anat_fname):
     # Load and resample (i.e. morph  ?) anat mask
     aff_orig = nib.load(fmri_fname).affine[:, -1]
     target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
-    anat_img = image.resample_img(anat_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
-    return fmri_img, anat_img
+    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
+    return fmri_img, mask_resampled
 
 def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     """
@@ -181,15 +190,15 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean)
     return design_matrix_clean
 
-def make_and_fit_glm(fmri_imgs, design_matrices, anat_img):
+def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     """
     Perform GLM analysis and threshold the results
     Parameters
     ----------
     fmri_img : nifti-image
         Cleaned fMRI image
-    anat_img : nifti-image
-        Resampled anatomy image
+    mask_resampled : nifti-image
+        Resampled mask
     cleaned_matrix : pandas.DataFrame
         Design matrix after cleaning
     Returns
@@ -205,7 +214,7 @@ def make_and_fit_glm(fmri_imgs, design_matrices, anat_img):
         high_pass=None,
         n_jobs=16,
         smoothing_fwhm=5,
-        mask_img=anat_img,
+        mask_img=mask_resampled,
         minimize_memory=False,
     )
     fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
@@ -225,7 +234,7 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
     report.save_as_html(report_fname)
     return z_map
 
-def load_run(fmri_fname, anat_fname, events_fname):
+def load_run(fmri_fname, mask_fname, events_fname):
     # Load events
     run_events = pd.read_csv(events_fname, sep="\t", index_col=[0])
     # Select events
@@ -233,22 +242,22 @@ def load_run(fmri_fname, anat_fname, events_fname):
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
 
     # Load images
-    fmri_img, anat_img = load_image_and_mask(fmri_fname, anat_fname)
+    fmri_img, mask_resampled = load_image_and_mask(fmri_fname, mask_fname)
     
     # Make design matrix
     design_matrix_clean = get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events)
-    return design_matrix_clean, fmri_img, anat_img
+    return design_matrix_clean, fmri_img, mask_resampled
 
 def load_session(sub, ses, run_list, path_to_data):
     design_matrices = []
     fmri_imgs = []
     for run in run_list:
-        fmri_fname, anat_fname, events_fname = get_filenames(sub, ses, run, path_to_data)
+        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
         print(f"Loading : {fmri_fname}")
-        design_matrix_clean, fmri_img, anat_img = load_run(fmri_fname, anat_fname, events_fname)
+        design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
     design_matrices.append(design_matrix_clean)
     fmri_imgs.append(fmri_img)
-    return fmri_imgs, design_matrices, anat_img
+    return fmri_imgs, design_matrices, mask_resampled, anat_fname
 
 def process_ses(sub, ses, path_to_data):
     ses_fpath = op.join(path_to_data,"shinobi.fmriprep",sub,ses,"func")
@@ -265,9 +274,9 @@ def process_ses(sub, ses, path_to_data):
     os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
     if not (os.path.exists(glm_fname)):
         print(f"GLM not found, computing : {glm_fname}")
-        fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
+        fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
         # Fit GLM with all regressors
-        fmri_glm = make_and_fit_glm(fmri_imgs, design_matrices, anat_img)
+        fmri_glm = make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled)
         with open(glm_fname, "wb") as f:
             pickle.dump(fmri_glm, f, protocol=4)
     else:
@@ -318,7 +327,7 @@ def process_ses(sub, ses, path_to_data):
                 trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
                 trimmed_design_matrices.append(trimmed_design_matrix)
             
-            fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, anat_img)
+            fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
             with open(glm_fname, "wb") as f:
                 pickle.dump(fmri_glm, f, protocol=4)
         else:
