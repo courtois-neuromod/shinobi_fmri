@@ -303,6 +303,7 @@ def process_ses(sub, ses, path_to_data):
             )
             os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
             z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+        
 
     # Then a GLM with each regressor separately
     for regressor_name in CONDS_LIST:
@@ -362,7 +363,8 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+    #CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+    CONDS_LIST = ['HIT-JUMP']
     sub = args.subject
     ses = args.session
     t_r = 1.49
