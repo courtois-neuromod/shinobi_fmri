@@ -255,8 +255,8 @@ def load_session(sub, ses, run_list, path_to_data):
         fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
         print(f"Loading : {fmri_fname}")
         design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
-    design_matrices.append(design_matrix_clean)
-    fmri_imgs.append(fmri_img)
+        design_matrices.append(design_matrix_clean)
+        fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname
 
 def process_ses(sub, ses, path_to_data):
