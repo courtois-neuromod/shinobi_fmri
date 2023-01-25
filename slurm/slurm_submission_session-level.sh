@@ -2,7 +2,7 @@
 #SBATCH --account=rrg-pbellec
 #SBATCH --time=4:00:00
 #SBATCH --job-name=shi_sesslevel
-#SBATCH --mem=16G
+#SBATCH --mem=128G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 

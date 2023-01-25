@@ -306,7 +306,7 @@ def process_ses(sub, ses, path_to_data):
         
 
     # Then a GLM with each regressor separately
-    for regressor_name in CONDS_LIST:
+    for regressor_name in CONDS_LIST[-1]: #remove Left VS RIGHT
         glm_fname = op.join(path_to_data,
                     "processed",
                     "glm",
@@ -363,8 +363,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    #CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
-    CONDS_LIST = ['HIT-JUMP']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP', 'HIT+JUMP-RIGHT-LEFT-UP-DOWN']
     sub = args.subject
     ses = args.session
     t_r = 1.49
