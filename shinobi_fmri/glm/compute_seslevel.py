@@ -318,7 +318,7 @@ def process_ses(sub, ses, path_to_data):
         os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
         if not (os.path.exists(glm_fname)):
             print(f"GLM not found, computing : {glm_fname}")
-            fmri_imgs, design_matrices, anat_img = load_session(sub, ses, run_list, path_to_data)
+            fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
             # Trim the design matrices from unwanted regressors
             regressors_to_remove = CONDS_LIST.copy()
             regressors_to_remove.remove(regressor_name)
