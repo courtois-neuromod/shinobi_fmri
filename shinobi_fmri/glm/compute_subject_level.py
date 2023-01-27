@@ -23,6 +23,7 @@ import logging
 import pickle
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 import glob
+from nilearn.glm.second_level import SecondLevelModel
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -41,13 +42,35 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+t_r = 1.49
+hrf_model = "spm"
+
+def process_subject(sub, condition, path_to_data):
+    z_maps_dir = op.join(path_to_data, "processed", "z_maps", "ses-level", condition)
+    file_list = os.listdir(z_maps_dir)
+    for model in ["simple", "full"]:
+        subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{model}model_{condition}.nii.gz")
+        os.makedirs(op.join(path_to_data, "processed", "z_maps", "subject-level", condition), exist_ok=True)
+        z_maps = []
+        for file in file_list:
+            if sub in file and model in file:
+                z_maps.append(op.join(z_maps_dir, file))
+        
+        second_level_input = z_maps
+        second_design_matrix = pd.DataFrame([1] * len(second_level_input),
+                                     columns=['intercept'])
+        second_level_model = SecondLevelModel(smoothing_fwhm=None)
+        second_level_model = second_level_model.fit(second_level_input,
+                                                    design_matrix=second_design_matrix)
+        z_map = second_level_model.compute_contrast(output_type='z_score')
+        z_map.to_filename(subjectlevel_z_map_fname)
 
 
-    t_r = 1.49
-    hrf_model = "spm"
+    return z_map
+
 
 def main():
-    fmri_glm = process_subject(sub, path_to_data)
+    z_map = process_subject(sub, condition, path_to_data)
 
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
@@ -57,7 +80,7 @@ if __name__ == "__main__":
 
     # Log job info
     log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    print(f"Processing : {sub} {ses}")
+    print(f"Processing : {sub} {condition}")
     print(f"Writing processed data in : {path_to_data}")
     print(f"Writing reports in : {figures_path}")
     logging.basicConfig(level=logging.INFO, format=log_fmt)
