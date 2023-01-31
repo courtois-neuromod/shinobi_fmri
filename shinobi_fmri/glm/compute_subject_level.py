@@ -56,6 +56,7 @@ def process_subject(sub, condition, path_to_data):
             if sub in file and model in file:
                 z_maps.append(op.join(z_maps_dir, file))
         
+        # Compute map
         second_level_input = z_maps
         second_design_matrix = pd.DataFrame([1] * len(second_level_input),
                                      columns=['intercept'])
@@ -64,7 +65,12 @@ def process_subject(sub, condition, path_to_data):
                                                     design_matrix=second_design_matrix)
         z_map = second_level_model.compute_contrast(output_type='z_score')
         z_map.to_filename(subjectlevel_z_map_fname)
-
+        # Create report
+        report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", regressor_name, "report")
+        os.makedirs(report_path, exist_ok=True)
+        report_fname = op.join(report_path, f"{sub}_simplemodel_{regressor_name}_report.html")
+        report = second_level_model.generate_report(contrasts=[condition])
+        report.save_as_html(report_fname)
 
     return z_map
 
