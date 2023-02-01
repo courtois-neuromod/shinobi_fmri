@@ -54,6 +54,7 @@ def process_subject(sub, condition, path_to_data):
         z_maps = []
         for file in file_list:
             if sub in file and model in file:
+                print(f"Adding : {file}")
                 z_maps.append(op.join(z_maps_dir, file))
         
         # Compute map
@@ -68,7 +69,7 @@ def process_subject(sub, condition, path_to_data):
         # Create report
         report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", regressor_name, "report")
         os.makedirs(report_path, exist_ok=True)
-        report_fname = op.join(report_path, f"{sub}_simplemodel_{regressor_name}_report.html")
+        report_fname = op.join(report_path, f"{sub}_{model}model_{regressor_name}_report.html")
         report = second_level_model.generate_report(contrasts=[condition])
         report.save_as_html(report_fname)
 
