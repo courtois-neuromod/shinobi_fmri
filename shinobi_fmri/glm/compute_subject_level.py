@@ -36,7 +36,7 @@ parser.add_argument(
 parser.add_argument(
     "-cond",
     "--condition",
-    default="HIT",
+    default="HIT+JUMP-RIGHT-LEFT-UP-DOWN",
     type=str,
     help="Condition (contrast) to process",
 )
@@ -48,7 +48,7 @@ hrf_model = "spm"
 def process_subject(sub, condition, path_to_data):
     z_maps_dir = op.join(path_to_data, "processed", "z_maps", "ses-level", condition)
     file_list = os.listdir(z_maps_dir)
-    for model in ["simple", "full"]:
+    for model in ["full", "simple"]:
         subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{model}model_{condition}.nii.gz")
         os.makedirs(op.join(path_to_data, "processed", "z_maps", "subject-level", condition), exist_ok=True)
         z_maps = []
@@ -67,10 +67,10 @@ def process_subject(sub, condition, path_to_data):
         z_map = second_level_model.compute_contrast(output_type='z_score')
         z_map.to_filename(subjectlevel_z_map_fname)
         # Create report
-        report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", regressor_name, "report")
+        report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", condition, "report")
         os.makedirs(report_path, exist_ok=True)
-        report_fname = op.join(report_path, f"{sub}_{model}model_{regressor_name}_report.html")
-        report = second_level_model.generate_report(contrasts=[condition])
+        report_fname = op.join(report_path, f"{sub}_{model}model_{condition}_report.html")
+        report = second_level_model.generate_report(contrasts=['intercept'])
         report.save_as_html(report_fname)
 
     return z_map
