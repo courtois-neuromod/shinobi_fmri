@@ -363,7 +363,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP', 'HIT+JUMP-RIGHT-LEFT-UP-DOWN']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP', 'HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
     sub = args.subject
     ses = args.session
     t_r = 1.49
