@@ -36,7 +36,7 @@ parser.add_argument(
 parser.add_argument(
     "-cond",
     "--condition",
-    default="HIT+JUMP-RIGHT-LEFT-UP-DOWN",
+    default="HIT",
     type=str,
     help="Condition (contrast) to process",
 )
@@ -52,15 +52,23 @@ def process_subject(sub, condition, path_to_data):
         subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{model}model_{condition}.nii.gz")
         os.makedirs(op.join(path_to_data, "processed", "z_maps", "subject-level", condition), exist_ok=True)
         z_maps = []
-        for file in file_list:
+        ses_list = []
+        for file in sorted(file_list):
             if sub in file and model in file:
                 print(f"Adding : {file}")
                 z_maps.append(op.join(z_maps_dir, file))
-        
+
+                ses_list.append(file.split("_")[1])
         # Compute map
         second_level_input = z_maps
+        column_names = [f"{ses}" for ses in ses_list]
         second_design_matrix = pd.DataFrame([1] * len(second_level_input),
                                      columns=['intercept'])
+        for idx, ses in enumerate(ses_list):
+            second_design_matrix[column_names[idx]] = [0] * len(second_level_input)
+            second_design_matrix[column_names[idx]][idx+1] = 1
+
+
         second_level_model = SecondLevelModel(smoothing_fwhm=None)
         second_level_model = second_level_model.fit(second_level_input,
                                                     design_matrix=second_design_matrix)
