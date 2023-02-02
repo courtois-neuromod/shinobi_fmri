@@ -68,7 +68,7 @@ def create_viz(sub, cond_name, modeltype,
                path_to_data=shinobi_behav.DATA_PATH, 
                figures_path=shinobi_behav.FIG_PATH):
     
-    output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub, ses)
+    output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
     folderpath = op.join(path_to_data, "processed", "z_maps", "subject-level")
     
