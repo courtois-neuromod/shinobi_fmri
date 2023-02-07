@@ -10,6 +10,24 @@ import matplotlib.image as mpimg
 import nibabel as nb
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 from nilearn.glm import threshold_stats_img
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-s",
+    "--subject",
+    default=None,
+    type=str,
+    help="Subject to process",
+)
+parser.add_argument(
+    "-c",
+    "--contrast",
+    default=None,
+    type=str,
+    help="Contrast or conditions to compute",
+)
+args = parser.parse_args()
 
 
 def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, figpath=None):
@@ -145,8 +163,18 @@ if __name__ == "__main__":
                  'Kill', 'LEFT', 'RIGHT', 'UP', 
                  'HIT+JUMP-RIGHT-LEFT-UP-DOWN', 
                  'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
-    for sub in shinobi_behav.SUBJECTS:
-        for cond_name in COND_LIST:
+    if args.subject is not None:
+        subjects = [args.subject]
+    else:
+        subjects = shinobi_behav.SUBJECTS
+
+    if args.contrast is not None:
+        contrasts = [args.contrast]
+    else:
+        contrasts = COND_LIST
+
+    for sub in subjects:
+        for cond_name in contrasts:
             for modeltype in ["full", "simple"]:
                 try:
                     print(f"Creating viz for {sub} {cond_name} {modeltype}")
