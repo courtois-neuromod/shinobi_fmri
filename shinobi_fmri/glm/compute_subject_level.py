@@ -66,7 +66,7 @@ def process_subject(sub, condition, path_to_data):
                                      columns=['intercept'])
         for idx, ses in enumerate(ses_list):
             second_design_matrix[column_names[idx]] = [0] * len(second_level_input)
-            second_design_matrix[column_names[idx]][idx+1] = 1
+            second_design_matrix[column_names[idx]][idx] = 1
 
 
         second_level_model = SecondLevelModel(smoothing_fwhm=None)
