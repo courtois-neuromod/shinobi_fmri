@@ -304,6 +304,8 @@ def process_ses(sub, ses, path_to_data):
                 )
                 os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
         
@@ -320,12 +322,19 @@ def process_ses(sub, ses, path_to_data):
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
                 fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
+                
                 # Trim the design matrices from unwanted regressors
                 regressors_to_remove = CONDS_LIST.copy()
                 regressors_to_remove.remove(regressor_name)
                 trimmed_design_matrices = []
                 for design_matrix in design_matrices:
-                    trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
+                    trimmed_design_matrix = design_matrix
+                    for reg in regressors_to_remove:
+                        try:
+                            trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
+                        except Exception as e:
+                            print(e)
+                            print(f"Regressor {reg} might be missing ?")
                     trimmed_design_matrices.append(trimmed_design_matrix)
                 
                 fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
@@ -358,6 +367,8 @@ def process_ses(sub, ses, path_to_data):
                 )
                 os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
     return
@@ -369,7 +380,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
     additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
     sub = args.subject
     ses = args.session
