@@ -28,14 +28,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default="sub-01",
+    default="sub-06",
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-ses",
     "--session",
-    default="ses-006",
+    default="ses-010",
     type=str,
     help="Session to process",
 )
@@ -223,8 +223,8 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
             )
     os.makedirs(op.join(path_to_data, "processed", "z_maps", "ses-level", regressor_name), exist_ok=True)
     z_map.to_filename(z_map_fname)
+    
     # Get report
-
     os.makedirs(op.join(figures_path, "ses-level", regressor_name, "report"), exist_ok=True)
     report = fmri_glm.generate_report(contrasts=[regressor_name])
     report.save_as_html(report_fname)
@@ -283,77 +283,83 @@ def process_ses(sub, ses, path_to_data):
 
     # Compute all contrasts
     for regressor_name in CONDS_LIST+additional_contrasts:
-        z_map_fname = op.join(
-                path_to_data,
-                "processed",
-                "z_maps",
-                "ses-level",
-                regressor_name,
-                f"{sub}_{ses}_fullmodel_{regressor_name}.nii.gz",
-            )
-        os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
-        if not (os.path.exists(z_map_fname)):
-            print(f"Z map not found, computing : {z_map_fname}")
-            report_fname = op.join(
-                figures_path,
-                "ses-level",
-                regressor_name,
-                "report",
-                f"{sub}_{ses}_fullmodel_{regressor_name}_report.html",
-            )
-            os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
-            z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+        try:
+            z_map_fname = op.join(
+                    path_to_data,
+                    "processed",
+                    "z_maps",
+                    "ses-level",
+                    regressor_name,
+                    f"{sub}_{ses}_fullmodel_{regressor_name}.nii.gz",
+                )
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
+                    figures_path,
+                    "ses-level",
+                    regressor_name,
+                    "report",
+                    f"{sub}_{ses}_fullmodel_{regressor_name}_report.html",
+                )
+                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+        except Exception as e:
+            print(e)
         
 
     # Then a GLM with each regressor separately
     for regressor_name in CONDS_LIST:
-        glm_fname = op.join(path_to_data,
-                    "processed",
-                    "glm",
-                    "ses-level",
-                    f"{sub}_{ses}_{regressor_name}_simplemodel_fitted_glm.pkl")
-        os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
-        if not (os.path.exists(glm_fname)):
-            print(f"GLM not found, computing : {glm_fname}")
-            fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
-            # Trim the design matrices from unwanted regressors
-            regressors_to_remove = CONDS_LIST.copy()
-            regressors_to_remove.remove(regressor_name)
-            trimmed_design_matrices = []
-            for design_matrix in design_matrices:
-                trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
-                trimmed_design_matrices.append(trimmed_design_matrix)
-            
-            fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
-            with open(glm_fname, "wb") as f:
-                pickle.dump(fmri_glm, f, protocol=4)
-        else:
-            with open(glm_fname, "rb") as f:
-                print(f"GLM found, loading : {glm_fname}")
-                fmri_glm = pickle.load(f)
-                print("Loaded.")
+        try:
+            glm_fname = op.join(path_to_data,
+                        "processed",
+                        "glm",
+                        "ses-level",
+                        f"{sub}_{ses}_{regressor_name}_simplemodel_fitted_glm.pkl")
+            os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
+            if not (os.path.exists(glm_fname)):
+                print(f"GLM not found, computing : {glm_fname}")
+                fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
+                # Trim the design matrices from unwanted regressors
+                regressors_to_remove = CONDS_LIST.copy()
+                regressors_to_remove.remove(regressor_name)
+                trimmed_design_matrices = []
+                for design_matrix in design_matrices:
+                    trimmed_design_matrix = design_matrix.drop(columns=regressors_to_remove)
+                    trimmed_design_matrices.append(trimmed_design_matrix)
+                
+                fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+                with open(glm_fname, "wb") as f:
+                    pickle.dump(fmri_glm, f, protocol=4)
+            else:
+                with open(glm_fname, "rb") as f:
+                    print(f"GLM found, loading : {glm_fname}")
+                    fmri_glm = pickle.load(f)
+                    print("Loaded.")
 
-        # Compute contrast
-        z_map_fname = op.join(
-                path_to_data,
-                "processed",
-                "z_maps",
-                "ses-level",
-                regressor_name,
-                f"{sub}_{ses}_simplemodel_{regressor_name}.nii.gz",
-            )
-        os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
-        if not (os.path.exists(z_map_fname)):
-            print(f"Z map not found, computing : {z_map_fname}")
-            report_fname = op.join(
-                figures_path,
-                "ses-level",
-                regressor_name,
-                "report",
-                f"{sub}_{ses}_simplemodel_{regressor_name}_report.html",
-            )
-            os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
-            z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            # Compute contrast
+            z_map_fname = op.join(
+                    path_to_data,
+                    "processed",
+                    "z_maps",
+                    "ses-level",
+                    regressor_name,
+                    f"{sub}_{ses}_simplemodel_{regressor_name}.nii.gz",
+                )
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
+                    figures_path,
+                    "ses-level",
+                    regressor_name,
+                    "report",
+                    f"{sub}_{ses}_simplemodel_{regressor_name}_report.html",
+                )
+                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+        except Exception as e:
+            print(e)
     return
 
 
