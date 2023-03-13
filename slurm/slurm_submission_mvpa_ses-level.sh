@@ -6,4 +6,4 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
 
-/home/hyruuk/python_envs/shinobi_env/bin/python /project/def-pbellec/hyruuk/shinobi_fmri/shinobi_fmri/notebooks/test_mvpa.py
+/home/hyruuk/python_envs/shinobi_env/bin/python /home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri/notebooks/test_mvpa.py
