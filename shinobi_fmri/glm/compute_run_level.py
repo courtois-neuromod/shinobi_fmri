@@ -318,8 +318,11 @@ def process_run(sub, ses, run, path_to_data):
             os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
-                fmri_imgs, design_matrices, mask_resampled, anat_fname = load_run(sub, ses, run, path_to_data)
-                
+                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+                print(f"Loading : {fmri_fname}")
+                design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+                design_matrices = [design_matrix_clean]
+                fmri_imgs = [fmri_img]
                 # Trim the design matrices from unwanted regressors
                 regressors_to_remove = CONDS_LIST.copy()
                 regressors_to_remove.remove(regressor_name)
