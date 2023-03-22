@@ -8,5 +8,4 @@ filelist = glob.glob(op.join(DATA_PATH, "shinobi.fmriprep", "*", "*", "*", "*_sp
 for file in filelist:
     sub = file.split("/")[-1].split("_")[0]
     ses = file.split("/")[-1].split("_")[1]
-    run = file.split("/")[-1].split("_")[3][-1]
-    os.system(f"sbatch ./slurm/slurm_submission_run-level.sh {sub} {ses} {run}")
+    os.system(f"sbatch ./slurm/slurm_submission_run-level.sh {sub} {ses}")
