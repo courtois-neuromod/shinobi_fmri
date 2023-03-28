@@ -306,6 +306,70 @@ def process_run(sub, ses, run, path_to_data):
         except Exception as e:
             print(e)
     
+   # Intermediate model
+    for regressor_name in additional_contrasts:
+        try:
+            glm_fname = op.join(path_to_data,
+                        "processed",
+                        "glm",
+                        "ses-level",
+                        f"{sub}_{ses}_{regressor_name}_intermediatemodel_fitted_glm.pkl")
+            os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
+            if not (os.path.exists(glm_fname)):
+                print(f"GLM not found, computing : {glm_fname}")
+                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+                print(f"Loading : {fmri_fname}")
+                design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+                
+                # Trim the design matrices from unwanted regressors
+                regressors_to_remove = CONDS_LIST.copy()
+                regressors_to_remove.remove(["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"])
+                trimmed_design_matrices = []
+                for design_matrix in design_matrices:
+                    trimmed_design_matrix = design_matrix
+                    for reg in regressors_to_remove:
+                        try:
+                            trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
+                        except Exception as e:
+                            print(e)
+                            print(f"Regressor {reg} might be missing ?")
+                    trimmed_design_matrices.append(trimmed_design_matrix)
+                
+                fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+                with open(glm_fname, "wb") as f:
+                    pickle.dump(fmri_glm, f, protocol=4)
+            else:
+                with open(glm_fname, "rb") as f:
+                    print(f"GLM found, loading : {glm_fname}")
+                    fmri_glm = pickle.load(f)
+                    print("Loaded.")
+            
+            # Compute contrast
+            z_map_fname = op.join(
+                    path_to_data,
+                    "processed",
+                    "z_maps",
+                    "ses-level",
+                    regressor_name,
+                    f"{sub}_{ses}_intermediatemodel_{regressor_name}.nii.gz",
+                )
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
+                    figures_path,
+                    "ses-level",
+                    regressor_name,
+                    "report",
+                    f"{sub}_{ses}_intermediatemodel_{regressor_name}_report.html",
+                )
+                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
+        except Exception as e:
+            print(e)
+    
     # Simple model
     for regressor_name in CONDS_LIST:
         try:
@@ -391,7 +455,7 @@ if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
-    additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
+    additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+UP+DOWN']
     sub = args.subject
     ses = args.session
     t_r = 1.49
