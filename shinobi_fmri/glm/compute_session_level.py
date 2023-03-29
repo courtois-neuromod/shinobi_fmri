@@ -1,28 +1,19 @@
 import os
 import os.path as op
 import pandas as pd
-from nilearn import image, signal
+from nilearn import image
 from load_confounds import Confounds
 from shinobi_fmri.annotations.annotations import get_scrub_regressor
 import numpy as np
-import pdb
 import argparse
-import nilearn
 import shinobi_behav
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
-from nilearn.glm import threshold_stats_img
-from nilearn import plotting
 from nilearn.image import clean_img
-from nilearn.reporting import get_clusters_table
-from nilearn import input_data
-from nilearn import plotting
-import matplotlib.pyplot as plt
 from nilearn.signal import clean
 import nibabel as nib
 import logging
 import pickle
-from nilearn.plotting import plot_img_on_surf, plot_stat_map
-import glob
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
