@@ -312,9 +312,9 @@ def process_run(sub, ses, run, path_to_data):
             glm_fname = op.join(path_to_data,
                         "processed",
                         "glm",
-                        "ses-level",
+                        "run-level",
                         f"{sub}_{ses}_{regressor_name}_intermediatemodel_fitted_glm.pkl")
-            os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
+            os.makedirs(op.join(path_to_data,"processed","glm","run-level"), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
                 fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
@@ -349,21 +349,21 @@ def process_run(sub, ses, run, path_to_data):
                     path_to_data,
                     "processed",
                     "z_maps",
-                    "ses-level",
+                    "run-level",
                     regressor_name,
                     f"{sub}_{ses}_intermediatemodel_{regressor_name}.nii.gz",
                 )
-            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            os.makedirs(op.join(path_to_data,"processed","z_maps","run-level"), exist_ok=True)
             if not (os.path.exists(z_map_fname)):
                 print(f"Z map not found, computing : {z_map_fname}")
                 report_fname = op.join(
                     figures_path,
-                    "ses-level",
+                    "run-level",
                     regressor_name,
                     "report",
                     f"{sub}_{ses}_intermediatemodel_{regressor_name}_report.html",
                 )
-                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                os.makedirs(op.join(figures_path,"run-level",regressor_name,"report"), exist_ok=True)
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
             else:
                 print(f"Z map found, skipping : {z_map_fname}")
