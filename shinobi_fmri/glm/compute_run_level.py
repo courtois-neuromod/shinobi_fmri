@@ -164,7 +164,7 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         drift_model=None,
         hrf_model=hrf_model,
         add_regs=confounds,
-        add_reg_names=None,
+        add_reg_names=confounds.columns_,
     )
 
     # Clean regressors 
