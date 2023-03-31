@@ -49,6 +49,8 @@ def process_subject(sub, condition, path_to_data):
     z_maps_dir = op.join(path_to_data, "processed", "z_maps", "ses-level", condition)
     file_list = os.listdir(z_maps_dir)
     for model in ["full", "simple"]:
+        if condition in ['HIT+JUMP', 'RIGHT+LEFT+DOWN']:
+            model = "intermediate"
         subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{model}model_{condition}.nii.gz")
         os.makedirs(op.join(path_to_data, "processed", "z_maps", "subject-level", condition), exist_ok=True)
         z_maps = []
