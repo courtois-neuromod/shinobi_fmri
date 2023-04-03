@@ -138,12 +138,8 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         Design matrix after cleaning
     """
     # Load confounds
-    confounds = Confounds(
-        strategy=["high_pass", "motion", "global", "wm_csf"],
-        motion="full",
-        wm_csf="basic",
-        global_signal="full",
-    ).load(fmri_fname)
+    confounds = nilearn.interfaces.fmriprep.load_confounds(fmri_fname, strategy=('motion', 'high_pass', 'wm_csf'), 
+                                                           motion='full', wm_csf='basic', global_signal='full')
 
     # Generate design matrix
     bold_shape = fmri_img.shape
@@ -154,8 +150,8 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         events=annotation_events,
         drift_model=None,
         hrf_model=hrf_model,
-        add_regs=confounds,
-        add_reg_names=confounds.columns_,
+        add_regs=confounds[0],
+        add_reg_names=confounds[0].keys(),
     )
 
     # Clean regressors 
