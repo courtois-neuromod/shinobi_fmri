@@ -13,6 +13,7 @@ from nilearn.signal import clean
 import nibabel as nib
 import logging
 import pickle
+import nilearn
 
 
 parser = argparse.ArgumentParser()
@@ -303,7 +304,7 @@ def process_ses(sub, ses, path_to_data):
                         "processed",
                         "glm",
                         "ses-level",
-                        f"{sub}_{ses}_{regressor_name}_intermediatemodel_fitted_glm.pkl")
+                        f"{sub}_{ses}_intermediatemodel_fitted_glm.pkl")
             os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
@@ -311,7 +312,8 @@ def process_ses(sub, ses, path_to_data):
                 
                 # Trim the design matrices from unwanted regressors
                 regressors_to_remove = CONDS_LIST.copy()
-                regressors_to_remove.remove(["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"])
+                for toremove in ["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"]:
+                    regressors_to_remove.remove(toremove)
                 trimmed_design_matrices = []
                 for design_matrix in design_matrices:
                     trimmed_design_matrix = design_matrix
