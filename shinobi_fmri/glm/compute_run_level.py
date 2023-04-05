@@ -23,6 +23,8 @@ import logging
 import pickle
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 import glob
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -309,7 +311,7 @@ def process_run(sub, ses, run, path_to_data):
                         "processed",
                         "glm",
                         "run-level",
-                        f"{sub}_{ses}_{regressor_name}_intermediatemodel_fitted_glm.pkl")
+                        f"{sub}_{ses}_intermediatemodel_fitted_glm.pkl")
             os.makedirs(op.join(path_to_data,"processed","glm","run-level"), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
@@ -319,19 +321,19 @@ def process_run(sub, ses, run, path_to_data):
                 
                 # Trim the design matrices from unwanted regressors
                 regressors_to_remove = CONDS_LIST.copy()
-                regressors_to_remove.remove(["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"])
-                trimmed_design_matrices = []
-                for design_matrix in design_matrices:
-                    trimmed_design_matrix = design_matrix
-                    for reg in regressors_to_remove:
-                        try:
-                            trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
-                        except Exception as e:
-                            print(e)
-                            print(f"Regressor {reg} might be missing ?")
-                    trimmed_design_matrices.append(trimmed_design_matrix)
+                for toremove in ["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"]:
+                    regressors_to_remove.remove(toremove)
+
+                trimmed_design_matrix = design_matrix_clean
+                for reg in regressors_to_remove:
+                    try:
+                        trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
+                    except Exception as e:
+                        print(e)
+                        print(f"Regressor {reg} might be missing ?")
+                trimmed_design_matrices.append(trimmed_design_matrix)
                 
-                fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+                fmri_glm = make_and_fit_glm(fmri_img, trimmed_design_matrices, mask_resampled)
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
             else:
@@ -451,7 +453,7 @@ if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
-    additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+UP+DOWN']
+    additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
     t_r = 1.49
