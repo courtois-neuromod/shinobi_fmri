@@ -331,9 +331,9 @@ def process_run(sub, ses, run, path_to_data):
                     except Exception as e:
                         print(e)
                         print(f"Regressor {reg} might be missing ?")
-                trimmed_design_matrices.append(trimmed_design_matrix)
+
                 
-                fmri_glm = make_and_fit_glm(fmri_img, trimmed_design_matrices, mask_resampled)
+                fmri_glm = make_and_fit_glm(fmri_img, trimmed_design_matrix, mask_resampled)
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
             else:
