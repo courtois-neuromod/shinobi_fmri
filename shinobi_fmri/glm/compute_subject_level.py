@@ -36,7 +36,7 @@ parser.add_argument(
 parser.add_argument(
     "-cond",
     "--condition",
-    default="HIT",
+    default="HIT+JUMP",
     type=str,
     help="Condition (contrast) to process",
 )
@@ -75,7 +75,7 @@ def process_subject(sub, condition, path_to_data):
         second_level_model = second_level_model.fit(second_level_input,
                                                     design_matrix=second_design_matrix)
 
-        contrast_intercept = np.zeros(len(second_level_input)+1)
+        #contrast_intercept = np.zeros(len(second_level_input)+1)
         contrast_intercept[0] = 1
 
         z_map = second_level_model.compute_contrast(second_level_contrast=[1], output_type='z_score')
