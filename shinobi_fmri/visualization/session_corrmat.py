@@ -1,4 +1,4 @@
-from shinobi_behav import path_to_data, figures_path
+from shinobi_behav import DATA_PATH, FIG_PATH
 import matplotlib.pyplot as plt
 from nilearn import plotting
 from nilearn import image
@@ -9,6 +9,7 @@ from nilearn.input_data import NiftiMasker
 import psutil
 import pickle
 import tqdm
+import os.path as op
 
 def mem_used():
     tot = psutil.virtual_memory().total / 2**30
@@ -17,9 +18,11 @@ def mem_used():
 
 
 ## Set constants
-contrasts = ['Kill', 'Jump', 'Hit']
+path_to_data = DATA_PATH
+figures_path = FIG_PATH
+contrasts = ['Kill', 'JUMP', 'HIT', 'LEFT', 'RIGHT', 'DOWN', 'RIGHT+LEFT+DOWN', 'HIT+JUMP']
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-results_path = '/home/hyruuk/scratch/neuromod/shinobi_data/processed/runlevel_maps_corrs.pkl'
+results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -34,23 +37,37 @@ cond_arr = []
 fnames = []
 mapnames = []
 for contrast in contrasts:
-    files = os.listdir(path_to_data + 'processed/z_maps/session-level-allregs/{}/'.format(contrast))
+    if contrast in ['LEFT+RIGHT+DOWN', 'HIT+JUMP']:
+        model = "intermediate"
+    else:
+        model = "simple"
+
+    files = os.listdir(path_to_data + '/processed/z_maps/ses-level/{}/'.format(contrast))
     for file in files:
-        fpath = path_to_data + 'processed/z_maps/session-level-allregs/{}/'.format(contrast) + file
-        sub = file[0:6]
-        ses = file[7:14]
-        run = file[20]
-        print('run : '+ file)
-        raw_dpath = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
-        niimap = image.load_img(fpath)
-        maps.append(niimap)
-        subj_arr.append(sub)
-        sess_arr.append(ses)
-        run_arr.append(run)
-        cond_arr.append(contrast)
-        #raw_data.append(image.concat_imgs(raw_dpath))
-        fnames.append(raw_dpath)
-        mapnames.append(fpath)
+        if model in file:
+            fpath = path_to_data + '/processed/z_maps/ses-level/{}/'.format(contrast) + file
+            file_split = file.split('_')
+            sub = file_split[0]
+            ses = file_split[1]
+            run = file[20]
+            print('run : '+ file)
+            raw_dpath = op.join(
+                path_to_data,
+                "shinobi.fmriprep",
+                sub,
+                ses,
+                "func",
+                f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+            )
+            niimap = image.load_img(fpath)
+            maps.append(niimap)
+            subj_arr.append(sub)
+            sess_arr.append(ses)
+            #run_arr.append(run)
+            cond_arr.append(contrast)
+            #raw_data.append(image.concat_imgs(raw_dpath))
+            fnames.append(raw_dpath)
+            mapnames.append(fpath)
 
 
 
@@ -58,8 +75,15 @@ print('loading done')
 mem_used()
 mask_fnames = []
 for sub in subjects:
-    list = [x for x in fnames if sub in x]
-    mask_fnames.append(list[0])
+    mask_fname = op.join(
+        path_to_data,
+        "shinobi.fmriprep",
+        sub,
+        ses,
+        "func",
+        f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+    )
+    mask_fnames.append(mask_fname)
 
 # Create common masker
 masker = NiftiMasker()
@@ -81,7 +105,7 @@ if not os.path.isfile(results_path):
             'fnames': fnames,
             'subj': subj_arr,
             'ses': sess_arr,
-            'run': run_arr,
+            #'run': run_arr,
             'cond': cond_arr}
     with open(results_path, 'wb') as f:
         pickle.dump(dict, f)
@@ -107,7 +131,7 @@ for i in tqdm.tqdm(range(len(maps))):
                         'fnames': fnames,
                         'subj': subj_arr,
                         'ses': sess_arr,
-                        'run': run_arr,
+                        #'run': run_arr,
                         'cond': cond_arr}
     with open(results_path, 'wb') as f:
         pickle.dump(dict, f)
@@ -120,6 +144,6 @@ sbn.heatmap(corr_matrix, annot=True, xticklabels=mapnames, yticklabels=mapnames,
 plt.yticks(fontsize=13)
 plt.xticks(fontsize=13)
 
-if not os.path.isdir(figures_path + '/run_corrmats/'):
-    os.mkdir(figures_path + '/run_corrmats/')
-fig.savefig(figures_path + '/run_corrmats/run-level_corrmat.png')
+if not os.path.isdir(figures_path + '/corrmats/'):
+    os.mkdir(figures_path + '/corrmats/')
+fig.savefig(figures_path + '/corrmats/ses-level_corrmat.png')
