@@ -12,3 +12,8 @@ nistats
 tqdm
 scipy
 load_confounds
+matplotlib
+seaborn
+ptitprince
+pandas
+numpy
