@@ -312,7 +312,7 @@ def process_run(sub, ses, run, path_to_data):
                         "glm",
                         "run-level",
                         sub,
-                        f"{sub}_{ses}_intermediatemodel_fitted_glm.pkl")
+                        f"{sub}_{ses}_{run}_intermediatemodel_fitted_glm.pkl")
             os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
