@@ -37,7 +37,7 @@ cond_arr = []
 fnames = []
 mapnames = []
 for contrast in contrasts:
-    if contrast in ['LEFT+RIGHT+DOWN', 'HIT+JUMP']:
+    if contrast in ['RIGHT+LEFT+DOWN', 'HIT+JUMP']:
         model = "intermediate"
     else:
         model = "simple"
