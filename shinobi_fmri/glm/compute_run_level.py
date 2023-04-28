@@ -311,8 +311,9 @@ def process_run(sub, ses, run, path_to_data):
                         "processed",
                         "glm",
                         "run-level",
+                        sub,
                         f"{sub}_{ses}_intermediatemodel_fitted_glm.pkl")
-            os.makedirs(op.join(path_to_data,"processed","glm","run-level"), exist_ok=True)
+            os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
                 fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
