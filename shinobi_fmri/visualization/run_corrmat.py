@@ -21,7 +21,7 @@ path_to_data = DATA_PATH
 figures_path = FIG_PATH
 contrasts = ['Kill', 'JUMP', 'HIT', 'LEFT', 'RIGHT', 'DOWN', 'RIGHT+LEFT+DOWN', 'HIT+JUMP']
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
+results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/run-level_maps_corrs.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -36,7 +36,7 @@ cond_arr = []
 fnames = []
 mapnames = []
 for contrast in contrasts:
-    if contrast in ['LEFT+RIGHT+DOWN', 'HIT+JUMP']:
+    if contrast in ['RIGHT+LEFT+DOWN', 'HIT+JUMP']:
         model = "intermediate"
     else:
         model = "simple"
