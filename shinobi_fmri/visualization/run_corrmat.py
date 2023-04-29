@@ -19,7 +19,7 @@ def mem_used():
 ## Set constants
 path_to_data = DATA_PATH
 figures_path = FIG_PATH
-contrasts = ['Kill', 'JUMP', 'HIT', 'LEFT', 'RIGHT', 'DOWN', 'RIGHT+LEFT+DOWN', 'HIT+JUMP']
+contrasts = ['Kill', 'JUMP', 'HIT', 'LEFT', 'RIGHT', 'DOWN', 'HealthGain', 'HealthLoss', 'RIGHT+LEFT+DOWN', 'HIT+JUMP']
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/run-level_maps_corrs.pkl'
 
@@ -40,27 +40,30 @@ for contrast in contrasts:
         model = "intermediate"
     else:
         model = "simple"
-
-    files = os.listdir(path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast))
-    for file in files:
-        if model in file:
-            fpath = path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast) + file
-            file_split = file.split('_')
-            sub = file_split[0]
-            ses = file_split[1]
-            run = file[20]
-            print('run : '+ file)
-            raw_dpath = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
-            niimap = image.load_img(fpath)
-            maps.append(niimap)
-            subj_arr.append(sub)
-            sess_arr.append(ses)
-            run_arr.append(run)
-            cond_arr.append(contrast)
-            #raw_data.append(image.concat_imgs(raw_dpath))
-            fnames.append(raw_dpath)
-            mapnames.append(fpath)
-
+    try:
+        files = os.listdir(path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast))
+        for file in files:
+            if model in file:
+                fpath = path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast) + file
+                file_split = file.split('_')
+                sub = file_split[0]
+                ses = file_split[1]
+                run = file[20]
+                print('run : '+ file)
+                raw_dpath = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
+                niimap = image.load_img(fpath)
+                maps.append(niimap)
+                subj_arr.append(sub)
+                sess_arr.append(ses)
+                run_arr.append(run)
+                cond_arr.append(contrast)
+                #raw_data.append(image.concat_imgs(raw_dpath))
+                fnames.append(raw_dpath)
+                mapnames.append(fpath)
+    except Exception as e:
+        print(e)
+        print('no file for contrast {}'.format(contrast))
+        continue
 
 
 print('loading done')
