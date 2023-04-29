@@ -295,7 +295,7 @@ def process_run(sub, ses, run, path_to_data):
                     "run-level",
                     regressor_name,
                     "report",
-                    f"{sub}_{ses}_fullmodel_{regressor_name}_report.html",
+                    f"{sub}_{ses}_{run}_fullmodel_{regressor_name}_report.html",
                 )
                 os.makedirs(op.join(figures_path,"run-level",regressor_name,"report"), exist_ok=True)
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
