@@ -161,8 +161,8 @@ def create_viz(sub, cond_name, modeltype,
 if __name__ == "__main__":
     COND_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
                  'Kill', 'LEFT', 'RIGHT', 'UP', 
-                 'HIT+JUMP-RIGHT-LEFT-UP-DOWN', 
-                 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
+                 'HIT+JUMP', 
+                 'RIGHT+LEFT+UP']
     if args.subject is not None:
         subjects = [args.subject]
     else:
@@ -175,11 +175,10 @@ if __name__ == "__main__":
 
     for sub in subjects:
         for cond_name in contrasts:
-            for modeltype in ["full", "simple"]:
+            for modeltype in ["full", "simple", "intermediate"]:
                 try:
                     print(f"Creating viz for {sub} {cond_name} {modeltype}")
                     create_viz(sub, cond_name, modeltype)
                 except Exception as e:
                     print(e)
     
-
