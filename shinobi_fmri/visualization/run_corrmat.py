@@ -48,7 +48,7 @@ for contrast in contrasts:
                 file_split = file.split('_')
                 sub = file_split[0]
                 ses = file_split[1]
-                run = file[20]
+                run = file_split[2]
                 print('run : '+ file)
                 raw_dpath = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
                 niimap = image.load_img(fpath)
