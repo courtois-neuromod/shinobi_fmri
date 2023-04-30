@@ -9,6 +9,7 @@ from nilearn.input_data import NiftiMasker
 import psutil
 import pickle
 import tqdm
+import os.path as op
 
 def mem_used():
     tot = psutil.virtual_memory().total / 2**30
@@ -50,7 +51,14 @@ for contrast in contrasts:
                 ses = file_split[1]
                 run = file_split[2]
                 print('run : '+ file)
-                raw_dpath = path_to_data + 'shinobi/derivatives/fmriprep-20.2lts/fmriprep/{}/{}/func/{}_{}_task-shinobi_run-{}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'.format(sub, ses, sub, ses, run)
+                raw_dpath = op.join(
+                    path_to_data,
+                    "shinobi.fmriprep",
+                    sub,
+                    ses,
+                    "func",
+                    f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+                )
                 niimap = image.load_img(fpath)
                 maps.append(niimap)
                 subj_arr.append(sub)
