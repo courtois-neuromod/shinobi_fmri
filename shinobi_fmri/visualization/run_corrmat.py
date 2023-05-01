@@ -10,6 +10,11 @@ import psutil
 import pickle
 import tqdm
 import os.path as op
+import numpy as np
+import tqdm
+import pickle
+from joblib import Parallel, delayed
+
 
 def mem_used():
     tot = psutil.virtual_memory().total / 2**30
@@ -111,27 +116,33 @@ else:
         dict = pickle.load(f)
         corr_matrix = dict['corr_matrix']
 
-# compute corrcoefs
+def compute_corrcoef(i, j, maps, corr_matrix):
+    if j > i:
+        if corr_matrix[i, j] == 0:
+            imap = maps[i]
+            imap_trim = np.array([x for x in imap if x != 0])
+            jmap = maps[j]
+            jmap_trim = np.array([x for x in jmap if x != 0])
+            coeff = np.corrcoef(imap_trim, jmap_trim)[0, 1]
+            corr_matrix[i, j] = coeff
+    return corr_matrix
+
+n_jobs = -1  # Set to the number of CPUs you want to use, -1 for all available CPUs
 for i in tqdm.tqdm(range(len(maps))):
-    for j in tqdm.tqdm(range(len(maps))):
-        if j>i:
-            if corr_matrix[i,j] == 0:
-                imap = maps[i]
-                imap_trim = np.array([x for x in imap if x != 0])
-                jmap = maps[j]
-                jmap_trim = np.array([x for x in jmap if x != 0])
-                coeff = np.corrcoef(imap_trim, jmap_trim)[0,1]
-                corr_matrix[i,j] = coeff
-                # immediately saves the result
-                dict = {'corr_matrix': corr_matrix,
-                        'fnames': fnames,
-                        'subj': subj_arr,
-                        'ses': sess_arr,
-                        'run': run_arr,
-                        'cond': cond_arr}
+    # Parallelize the inner loop
+    coeff = Parallel(n_jobs=n_jobs)(
+        delayed(compute_corrcoef)(i, j, maps, corr_matrix) for j in tqdm.tqdm(range(len(maps)))
+    )
+
+    # Save the results
+    dict = {'corr_matrix': corr_matrix,
+            'fnames': fnames,
+            'subj': subj_arr,
+            'ses': sess_arr,
+            'run': run_arr,
+            'cond': cond_arr}
     with open(results_path, 'wb') as f:
         pickle.dump(dict, f)
-
 
 fig, ax = plt.subplots(figsize=(15,15))
 mask = np.zeros_like(corr_matrix)
