@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
 #SBATCH --time=24:00:00
-#SBATCH --job-name=shi_subjlevel
+#SBATCH --job-name=shi_seslevel
 #SBATCH --mem=32G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
