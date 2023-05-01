@@ -114,7 +114,7 @@ if not os.path.isfile(results_path):
 else:
     with open(results_path, 'rb') as f:
         dict = pickle.load(f)
-        corr_matrix = dict['corr_matrix']
+        corr_matrix = np.array(dict['corr_matrix'])
 
 def compute_corrcoef(i, j, maps, corr_matrix):
     if j > i:
@@ -124,15 +124,20 @@ def compute_corrcoef(i, j, maps, corr_matrix):
             jmap = maps[j]
             jmap_trim = np.array([x for x in jmap if x != 0])
             coeff = np.corrcoef(imap_trim, jmap_trim)[0, 1]
-            corr_matrix[i, j] = coeff
-    return corr_matrix
+            return i, j, coeff
+    return i, j, None
 
 n_jobs = -1  # Set to the number of CPUs you want to use, -1 for all available CPUs
 for i in tqdm.tqdm(range(len(maps))):
     # Parallelize the inner loop
-    coeff = Parallel(n_jobs=n_jobs)(
-        delayed(compute_corrcoef)(i, j, maps, corr_matrix) for j in tqdm.tqdm(range(len(maps)))
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_corrcoef)(i, j, maps, np.array(corr_matrix)) for j in tqdm.tqdm(range(len(maps)))
     )
+
+    # Update the corr_matrix with the new values
+    for i, j, coeff in results:
+        if coeff is not None:
+            corr_matrix[i, j] = coeff
 
     # Save the results
     dict = {'corr_matrix': corr_matrix,
