@@ -32,7 +32,7 @@ args = parser.parse_args()
 
 def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, figpath=None):
     sub = zmap_fname.split("/")[-1].split("_")[0]
-    modeltype = zmap_fname.split("/")[-1].split("_")[1][:-5]
+    modeltype = zmap_fname.split("/")[-1].split("_")[1].strip("model")
     cond_name = zmap_fname.split("/")[-1].split("_")[2]
     
     if zmap==None:
