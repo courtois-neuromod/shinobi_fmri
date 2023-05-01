@@ -162,7 +162,7 @@ if __name__ == "__main__":
     COND_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
                  'Kill', 'LEFT', 'RIGHT', 'UP', 
                  'HIT+JUMP', 
-                 'RIGHT+LEFT+UP']
+                 'RIGHT+LEFT+DOWN']
     if args.subject is not None:
         subjects = [args.subject]
     else:
