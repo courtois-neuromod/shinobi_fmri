@@ -88,8 +88,11 @@ def main():
             averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
             std_confusion_matrix = np.std(confusion_matrices, axis=0)
             sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', labels=decoder.classes_)
-            output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_confusion_matrix.png")
+            output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_averaged_confusion_matrix.png")
             os.makedirs(op.join("./", "reports", "figures", "subject-level", "confusion_matrices"), exist_ok=True)
+            plt.savefig(output_fname)
+            plt.close()
+            output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
             plt.savefig(output_fname)
             plt.close()
             
