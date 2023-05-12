@@ -7,6 +7,8 @@ from nilearn.decoding import Decoder
 from sklearn.model_selection import LeaveOneGroupOut
 from nilearn.plotting import plot_stat_map, show
 import argparse
+from sklearn.metrics import confusion_matrix
+import seaborn as sbn
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -21,7 +23,7 @@ args = parser.parse_args()
 def main():
     path_to_data = shinobi_behav.DATA_PATH
     models = ["full", "simple"]
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill']#, 'Kill', 'HealthLoss']#'HealthGain', 'UP']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']#, 'Kill', 'HealthLoss']#'HealthGain', 'UP']
     #additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
     contrasts = CONDS_LIST# + additional_contrasts
     if args.subject is not None:
@@ -59,7 +61,6 @@ def main():
                             contrast_label.append(contrast)
                             session_label.append(session)
 
-
             decoder = Decoder(estimator='svc', mask=mask_fname, standardize=False,
                             screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
             decoder.fit(z_maps, contrast_label, groups=session_label)
@@ -75,6 +76,23 @@ def main():
                 os.makedirs(op.join("./", "reports", "figures", "subject-level", cond, "MVPA"), exist_ok=True)
                 weight_img = decoder.coef_img_[cond]
                 plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
+
+            # Generate confusion matrices across folds
+            confusion_matrices = []
+            for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
+                decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
+                y_pred = decoder.predict(np.array(z_maps)[test])
+                y_true = np.array(contrast_label)[test]
+                confusion_mat = confusion_matrix(y_true, y_pred, labels=decoder.classes_)
+                confusion_matrices.append(confusion_mat)
+            averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
+            std_confusion_matrix = np.std(confusion_matrices, axis=0)
+            sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', labels=decoder.classes_)
+            output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_confusion_matrix.png")
+            os.makedirs(op.join("./", "reports", "figures", "subject-level", "confusion_matrices"), exist_ok=True)
+            plt.savefig(output_fname)
+            plt.close()
+            
 
 if __name__ == "__main__":
     main()
