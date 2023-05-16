@@ -9,6 +9,7 @@ from nilearn.plotting import plot_stat_map, show
 import argparse
 from sklearn.metrics import confusion_matrix
 import seaborn as sbn
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -96,7 +97,6 @@ def main():
             output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
             plt.savefig(output_fname)
             plt.close()
-            
 
 
 if __name__ == "__main__":
