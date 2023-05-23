@@ -78,7 +78,9 @@ def process_subject(sub, condition, path_to_data):
         #contrast_intercept = np.zeros(len(second_level_input)+1)
         #contrast_intercept[0] = 1
 
-        z_map = second_level_model.compute_contrast(second_level_contrast=[1], output_type='z_score', stat_type="F")
+        z_map = second_level_model.compute_contrast(second_level_contrast=[1], 
+                                                    output_type='z_score', 
+                                                    second_level_stat_type="F")
         z_map.to_filename(subjectlevel_z_map_fname)
         # Create report
         report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", condition, "report")
