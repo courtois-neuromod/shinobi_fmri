@@ -33,7 +33,7 @@ def create_pdf_with_images(image_folder, pdf_filename):
 
     c.save()  # Save the PDF
 
-def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, cmap="cold_hot", vmax=6, threshold=0.9, dpi=300):
+def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, threshold=0.9, dpi=300):
     """Plot a seed-based connectivity surface map and save the image.
     Args:
         img (str): Path to the image to plot.
@@ -60,8 +60,8 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, cmap="col
         views=["lateral", "medial"],
         hemispheres=["left", "right"],
         inflate=True,
-        colorbar=True,
-        threshold=thres_val,
+        colorbar=colorbar,
+        threshold=3,#thres_val,
         vmax=vmax,
         symmetric_cbar=False,
         output_file=save_path,
@@ -103,7 +103,7 @@ def create_all_images(subject, condition, fig_folder):
         save_path = os.path.join(fig_folder,
                                 f"{subject}_{session}_{condition}.png")
         if os.path.isfile(zmap_path):
-            plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}")
+            plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}", colorbar=False)
         else:
             img_size = Image.open(sublevel_save_path).size
             missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
