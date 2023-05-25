@@ -27,7 +27,7 @@ def create_pdf_with_images(image_folder, pdf_filename):
     images = sorted([os.path.join(image_folder, img) for img in os.listdir(image_folder) if img.endswith('.png')])
 
     for image_path in images:
-        print(images)
+        print(image_path)
         c.drawImage(image_path, 0, 0, width=letter[0], height=letter[1])  # Draws image on the canvas
         c.showPage()  # Ends the current page and starts a new one
 
