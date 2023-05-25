@@ -9,6 +9,29 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+
+
+def create_pdf_with_images(image_folder, pdf_filename):
+    """Create a PDF with all the images in a folder
+
+    Args:
+        image_folder (str): Path to the folder containing the images.
+        pdf_filename (str): Path to the PDF file to create.
+    Returns:
+        None
+    """
+    c = canvas.Canvas(pdf_filename, pagesize=letter)
+
+    images = sorted([os.path.join(image_folder, img) for img in os.listdir(image_folder) if img.endswith('.png')])
+
+    for image_path in images:
+        print(images)
+        c.drawImage(image_path, 0, 0, width=letter[0], height=letter[1])  # Draws image on the canvas
+        c.showPage()  # Ends the current page and starts a new one
+
+    c.save()  # Save the PDF
 
 def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, cmap="cold_hot", vmax=6, threshold=0.9, dpi=300):
     """Plot a seed-based connectivity surface map and save the image.
@@ -149,3 +172,6 @@ if __name__ == "__main__":
             save_path = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
                                     "reports", "figures", "full_zmap_plot", f"{subject}_{condition}_full_zmaps.png")
             make_full_plot(subject, condition, fig_folder, save_path)
+
+            create_pdf_with_images(os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot"), 
+                                'inflated_zmaps.pdf')
