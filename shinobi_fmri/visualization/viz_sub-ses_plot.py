@@ -173,5 +173,5 @@ if __name__ == "__main__":
                                     "reports", "figures", "full_zmap_plot", f"{subject}_{condition}_full_zmaps.png")
             make_full_plot(subject, condition, fig_folder, save_path)
 
-            create_pdf_with_images(os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot"), 
-                                'inflated_zmaps.pdf')
+    create_pdf_with_images(os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot"), 
+                        'inflated_zmaps.pdf')
