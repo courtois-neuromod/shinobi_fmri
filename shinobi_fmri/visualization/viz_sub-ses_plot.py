@@ -68,7 +68,6 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         title=title
     )
 
-
 def create_all_images(subject, condition, fig_folder):
     '''Create all images for a given subject and condition.
     Args:
