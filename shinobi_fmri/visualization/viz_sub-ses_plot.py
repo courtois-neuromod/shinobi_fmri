@@ -109,8 +109,78 @@ def create_all_images(subject, condition, fig_folder):
             d = ImageDraw.Draw(missing_img)
             d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
             missing_img.save(save_path)
+
+def make_annotation_plot(condition, save_path):
+    '''Make a 8*4 plot for one annotation, with all the subjects on the same page
+    '''
+    images = []
+    for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
+        print(f"Processing {subject}")
+        fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                        "reports", "figures", "full_zmap_plot", subject, condition)
+        # obtain top 4 sesmaps
+        ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
+        sesmap_vox_above_thresh = []
+        sesmap_name = []
+        for session in ses_list:
+            try:
+                print(f"Loading {session}")
+                zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
+                                                "processed",
+                                                "z_maps",
+                                                "ses-level",
+                                                condition, 
+                                                f"{subject}_{session}_simplemodel_{condition}.nii.gz")
+                img = nib.load(zmap_path).get_fdata()
+                img_vox_above_thresh = [1 if x > 3 else 0 for x in img.flatten()] # add -3
+                nb_vox_above_thresh = sum(img_vox_above_thresh)
+                sesmap_vox_above_thresh.append(nb_vox_above_thresh)
+                sesmap_name.append(session)
+            except FileNotFoundError:
+                print("File not found")
+        top4_idx = np.argsort(sesmap_vox_above_thresh)[-4:]
+        top4_names = np.sort(np.array(sesmap_name)[top4_idx])
+
+        # Add images to the list
+        # subject-level image
+        subj_images = [np.array(Image.open(os.path.join(fig_folder, f"{subject}_{condition}.png")))]
+        for sesname in top4_names:
+            subj_images.append(np.array(Image.open(os.path.join(fig_folder,
+                    f"{subject}_{sesname}_{condition}.png"))))
+        images.append(subj_images)
         
-def make_full_plot(subject, condition, fig_folder, save_path):
+    # Make figure
+    # Create figure with specific size
+    fig = plt.figure(figsize=(10,10), dpi=300) # You can adjust these values
+
+    # Create a 4 by 4 grid
+    gs = fig.add_gridspec(8, 4)
+
+    for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
+        # Create a larger subplot for the first image
+        ax1 = fig.add_subplot(gs[(idx_subj*2)+0:(idx_subj*2)+2, 0:2])
+
+        # Display the first image
+        ax1.imshow(images[idx_subj][0])
+        ax1.axis('off')  # To remove axes
+
+        # Display the rest of the images
+        for i in range(len(images[idx_subj][1:])):
+            if i == 0:
+                ax = fig.add_subplot(gs[(idx_subj*2)+0,2])
+            elif i == 1:
+                ax = fig.add_subplot(gs[(idx_subj*2)+0,3])
+            elif i == 2:
+                ax = fig.add_subplot(gs[(idx_subj*2)+1,2])
+            elif i == 3:
+                ax = fig.add_subplot(gs[(idx_subj*2)+1,3])
+            ax.imshow(images[idx_subj][i+1])
+            ax.axis('off')  # To remove axes
+
+        plt.subplots_adjust(wspace=0, hspace=0)
+        plt.savefig(save_path)
+        
+def make_subject_plot(subject, condition, fig_folder, save_path):
     '''Make a full plot for a given subject and condition.
     Args:
         subject (str): Subject ID.
@@ -159,6 +229,17 @@ def make_full_plot(subject, condition, fig_folder, save_path):
 
 
 if __name__ == "__main__":
+
+    output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
+    os.makedirs(output_folder, exist_ok=True)
+    for condition in ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']:
+        save_path = os.path.join(output_folder, f"annotations_plot_{condition}.png")
+        make_annotation_plot(condition, save_path)
+    create_pdf_with_images(output_folder, os.path.join(output_folder, 'inflated_zmaps_by_annot.pdf'))
+
+
+    # Deprec
+    '''
     # Make ALL the plots
     for subject in shinobi_behav.SUBJECTS:
         for condition in ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']:
@@ -174,3 +255,4 @@ if __name__ == "__main__":
 
     create_pdf_with_images(os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot"), 
                         'inflated_zmaps.pdf')
+    '''
