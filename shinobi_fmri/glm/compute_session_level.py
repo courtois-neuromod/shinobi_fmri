@@ -20,14 +20,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default="sub-06",
+    default="sub-01",
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-ses",
     "--session",
-    default="ses-010",
+    default="ses-004",
     type=str,
     help="Session to process",
 )
@@ -230,6 +230,7 @@ def load_run(fmri_fname, mask_fname, events_fname):
     
     # Make design matrix
     design_matrix_clean = get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events)
+    breakpoint() 
     return design_matrix_clean, fmri_img, mask_resampled
 
 def load_session(sub, ses, run_list, path_to_data):
@@ -242,6 +243,17 @@ def load_session(sub, ses, run_list, path_to_data):
         design_matrices.append(design_matrix_clean)
         fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname
+
+def remove_runs_without_target_regressor(regressor_name, fmri_imgs, trimmed_design_matrices):
+    images_copy = fmri_imgs.copy()
+    dataframes_copy = trimmed_design_matrices.copy()
+    
+    for img, df in zip(fmri_imgs, trimmed_design_matrices):
+        if regressor_name not in df.columns:
+            images_copy.remove(img)
+            dataframes_copy.remove(df)
+            
+    return images_copy, dataframes_copy
 
 def process_ses(sub, ses, path_to_data):
     ses_fpath = op.join(path_to_data,"shinobi.fmriprep",sub,ses,"func")
@@ -386,7 +398,7 @@ def process_ses(sub, ses, path_to_data):
                             print(e)
                             print(f"Regressor {reg} might be missing ?")
                     trimmed_design_matrices.append(trimmed_design_matrix)
-                
+                fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor(regressor_name, fmri_imgs, trimmed_design_matrices)
                 fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
