@@ -11,6 +11,43 @@ from PIL import Image
 import numpy as np
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from nilearn.plotting.cm import _cmap_d as nilearn_cmaps
+import matplotlib.gridspec as gridspec
+import math
+
+
+def create_colormap():
+    # Get the colormap
+    cmap = nilearn_cmaps['cold_hot']
+
+    # Create a list of colors from the colormap
+    colors = cmap(np.linspace(0, 1, cmap.N))
+
+    # Find the indices corresponding to -3 and 3 on the color scale
+    lower_bound = int(64)  # -3 corresponds to this index
+    upper_bound = int(192)  # 3 corresponds to this index
+
+    # Set the colors in those indices to grey
+    colors[lower_bound:upper_bound, :] = [0.5, 0.5, 0.5, 1]  # RGBA for grey
+
+    # Create a new colormap with these colors
+    new_cmap = mcolors.LinearSegmentedColormap.from_list('new_cmap', colors)
+
+    # Create a normalization object that maps the data range (-6, 6) to the range (0, 1)
+    norm = mcolors.Normalize(vmin=-6, vmax=6)
+
+    # Now we can create a ScalarMappable with the new colormap and normalization, and use it to create a colorbar
+    mappable = plt.cm.ScalarMappable(norm=norm, cmap=new_cmap)
+    mappable.set_array([])  # Needed for the colorbar function
+
+    # Create a figure and add the colorbar to it
+    fig, ax = plt.subplots(figsize=(1, 6))
+    plt.colorbar(mappable, ax=ax, orientation='vertical')
+    ax.remove()
+    return fig, ax, mappable
 
 
 def create_pdf_with_images(image_folder, pdf_filename):
@@ -88,7 +125,7 @@ def create_all_images(subject, condition, fig_folder):
     sublevel_save_path = os.path.join(fig_folder,
                                       f"{subject}_{condition}.png")
 
-    plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject} {condition}")
+    plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
 
     ## Make ses level z_maps
     ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
@@ -132,7 +169,7 @@ def make_annotation_plot(condition, save_path):
                                                 condition, 
                                                 f"{subject}_{session}_simplemodel_{condition}.nii.gz")
                 img = nib.load(zmap_path).get_fdata()
-                img_vox_above_thresh = [1 if x > 3 else 0 for x in img.flatten()] # add -3
+                img_vox_above_thresh = [1 if abs(x) > 3 else 0 for x in img.flatten()]
                 nb_vox_above_thresh = sum(img_vox_above_thresh)
                 sesmap_vox_above_thresh.append(nb_vox_above_thresh)
                 sesmap_name.append(session)
@@ -151,35 +188,60 @@ def make_annotation_plot(condition, save_path):
         
     # Make figure
     # Create figure with specific size
-    fig = plt.figure(figsize=(10,10), dpi=300) # You can adjust these values
+    fig = plt.figure(figsize=(16,8), dpi=300) # You can adjust these values
+    #fig.patch.set_facecolor('grey')
 
-    # Create a 4 by 4 grid
-    gs = fig.add_gridspec(8, 4)
+    # Create a 8 by 4 grid
+    gs = fig.add_gridspec(4, 9)
+
+    ax_lines = fig.add_subplot(gs[:,:8])
+    ax_lines.axvline(x=0.5, color='grey')
+
+    # Draw a horizontal line in the middle of the graph, 
+    # x range will be automatically adjusted to the graph dimensions
+    ax_lines.axhline(y=0.5, color='grey')
+    ax_lines.axis('off')
 
     for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
         # Create a larger subplot for the first image
-        ax1 = fig.add_subplot(gs[(idx_subj*2)+0:(idx_subj*2)+2, 0:2])
-
+        if idx_subj == 0:
+            ax1 = fig.add_subplot(gs[0:2, 0:2])
+        elif idx_subj == 1:
+            ax1 = fig.add_subplot(gs[0:2, 4:6])
+        elif idx_subj == 2:
+            ax1 = fig.add_subplot(gs[2:4, 0:2])
+        elif idx_subj == 3:
+            ax1 = fig.add_subplot(gs[2:4, 4:6])
         # Display the first image
         ax1.imshow(images[idx_subj][0])
         ax1.axis('off')  # To remove axes
 
         # Display the rest of the images
+
         for i in range(len(images[idx_subj][1:])):
             if i == 0:
-                ax = fig.add_subplot(gs[(idx_subj*2)+0,2])
+                ax = fig.add_subplot(gs[(math.floor(idx_subj/2)*2)+0,((idx_subj%2)*4)+2])
             elif i == 1:
-                ax = fig.add_subplot(gs[(idx_subj*2)+0,3])
+                ax = fig.add_subplot(gs[(math.floor(idx_subj/2)*2)+0,((idx_subj%2)*4)+3])
             elif i == 2:
-                ax = fig.add_subplot(gs[(idx_subj*2)+1,2])
+                ax = fig.add_subplot(gs[(math.floor(idx_subj/2)*2)+1,((idx_subj%2)*4)+2])
             elif i == 3:
-                ax = fig.add_subplot(gs[(idx_subj*2)+1,3])
+                ax = fig.add_subplot(gs[(math.floor(idx_subj/2)*2)+1,((idx_subj%2)*4)+3])
             ax.imshow(images[idx_subj][i+1])
             ax.axis('off')  # To remove axes
 
         plt.subplots_adjust(wspace=0, hspace=0)
+        fig.suptitle(f"{condition}", fontsize=18)
+        _,_,cmap = create_colormap()
+        # Define the axes for the colorbar in the 8th column of the GridSpec
+        inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
+        cbar_ax = fig.add_subplot(inner_gs[:, 0])
+
+        # Create the colorbar in the defined axes
+        plt.colorbar(cmap, cax=cbar_ax)
+        fig.tight_layout()
         plt.savefig(save_path)
-        
+            
 def make_subject_plot(subject, condition, fig_folder, save_path):
     '''Make a full plot for a given subject and condition.
     Args:
@@ -233,6 +295,12 @@ if __name__ == "__main__":
     output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
     os.makedirs(output_folder, exist_ok=True)
     for condition in ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']:
+        for subject in shinobi_behav.SUBJECTS:
+            fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                                    "reports", "figures", "full_zmap_plot", subject, condition)
+            os.makedirs(fig_folder, exist_ok=True)
+
+            create_all_images(subject, condition, fig_folder)
         save_path = os.path.join(output_folder, f"annotations_plot_{condition}.png")
         make_annotation_plot(condition, save_path)
     create_pdf_with_images(output_folder, os.path.join(output_folder, 'inflated_zmaps_by_annot.pdf'))
