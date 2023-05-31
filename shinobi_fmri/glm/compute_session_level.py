@@ -20,14 +20,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default="sub-01",
+    default="sub-06",
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-ses",
     "--session",
-    default="ses-004",
+    default="ses-011",
     type=str,
     help="Session to process",
 )
@@ -230,7 +230,6 @@ def load_run(fmri_fname, mask_fname, events_fname):
     
     # Make design matrix
     design_matrix_clean = get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events)
-    breakpoint() 
     return design_matrix_clean, fmri_img, mask_resampled
 
 def load_session(sub, ses, run_list, path_to_data):
@@ -442,7 +441,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    CONDS_LIST = ["HealthGain"]#['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
