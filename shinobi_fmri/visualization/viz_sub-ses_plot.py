@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -59,13 +59,14 @@ def create_pdf_with_images(image_folder, pdf_filename):
     Returns:
         None
     """
-    c = canvas.Canvas(pdf_filename, pagesize=letter)
+    c = canvas.Canvas(pdf_filename, pagesize=landscape(letter))
+    #canvas.setPageSize(landscape(letter))
 
     images = sorted([os.path.join(image_folder, img) for img in os.listdir(image_folder) if img.endswith('.png')])
 
     for image_path in images:
         print(image_path)
-        c.drawImage(image_path, 0, 0, width=letter[0], height=letter[1])  # Draws image on the canvas
+        c.drawImage(image_path, 0, 0, width=letter[1], height=letter[0])  # Draws image on the canvas
         c.showPage()  # Ends the current page and starts a new one
 
     c.save()  # Save the PDF
@@ -194,13 +195,13 @@ def make_annotation_plot(condition, save_path):
     # Create a 8 by 4 grid
     gs = fig.add_gridspec(4, 9)
 
-    ax_lines = fig.add_subplot(gs[:,:8])
-    ax_lines.axvline(x=0.5, color='grey')
+    #ax_lines = fig.add_subplot(gs[:,:8])
+    #ax_lines.axvline(x=0.5, color='grey')
 
     # Draw a horizontal line in the middle of the graph, 
     # x range will be automatically adjusted to the graph dimensions
-    ax_lines.axhline(y=0.5, color='grey')
-    ax_lines.axis('off')
+    #ax_lines.axhline(y=0.5, color='grey')
+    #ax_lines.axis('off')
 
     for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
         # Create a larger subplot for the first image
@@ -230,64 +231,17 @@ def make_annotation_plot(condition, save_path):
             ax.imshow(images[idx_subj][i+1])
             ax.axis('off')  # To remove axes
 
-        plt.subplots_adjust(wspace=0, hspace=0)
-        fig.suptitle(f"{condition}", fontsize=18)
-        _,_,cmap = create_colormap()
-        # Define the axes for the colorbar in the 8th column of the GridSpec
-        inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
-        cbar_ax = fig.add_subplot(inner_gs[:, 0])
-
-        # Create the colorbar in the defined axes
-        plt.colorbar(cmap, cax=cbar_ax)
-        fig.tight_layout()
-        plt.savefig(save_path)
-            
-def make_subject_plot(subject, condition, fig_folder, save_path):
-    '''Make a full plot for a given subject and condition.
-    Args:
-        subject (str): Subject ID.
-        condition (str): Condition (contrast) to process.
-        fig_folder (str): Path to save the images to.
-        save_path (str): Path to save the full plot to.
-    Returns:
-        None
-    '''
-    # Load your images into a list
-    images = [np.array(Image.open(os.path.join(fig_folder, f"{subject}_{condition}.png")))]
-    
-    ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
-    for session in ses_list:
-        images.append(np.array(Image.open(os.path.join(fig_folder,
-                      f"{subject}_{session}_{condition}.png"))))
-
-    # Create figure with specific size
-    fig = plt.figure(figsize=(4,4), dpi=300) # You can adjust these values
-
-    # Create a 4 by 4 grid
-    gs = fig.add_gridspec(4, 4)
-
-    # Create a larger subplot for the first image
-    ax1 = fig.add_subplot(gs[0:2, 0:2])
-
-    # Display the first image
-    ax1.imshow(images[0])
-    ax1.axis('off')  # To remove axes
-
-    # Display the rest of the images
-    for i in range(1, len(ses_list)+1):
-        if i <= 2:
-            ax = fig.add_subplot(gs[0,i+1])
-        elif i <= 4:
-            ax = fig.add_subplot(gs[1,i-1])
-        elif i <= 8:
-            ax = fig.add_subplot(gs[2,i-5])
-        elif i <= 12:
-            ax = fig.add_subplot(gs[3,i-9])
-        ax.imshow(images[i])
-        ax.axis('off')  # To remove axes
-
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(save_path)
+    fig.suptitle(f"{condition}", fontsize=18, x=0.4444)
+    _,_,cmap = create_colormap()
+    # Define the axes for the colorbar in the 8th column of the GridSpec
+    inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
+    cbar_ax = fig.add_subplot(inner_gs[:, 0])
+
+    # Create the colorbar in the defined axes
+    plt.colorbar(cmap, cax=cbar_ax)
+    fig.tight_layout()
+    fig.savefig(save_path)
 
 
 if __name__ == "__main__":
@@ -304,23 +258,3 @@ if __name__ == "__main__":
         save_path = os.path.join(output_folder, f"annotations_plot_{condition}.png")
         make_annotation_plot(condition, save_path)
     create_pdf_with_images(output_folder, os.path.join(output_folder, 'inflated_zmaps_by_annot.pdf'))
-
-
-    # Deprec
-    '''
-    # Make ALL the plots
-    for subject in shinobi_behav.SUBJECTS:
-        for condition in ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']:
-            fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
-                                    "reports", "figures", "full_zmap_plot", subject, condition)
-            os.makedirs(fig_folder, exist_ok=True)
-
-            create_all_images(subject, condition, fig_folder)
-
-            save_path = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
-                                    "reports", "figures", "full_zmap_plot", f"{subject}_{condition}_full_zmaps.png")
-            make_full_plot(subject, condition, fig_folder, save_path)
-
-    create_pdf_with_images(os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot"), 
-                        'inflated_zmaps.pdf')
-    '''
