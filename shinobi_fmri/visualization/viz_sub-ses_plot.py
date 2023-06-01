@@ -59,14 +59,16 @@ def create_pdf_with_images(image_folder, pdf_filename):
     Returns:
         None
     """
-    c = canvas.Canvas(pdf_filename, pagesize=landscape(letter))
-    #canvas.setPageSize(landscape(letter))
-
     images = sorted([os.path.join(image_folder, img) for img in os.listdir(image_folder) if img.endswith('.png')])
+
+    c = canvas.Canvas(pdf_filename)
+    size = Image.open(images[0]).size
+    c.setPageSize(size)
+    
 
     for image_path in images:
         print(image_path)
-        c.drawImage(image_path, 0, 0, width=letter[1], height=letter[0])  # Draws image on the canvas
+        c.drawImage(image_path, 0, 0, width=size[0], height=size[1])  # Draws image on the canvas
         c.showPage()  # Ends the current page and starts a new one
 
     c.save()  # Save the PDF
@@ -236,7 +238,7 @@ def make_annotation_plot(condition, save_path):
     _,_,cmap = create_colormap()
     # Define the axes for the colorbar in the 8th column of the GridSpec
     inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
-    cbar_ax = fig.add_subplot(inner_gs[:, 0])
+    cbar_ax = fig.add_subplot(inner_gs[1:3, 0])
 
     # Create the colorbar in the defined axes
     plt.colorbar(cmap, cax=cbar_ax)
@@ -248,7 +250,7 @@ if __name__ == "__main__":
 
     output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
     os.makedirs(output_folder, exist_ok=True)
-    for condition in ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']:
+    for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:
         for subject in shinobi_behav.SUBJECTS:
             fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
                                     "reports", "figures", "full_zmap_plot", subject, condition)
