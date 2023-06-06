@@ -283,7 +283,7 @@ def process_ses(sub, ses, path_to_data):
                 fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
                 
                 # Trim the design matrices from unwanted regressors
-                regressors_to_remove = CONDS_LIST.copy() # Here I might want to remove also the level regressors
+                regressors_to_remove = CONDS_LIST.copy()+["level-1", "level-4", "level-5"] # Here I might want to remove also the level regressors
                 regressors_to_remove.remove(regressor_name)
                 trimmed_design_matrices = []
                 for design_matrix in design_matrices:
@@ -388,7 +388,7 @@ def process_ses(sub, ses, path_to_data):
                 if not (os.path.exists(z_map_fname)):
                     print(f"Z map not found, computing : {z_map_fname}")
                     os.makedirs(op.join(figures_path,"ses-level",lvl+"*"+regressor_name,"report"), exist_ok=True)
-                    z_map = make_z_map(z_map_fname, report_fname, fmri_glm, "{regressor_name}*{lvl}")
+                    z_map = make_z_map(z_map_fname, report_fname, fmri_glm, f"{regressor_name}*{lvl}")
                 else:
                     print(f"Z map found, skipping : {z_map_fname}")
             except Exception as e:
@@ -402,7 +402,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT']#, 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
