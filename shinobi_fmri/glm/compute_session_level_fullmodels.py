@@ -14,8 +14,6 @@ import nibabel as nib
 import logging
 import pickle
 import nilearn
-import warnings
-warnings.filterwarnings("ignore")
 
 
 parser = argparse.ArgumentParser()
@@ -83,7 +81,6 @@ def get_filenames(sub, ses, run, path_to_data):
     assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
         path_to_data, 
-        "shinobi_released",
         "shinobi", 
         sub,
         ses,
@@ -226,12 +223,8 @@ def load_run(fmri_fname, mask_fname, events_fname):
     run_events = pd.read_csv(events_fname, sep="\t", index_col=[0])
     # Select events
     annotation_events = run_events[run_events["trial_type"].isin(CONDS_LIST)]
+    breakpoint()
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
-
-    replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"]
-    replevel_events["trial_type"] = replevel_events["level"]
-    replevel_events = replevel_events[["trial_type", "onset", "duration"]]
-    annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
 
     # Load images
     fmri_img, mask_resampled = load_image_and_mask(fmri_fname, mask_fname)
@@ -251,14 +244,14 @@ def load_session(sub, ses, run_list, path_to_data):
         fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname
 
-def remove_runs_without_target_regressor(regressor_names, fmri_imgs, trimmed_design_matrices):
+def remove_runs_without_target_regressor(regressor_name, fmri_imgs, trimmed_design_matrices):
     images_copy = fmri_imgs.copy()
     dataframes_copy = trimmed_design_matrices.copy()
+    
     for img, df in zip(fmri_imgs, trimmed_design_matrices):
-        for reg in regressor_names:
-            if reg not in df.columns:
-                images_copy.remove(img)
-                dataframes_copy.remove(df)
+        if regressor_name not in df.columns:
+            images_copy.remove(img)
+            dataframes_copy.remove(df)
             
     return images_copy, dataframes_copy
 
@@ -268,10 +261,120 @@ def process_ses(sub, ses, path_to_data):
     run_files = [x for x in ses_files if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x]
     run_list = [x[32] for x in run_files]
 
-    # Then a GLM with each regressor separately (simple models)
-    for regressor_name in CONDS_LIST+["level-1", "level-4", "level-5"]:
+    # First do the full glm
+    glm_fname = op.join(path_to_data,
+                "processed",
+                "glm",
+                "ses-level",
+                f"{sub}_{ses}_fullmodel_fitted_glm.pkl")
+    os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
+    if not (os.path.exists(glm_fname)):
+        print(f"GLM not found, computing : {glm_fname}")
+        fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
+        # Fit GLM with all regressors
+        fmri_glm = make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled)
+        with open(glm_fname, "wb") as f:
+            pickle.dump(fmri_glm, f, protocol=4)
+    else:
+        with open(glm_fname, "rb") as f:
+            print(f"GLM found, loading : {glm_fname}")
+            fmri_glm = pickle.load(f)
+            print("Loaded.")
+
+    # Compute all contrasts
+    for regressor_name in CONDS_LIST+additional_contrasts:
         try:
-            print(f"Simple model of : {regressor_name}")
+            z_map_fname = op.join(
+                    path_to_data,
+                    "processed",
+                    "z_maps",
+                    "ses-level",
+                    regressor_name,
+                    f"{sub}_{ses}_fullmodel_{regressor_name}.nii.gz",
+                )
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
+                    figures_path,
+                    "ses-level",
+                    regressor_name,
+                    "report",
+                    f"{sub}_{ses}_fullmodel_{regressor_name}_report.html",
+                )
+                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
+        except Exception as e:
+            print(e)
+        
+    # Intermediate model
+    for regressor_name in additional_contrasts:
+        try:
+            glm_fname = op.join(path_to_data,
+                        "processed",
+                        "glm",
+                        "ses-level",
+                        f"{sub}_{ses}_intermediatemodel_fitted_glm.pkl")
+            os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
+            if not (os.path.exists(glm_fname)):
+                print(f"GLM not found, computing : {glm_fname}")
+                fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
+                
+                # Trim the design matrices from unwanted regressors
+                regressors_to_remove = CONDS_LIST.copy()
+                for toremove in ["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"]:
+                    regressors_to_remove.remove(toremove)
+                trimmed_design_matrices = []
+                for design_matrix in design_matrices:
+                    trimmed_design_matrix = design_matrix
+                    for reg in regressors_to_remove:
+                        try:
+                            trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
+                        except Exception as e:
+                            print(e)
+                            print(f"Regressor {reg} might be missing ?")
+                    trimmed_design_matrices.append(trimmed_design_matrix)
+                
+                fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+                with open(glm_fname, "wb") as f:
+                    pickle.dump(fmri_glm, f, protocol=4)
+            else:
+                with open(glm_fname, "rb") as f:
+                    print(f"GLM found, loading : {glm_fname}")
+                    fmri_glm = pickle.load(f)
+                    print("Loaded.")
+            
+            # Compute contrast
+            z_map_fname = op.join(
+                    path_to_data,
+                    "processed",
+                    "z_maps",
+                    "ses-level",
+                    regressor_name,
+                    f"{sub}_{ses}_intermediatemodel_{regressor_name}.nii.gz",
+                )
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
+                    figures_path,
+                    "ses-level",
+                    regressor_name,
+                    "report",
+                    f"{sub}_{ses}_intermediatemodel_{regressor_name}_report.html",
+                )
+                os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
+                z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
+        except Exception as e:
+            print(e)
+
+    # Then a GLM with each regressor separately
+    for regressor_name in CONDS_LIST:
+        try:
             glm_fname = op.join(path_to_data,
                         "processed",
                         "glm",
@@ -283,7 +386,7 @@ def process_ses(sub, ses, path_to_data):
                 fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
                 
                 # Trim the design matrices from unwanted regressors
-                regressors_to_remove = CONDS_LIST.copy() # Here I might want to remove also the level regressors
+                regressors_to_remove = CONDS_LIST.copy()
                 regressors_to_remove.remove(regressor_name)
                 trimmed_design_matrices = []
                 for design_matrix in design_matrices:
@@ -295,7 +398,7 @@ def process_ses(sub, ses, path_to_data):
                             print(e)
                             print(f"Regressor {reg} might be missing ?")
                     trimmed_design_matrices.append(trimmed_design_matrix)
-                fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor([regressor_name], fmri_imgs, trimmed_design_matrices)
+                fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor(regressor_name, fmri_imgs, trimmed_design_matrices)
                 fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
@@ -314,85 +417,22 @@ def process_ses(sub, ses, path_to_data):
                     regressor_name,
                     f"{sub}_{ses}_simplemodel_{regressor_name}.nii.gz",
                 )
-            report_fname = op.join(
+            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+            if not (os.path.exists(z_map_fname)):
+                print(f"Z map not found, computing : {z_map_fname}")
+                report_fname = op.join(
                     figures_path,
                     "ses-level",
                     regressor_name,
                     "report",
                     f"{sub}_{ses}_simplemodel_{regressor_name}_report.html",
                 )
-            os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
-            if not (os.path.exists(z_map_fname)):
-                print(f"Z map not found, computing : {z_map_fname}")
                 os.makedirs(op.join(figures_path,"ses-level",regressor_name,"report"), exist_ok=True)
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
             else:
                 print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
-    # Now simple models but split by level
-    for lvl in ["level-1", "level-4", "level-5"]:
-        for regressor_name in CONDS_LIST:
-            print(f"Simple model of {regressor_name} for {lvl} ")
-            try:
-                glm_fname = op.join(path_to_data,
-                            "processed",
-                            "glm",
-                            "ses-level",
-                            f"{sub}_{ses}_{lvl}*{regressor_name}_simplemodel_fitted_glm.pkl")
-                os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
-                if not (os.path.exists(glm_fname)):
-                    print(f"GLM not found, computing : {glm_fname}")
-                    fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
-                    
-                    # Trim the design matrices from unwanted regressors
-                    regressors_to_remove = CONDS_LIST.copy() 
-                    regressors_to_remove.remove(regressor_name)
-                    trimmed_design_matrices = []
-                    for design_matrix in design_matrices:
-                        trimmed_design_matrix = design_matrix
-                        for reg in regressors_to_remove:
-                            try:
-                                trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
-                            except Exception as e:
-                                print(e)
-                                print(f"Regressor {reg} might be missing ?")
-                        trimmed_design_matrices.append(trimmed_design_matrix)
-                    fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor([regressor_name, lvl], fmri_imgs, trimmed_design_matrices)
-                    fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
-                    with open(glm_fname, "wb") as f:
-                        pickle.dump(fmri_glm, f, protocol=4)
-                else:
-                    with open(glm_fname, "rb") as f:
-                        print(f"GLM found, loading : {glm_fname}")
-                        fmri_glm = pickle.load(f)
-                        print("Loaded.")
-
-                # Compute contrast
-                z_map_fname = op.join(
-                        path_to_data,
-                        "processed",
-                        "z_maps",
-                        "ses-level",
-                        regressor_name,
-                        f"{sub}_{ses}_simplemodel_{lvl}*{regressor_name}.nii.gz",
-                    )
-                report_fname = op.join(
-                        figures_path,
-                        "ses-level",
-                        regressor_name,
-                        "report",
-                        f"{sub}_{ses}_simplemodel_{lvl}*{regressor_name}_report.html",
-                    )
-                os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
-                if not (os.path.exists(z_map_fname)):
-                    print(f"Z map not found, computing : {z_map_fname}")
-                    os.makedirs(op.join(figures_path,"ses-level",lvl+"*"+regressor_name,"report"), exist_ok=True)
-                    z_map = make_z_map(z_map_fname, report_fname, fmri_glm, "{regressor_name}*{lvl}")
-                else:
-                    print(f"Z map found, skipping : {z_map_fname}")
-            except Exception as e:
-                print(e)
     return
 
 
@@ -402,7 +442,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT']#, 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
