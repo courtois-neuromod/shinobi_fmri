@@ -16,6 +16,7 @@ import pickle
 import nilearn
 import warnings
 warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 parser = argparse.ArgumentParser()
@@ -374,20 +375,20 @@ def process_ses(sub, ses, path_to_data):
                         "processed",
                         "z_maps",
                         "ses-level",
-                        regressor_name,
+                        f"{lvl}*{regressor_name}",
                         f"{sub}_{ses}_simplemodel_{lvl}*{regressor_name}.nii.gz",
                     )
                 report_fname = op.join(
                         figures_path,
                         "ses-level",
-                        regressor_name,
+                        f"{lvl}*{regressor_name}",
                         "report",
                         f"{sub}_{ses}_simplemodel_{lvl}*{regressor_name}_report.html",
                     )
                 os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
                 if not (os.path.exists(z_map_fname)):
                     print(f"Z map not found, computing : {z_map_fname}")
-                    os.makedirs(op.join(figures_path,"ses-level",lvl+"*"+regressor_name,"report"), exist_ok=True)
+                    os.makedirs(op.join(figures_path,"ses-level",f"{lvl}*{regressor_name}","report"), exist_ok=True)
                     z_map = make_z_map(z_map_fname, report_fname, fmri_glm, f"{regressor_name}*{lvl}")
                 else:
                     print(f"Z map found, skipping : {z_map_fname}")
