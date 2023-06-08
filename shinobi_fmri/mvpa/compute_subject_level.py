@@ -23,7 +23,7 @@ args = parser.parse_args()
 
 def main():
     path_to_data = shinobi_behav.DATA_PATH
-    models = ["full", "simple"]
+    models = ["simple"]
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']#, 'Kill', 'HealthLoss']#'HealthGain', 'UP']
     #additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
     contrasts = CONDS_LIST# + additional_contrasts
