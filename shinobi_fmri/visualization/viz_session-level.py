@@ -159,10 +159,8 @@ def create_viz(sub, ses, cond_name, modeltype,
 
 
 if __name__ == "__main__":
-    COND_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
-                 'Kill', 'LEFT', 'RIGHT', 'UP', 
-                 'HIT+JUMP', 
-                 'RIGHT+LEFT+DOWN']
+    COND_LIST = ['level-1', 'level-4', 'level-5', 'HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
+                 'Kill', 'LEFT', 'RIGHT', 'UP']
     if args.subject is not None:
         subjects = [args.subject]
     else:
