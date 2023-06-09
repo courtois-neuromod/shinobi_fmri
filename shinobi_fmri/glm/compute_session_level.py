@@ -231,6 +231,7 @@ def load_run(fmri_fname, mask_fname, events_fname):
 
     replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"]
     replevel_events["trial_type"] = replevel_events["level"]
+    replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
     replevel_events = replevel_events[["trial_type", "onset", "duration"]]
     annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
 
@@ -270,7 +271,7 @@ def process_ses(sub, ses, path_to_data):
     run_list = [x[32] for x in run_files]
 
     # Then a GLM with each regressor separately (simple models)
-    for regressor_name in CONDS_LIST+["level-1", "level-4", "level-5"]:
+    for regressor_name in CONDS_LIST+LEVELS:
         try:
             print(f"Simple model of : {regressor_name}")
             glm_fname = op.join(path_to_data,
@@ -284,7 +285,7 @@ def process_ses(sub, ses, path_to_data):
                 fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
                 
                 # Trim the design matrices from unwanted regressors
-                regressors_to_remove = CONDS_LIST.copy()+["level-1", "level-4", "level-5"] # Here I might want to remove also the level regressors
+                regressors_to_remove = CONDS_LIST.copy()+LEVELS # Here I might want to remove also the level regressors
                 regressors_to_remove.remove(regressor_name)
                 trimmed_design_matrices = []
                 for design_matrix in design_matrices:
@@ -332,7 +333,7 @@ def process_ses(sub, ses, path_to_data):
         except Exception as e:
             print(e)
     # Now simple models but split by level
-    for lvl in ["level-1", "level-4", "level-5"]:
+    for lvl in LEVELS:
         for regressor_name in CONDS_LIST:
             print(f"Simple model of {regressor_name} for {lvl} ")
             try:
@@ -360,6 +361,8 @@ def process_ses(sub, ses, path_to_data):
                                 print(f"Regressor {reg} might be missing ?")
                         trimmed_design_matrices.append(trimmed_design_matrix)
                     fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor([regressor_name, lvl], fmri_imgs, trimmed_design_matrices)
+                    for dm in trimmed_design_matrices:
+                        dm.eval(f"interaction = {regressor_name} * {lvl}", inplace=True)
                     fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
                     with open(glm_fname, "wb") as f:
                         pickle.dump(fmri_glm, f, protocol=4)
@@ -385,11 +388,11 @@ def process_ses(sub, ses, path_to_data):
                         "report",
                         f"{sub}_{ses}_simplemodel_{lvl}*{regressor_name}_report.html",
                     )
-                os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+                os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level", f"{lvl}*{regressor_name}"), exist_ok=True)
                 if not (os.path.exists(z_map_fname)):
                     print(f"Z map not found, computing : {z_map_fname}")
                     os.makedirs(op.join(figures_path,"ses-level",f"{lvl}*{regressor_name}","report"), exist_ok=True)
-                    z_map = make_z_map(z_map_fname, report_fname, fmri_glm, f"{regressor_name}*{lvl}")
+                    z_map = make_z_map(z_map_fname, report_fname, fmri_glm, "interaction")
                 else:
                     print(f"Z map found, skipping : {z_map_fname}")
             except Exception as e:
@@ -403,7 +406,8 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    CONDS_LIST = ['HIT']#, 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    LEVELS = ["lvl1", "lvl4", "lvl5"]
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
