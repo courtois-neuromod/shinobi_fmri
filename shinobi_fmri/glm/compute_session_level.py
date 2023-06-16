@@ -2,7 +2,6 @@ import os
 import os.path as op
 import pandas as pd
 from nilearn import image
-from load_confounds import Confounds
 from shinobi_fmri.annotations.annotations import get_scrub_regressor
 import numpy as np
 import argparse
@@ -38,7 +37,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-def get_filenames(sub, ses, run, path_to_data):
+from typing import Tuple
+
+def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str, str, str, str]:
     """
     Returns file names for fMRI, anatomy and annotation events.
     Parameters
