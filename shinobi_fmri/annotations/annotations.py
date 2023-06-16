@@ -290,7 +290,7 @@ def get_scrub_regressor(run_events, design_matrix):
     # Generate binary regressor
     for i in range(len(time)):
         for rep in reps:
-            if rep["stim_file"] != "Missing file" and type(rep["stim_file"]) != float:
+            if type(rep["stim_file"]) == str and rep["stim_file"] != "Missing file" and type(rep["stim_file"]) != float:
                 if time[i]*1.49 >= rep['onset'] and time[i]*1.49 <= rep['onset'] + rep['duration']:
                     to_keep[i] = 1.0
                 
