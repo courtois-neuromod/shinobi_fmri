@@ -92,6 +92,7 @@ def main():
             os.makedirs(op.join("./", "reports", "figures", "subject-level", "confusion_matrices"), exist_ok=True)
             plt.savefig(output_fname)
             plt.close()
+            sbn.heatmap(std_confusion_matrix, annot=True, cmap='Blues', fmt='g')
             output_fname = op.join("./", "reports", "figures", "subject-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
             plt.savefig(output_fname)
             plt.close()
