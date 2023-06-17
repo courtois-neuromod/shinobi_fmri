@@ -284,7 +284,7 @@ def get_scrub_regressor(run_events, design_matrix):
             reps.append(run_events.iloc[i,:])
 
     # Get time vector
-    time = np.array(design_matrix_raw.index)
+    time = np.array(design_matrix.index)
 
     to_keep = np.zeros(len(time))
     # Generate binary regressor
@@ -299,7 +299,7 @@ def get_scrub_regressor(run_events, design_matrix):
         if timepoint == 0.0: # If to_keep is zero create a scrub regressor to remove this frame
             scrub_regressor = np.zeros(len(time))
             scrub_regressor[idx] = 1.0
-            design_matrix_raw[f'scrub{scrub_idx}'] = scrub_regressor
+            design_matrix[f'scrub{scrub_idx}'] = scrub_regressor
             scrub_idx += 1
     return design_matrix
 
