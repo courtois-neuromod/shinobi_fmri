@@ -546,12 +546,18 @@ def process_ses(sub, ses, path_to_data):
 
     # Make a GLM with each regressor separately (simple models)
     for regressor_name in CONDS_LIST+LEVELS:
-        process_regressor(regressor_name)
+        try:
+            process_regressor(regressor_name)
+        except Exception as e:
+            print(e)
 
     # Still simple models but split by level (interaction annotation X level)
     for lvl in LEVELS:
         for regressor_name in CONDS_LIST:
-            process_regressor(regressor_name, lvl)
+            try:
+                process_regressor(regressor_name, lvl)
+            except Exception as e:
+                print(e)
     return
 
 
