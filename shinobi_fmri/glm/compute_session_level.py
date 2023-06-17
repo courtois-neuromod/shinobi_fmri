@@ -208,7 +208,7 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         add_regs=confounds[0],
         add_reg_names=confounds[0].keys(),
     )
-    
+
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_clean
 
@@ -564,7 +564,7 @@ def main():
 if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
+    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
     LEVELS = ["lvl1", "lvl4", "lvl5"]
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
