@@ -284,22 +284,22 @@ def get_scrub_regressor(run_events, design_matrix):
             reps.append(run_events.iloc[i,:])
 
     # Get time vector
-    time = np.array(design_matrix.index)
+    time = np.array(design_matrix_raw.index)
 
     to_keep = np.zeros(len(time))
     # Generate binary regressor
     for i in range(len(time)):
         for rep in reps:
             if type(rep["stim_file"]) == str and rep["stim_file"] != "Missing file" and type(rep["stim_file"]) != float:
-                if time[i]*1.49 >= rep['onset'] and time[i]*1.49 <= rep['onset'] + rep['duration']:
+                if time[i] >= rep['onset'] and time[i] <= rep['onset'] + rep['duration']:
                     to_keep[i] = 1.0
-                
+
     scrub_idx = 1
     for idx, timepoint in enumerate(to_keep):
         if timepoint == 0.0: # If to_keep is zero create a scrub regressor to remove this frame
             scrub_regressor = np.zeros(len(time))
             scrub_regressor[idx] = 1.0
-            design_matrix[f'scrub{scrub_idx}'] = scrub_regressor
+            design_matrix_raw[f'scrub{scrub_idx}'] = scrub_regressor
             scrub_idx += 1
     return design_matrix
 

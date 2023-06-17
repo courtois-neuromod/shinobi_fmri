@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-
+from typing import Tuple
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -37,7 +37,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-from typing import Tuple
 
 def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str, str, str, str]:
     """
@@ -50,7 +49,7 @@ def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str,
         Session id
     run : str
         Run number
-    path_to_data : str
+    path_to_data : strrun: str
         Path to the data folder
     Returns
     -------
@@ -209,23 +208,7 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         add_regs=confounds[0],
         add_reg_names=confounds[0].keys(),
     )
-
-    # Clean regressors ## Virer detrend, essayer avec/sans standardize, utiliser add regs pour ajouter les levels
-    regressors_clean = clean(
-        design_matrix_raw.to_numpy(),
-        detrend=True,
-        standardize=True,
-        high_pass=None,
-        t_r=t_r,
-        ensure_finite=True,
-        confounds=None,
-    )
-
-    # Recombine design_matrix (restoring constant after cleaning and adding scrub regressors)
-    design_matrix_clean = pd.DataFrame(
-        regressors_clean, columns=design_matrix_raw.columns.to_list()
-    )
-    #design_matrix_clean["constant"] = 1
+    
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_clean
 
@@ -313,7 +296,7 @@ def select_events(run_events):
         The prepared event data.
     """
     # Select events
-    annotation_events = run_events[run_events["trial_type"].isin(CONDS_LIST)]
+    annotation_events = run_events[run_events["trial_type"].isin(shinobi_behav.CONDS_LIST)]
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
 
     replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"]
