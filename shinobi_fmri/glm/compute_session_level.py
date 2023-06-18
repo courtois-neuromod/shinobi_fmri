@@ -266,6 +266,7 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
     if not (os.path.exists(z_map_fname)):
         print(f"Z map not found, computing : {z_map_fname}")
         # Get Z_map
+        breakpoint()
         z_map = fmri_glm.compute_contrast(
                     regressor_name, output_type="z_score", stat_type="F"
                 )
