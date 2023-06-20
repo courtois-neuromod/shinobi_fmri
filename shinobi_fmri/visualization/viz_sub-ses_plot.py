@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
     output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
     os.makedirs(output_folder, exist_ok=True)
-    for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'level-1', 'level-4', 'level-5']:
+    for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'lvl1', 'lvl4', 'lvl5']:
         for subject in shinobi_behav.SUBJECTS:
             fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
                                     "reports", "figures", "full_zmap_plot", subject, condition)
@@ -259,7 +259,7 @@ if __name__ == "__main__":
             create_all_images(subject, condition, fig_folder)
         save_path = os.path.join(output_folder, f"annotations_plot_{condition}.png")
         make_annotation_plot(condition, save_path)
-    for lvl in ['level-1', 'level-4', 'level-5']:
+    for lvl in ['lvl1', 'lvl4', 'lvl5']:
         for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:
             condition = f"{lvl}_{condition}"
             for subject in shinobi_behav.SUBJECTS:
