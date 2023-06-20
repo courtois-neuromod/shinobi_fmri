@@ -13,6 +13,7 @@ from datetime import datetime
 from itertools import product
 import dataframe_image as dfi
 from bids_loader.stimuli.game import get_variables_from_replay
+import logging
 
 def create_info_dict(repvars):
     info_dict = {}
@@ -124,13 +125,13 @@ def generate_kill_events(repvars, FS=60, dur=0.1):
 def main():
     replayfile_list = sorted(glob.glob(op.join(DATA_PATH, "shinobi_training", "*", "*", "*", "*.bk2")))
     for replayfile in replayfile_list:
+        print(replayfile)
         game = "ShinobiIIIReturnOfTheNinjaMaster-Genesis"
         repvars = get_variables_from_replay(replayfile, skip_first_step=replayfile, save_gif=True, game=game, inttype=retro.data.Integrations.STABLE)
         repvars["X_player"] = fix_position_resets(repvars["X_player"])
-        runvars.append(repvars)
         # create json sidecar
         info_dict = create_info_dict(repvars)
-        with open(bk2_file.replace(".bk2", ".json"), "w") as outfile:
+        with open(replayfile.replace(".bk2", ".json"), "w") as outfile:
             json.dump(info_dict, outfile, default=str)
 
 if __name__ == '__main__':
