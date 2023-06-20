@@ -261,7 +261,7 @@ if __name__ == "__main__":
         make_annotation_plot(condition, save_path)
     for lvl in ['lvl1', 'lvl4', 'lvl5']:
         for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:
-            condition = f"{lvl}_{condition}"
+            condition = f"{condition}X{lvl}"
             for subject in shinobi_behav.SUBJECTS:
                 fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
                                         "reports", "figures", "full_zmap_plot", subject, condition)
