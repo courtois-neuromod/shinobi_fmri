@@ -128,8 +128,23 @@ def create_all_images(subject, condition, fig_folder):
     sublevel_save_path = os.path.join(fig_folder,
                                       f"{subject}_{condition}.png")
 
-    plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
-
+    if os.path.isfile(sublevel_zmap_path):
+        plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
+    # If no file, then create an empty image
+    else:
+        ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
+        session = ses_list[0]
+        zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
+                                          "processed",
+                                          "z_maps",
+                                          "ses-level",
+                                          condition, 
+                                          f"{subject}_{session}_simplemodel_{condition}.nii.gz")
+        img_size = Image.open(sublevel_save_path).size
+        missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
+        d = ImageDraw.Draw(missing_img)
+        #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
+        missing_img.save(sublevel_save_path)
     ## Make ses level z_maps
     ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
     for session in ses_list:
@@ -143,11 +158,12 @@ def create_all_images(subject, condition, fig_folder):
                                 f"{subject}_{session}_{condition}.png")
         if os.path.isfile(zmap_path):
             plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}", colorbar=False)
+        # If no file, then create an empty image
         else:
             img_size = Image.open(sublevel_save_path).size
             missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
             d = ImageDraw.Draw(missing_img)
-            d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
+            #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
             missing_img.save(save_path)
 
 def make_annotation_plot(condition, save_path):
