@@ -36,7 +36,7 @@ parser.add_argument(
 parser.add_argument(
     "-cond",
     "--condition",
-    default="HIT+JUMP",
+    default="DOWNXlvl5",
     type=str,
     help="Condition (contrast) to process",
 )
@@ -48,7 +48,7 @@ hrf_model = "spm"
 def process_subject(sub, condition, path_to_data):
     z_maps_dir = op.join(path_to_data, "processed", "z_maps", "ses-level", condition)
     file_list = os.listdir(z_maps_dir)
-    for model in ["full", "simple"]:
+    for model in ["simple"]:
         if condition in ['HIT+JUMP', 'RIGHT+LEFT+DOWN']:
             model = "intermediate"
         subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{model}model_{condition}.nii.gz")
