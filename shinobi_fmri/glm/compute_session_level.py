@@ -210,6 +210,7 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     )
 
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
+    design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1)
     return design_matrix_clean
 
 def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
