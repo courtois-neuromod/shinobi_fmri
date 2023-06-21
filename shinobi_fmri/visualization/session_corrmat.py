@@ -25,7 +25,7 @@ def mem_used():
 ## Set constants
 path_to_data = DATA_PATH
 figures_path = FIG_PATH
-contrasts = ['Kill', 'JUMP', 'HIT', 'LEFT', 'RIGHT', 'DOWN', 'HealthGain', 'HealthLoss', 'RIGHT+LEFT+DOWN', 'HIT+JUMP']
+contrasts = ['Kill', 'HIT', 'HealthLoss', 'lvl1', 'lvl4', 'lvl5'] + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
 
@@ -47,10 +47,10 @@ for contrast in contrasts:
     else:
         model = "simple"
     try:
-        files = os.listdir(path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast))
+        files = os.listdir(path_to_data + 'processed/processed_annotXlvl_withconstant/z_maps/ses-level/{}/'.format(contrast))
         for file in files:
             if model in file:
-                fpath = path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast) + file
+                fpath = path_to_data + 'processed/processed_annotXlvl_withconstant/z_maps/ses-level/{}/'.format(contrast) + file
                 file_split = file.split('_')
                 sub = file_split[0]
                 ses = file_split[1]
@@ -87,9 +87,9 @@ for sub in subjects:
         path_to_data,
         "shinobi.fmriprep",
         sub,
-        ses,
+        "ses-005",
         "func",
-        f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+        f"{sub}_ses-005_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
     )
     mask_fnames.append(mask_fname)
 
@@ -166,6 +166,6 @@ sbn.heatmap(corr_matrix, annot=True, xticklabels=mapnames, yticklabels=mapnames,
 plt.yticks(fontsize=13)
 plt.xticks(fontsize=13)
 
-if not os.path.isdir(figures_path + '/corrmats/'):
-    os.mkdir(figures_path + '/corrmats/')
-fig.savefig(figures_path + '/corrmats/ses-level_corrmat.png')
+if not os.path.isdir(figures_path + '/corrmats_withconstant/'):
+    os.mkdir(figures_path + '/corrmats_withconstant/')
+fig.savefig(figures_path + '/corrmats_withconstant/ses-level_corrmat.png')
