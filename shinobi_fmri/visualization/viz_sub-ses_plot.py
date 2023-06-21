@@ -17,6 +17,7 @@ import matplotlib.colors as mcolors
 from nilearn.plotting.cm import _cmap_d as nilearn_cmaps
 import matplotlib.gridspec as gridspec
 import math
+import glob
 
 
 def create_colormap():
@@ -119,6 +120,7 @@ def create_all_images(subject, condition, fig_folder):
     '''
     # Create images
     ## Make subject level z_maps
+    print(f"Create images for {subject} {condition}")
     sublevel_zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
                                       "processed",
                                       "z_maps",
@@ -127,27 +129,25 @@ def create_all_images(subject, condition, fig_folder):
                                       f"{subject}_simplemodel_{condition}.nii.gz")
     sublevel_save_path = os.path.join(fig_folder,
                                       f"{subject}_{condition}.png")
-
-    if os.path.isfile(sublevel_zmap_path):
-        plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
-    # If no file, then create an empty image
-    else:
-        ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
-        session = ses_list[0]
-        zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
-                                          "processed",
-                                          "z_maps",
-                                          "ses-level",
-                                          condition, 
-                                          f"{subject}_{session}_simplemodel_{condition}.nii.gz")
-        img_size = Image.open(sublevel_save_path).size
-        missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
-        d = ImageDraw.Draw(missing_img)
-        #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
-        missing_img.save(sublevel_save_path)
+    if not os.path.isfile(sublevel_save_path):
+        if os.path.isfile(sublevel_zmap_path):
+            plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
+        # If no file, then create an empty image
+        else:
+            allfigs_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                "reports", "figures", "full_zmap_plot", subject)
+            other_images = glob.glob(os.path.join(allfigs_folder, "*", "*.png"))
+            model_image = other_images[0]
+            img_size = Image.open(model_image).size
+            missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
+            d = ImageDraw.Draw(missing_img)
+            #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
+            missing_img.save(sublevel_save_path)
+        
     ## Make ses level z_maps
     ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
     for session in ses_list:
+        
         zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
                                           "processed",
                                           "z_maps",
@@ -156,15 +156,20 @@ def create_all_images(subject, condition, fig_folder):
                                           f"{subject}_{session}_simplemodel_{condition}.nii.gz")
         save_path = os.path.join(fig_folder,
                                 f"{subject}_{session}_{condition}.png")
-        if os.path.isfile(zmap_path):
-            plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}", colorbar=False)
-        # If no file, then create an empty image
-        else:
-            img_size = Image.open(sublevel_save_path).size
-            missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
-            d = ImageDraw.Draw(missing_img)
-            #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
-            missing_img.save(save_path)
+        if not os.path.isfile(save_path):
+            if os.path.isfile(zmap_path):
+                plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}", colorbar=False)
+            # If no file, then create an empty image
+            else:
+                allfigs_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                    "reports", "figures", "full_zmap_plot", subject)
+                other_images = glob.glob(os.path.join(allfigs_folder, "*", "*.png"))
+                model_image = other_images[0]
+                img_size = Image.open(model_image).size
+                missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
+                d = ImageDraw.Draw(missing_img)
+                #d.text((img_size[0]//2,img_size[1]//2), "Missing", fill=(0,0,0))
+                missing_img.save(save_path)
 
 def make_annotation_plot(condition, save_path):
     '''Make a 8*4 plot for one annotation, with all the subjects on the same page
@@ -266,6 +271,7 @@ if __name__ == "__main__":
 
     output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
     os.makedirs(output_folder, exist_ok=True)
+
     for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'lvl1', 'lvl4', 'lvl5']:
         for subject in shinobi_behav.SUBJECTS:
             fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
