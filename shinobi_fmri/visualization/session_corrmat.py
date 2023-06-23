@@ -10,7 +10,7 @@ import psutil
 import pickle
 import tqdm
 import os.path as op
-
+from itertools import product
 import numpy as np
 import tqdm
 import pickle
