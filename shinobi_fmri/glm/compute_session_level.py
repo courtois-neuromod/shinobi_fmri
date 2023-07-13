@@ -210,7 +210,7 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     )
 
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
-    design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1)
+    #design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
     return design_matrix_clean
 
 def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
@@ -300,11 +300,11 @@ def select_events(run_events):
     annotation_events = run_events[run_events["trial_type"].isin(shinobi_behav.CONDS_LIST)]
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
 
-    replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"]
-    replevel_events["trial_type"] = replevel_events["level"]
-    replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
-    replevel_events = replevel_events[["trial_type", "onset", "duration"]]
-    annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
+    #replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"] --- REMOVE ? MAKE FUNCTION ?
+    #replevel_events["trial_type"] = replevel_events["level"]
+    #replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
+    #replevel_events = replevel_events[["trial_type", "onset", "duration"]]
+    #annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
     return annotation_events
 
 def load_run(fmri_fname, mask_fname, events_fname):
@@ -552,7 +552,7 @@ def process_ses(sub, ses, path_to_data):
         except Exception as e:
             print(e)
 
-    # Still simple models but split by level (interaction annotation X level)
+    # Still simple models but split by level (interaction annotation X level) --- TO REMOVE ??
     for lvl in LEVELS:
         for regressor_name in CONDS_LIST:
             try:
@@ -572,7 +572,7 @@ if __name__ == "__main__":
     figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
-    LEVELS = ["lvl1", "lvl4", "lvl5"]
+    LEVELS = []#["lvl1", "lvl4", "lvl5"]
     additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
     sub = args.subject
     ses = args.session
