@@ -19,13 +19,13 @@ from joblib import Parallel, delayed
 def mem_used():
     tot = psutil.virtual_memory().total / 2**30
     used = psutil.virtual_memory().used / 2**30
-    print('Memory currently used : {} Go/{} Go'.format(used, tot))
+    print('Memory currently used : {} Gis much more o/{} Go'.format(used, tot))
 
 
 ## Set constants
 path_to_data = DATA_PATH
 figures_path = FIG_PATH
-contrasts = ['Kill', 'HIT', 'HealthLoss', 'lvl1', 'lvl4', 'lvl5'] + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
+contrasts = ['Kill', 'HIT', 'HealthLoss']# + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
 
