@@ -159,7 +159,7 @@ def create_viz(sub, ses, cond_name, modeltype,
 
 
 if __name__ == "__main__":
-    COND_LIST = ['level-1', 'level-4', 'level-5', 'HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
+    COND_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
                  'Kill', 'LEFT', 'RIGHT', 'UP']
     if args.subject is not None:
         subjects = [args.subject]
@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
     for sub in subjects:
         for cond_name in contrasts:
-            for modeltype in ["full", "simple", "intermediate"]:
+            for modeltype in ["simple"]:#, "intermediate"]:
                 filelist = os.listdir(op.join(shinobi_behav.DATA_PATH, "processed", "z_maps", "ses-level", cond_name))
                 ses_list = [file for file in filelist if sub in file and modeltype in file]
                 for ses in ses_list:
