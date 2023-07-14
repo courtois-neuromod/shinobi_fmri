@@ -10,6 +10,9 @@ import argparse
 from sklearn.metrics import confusion_matrix
 import seaborn as sbn
 import matplotlib.pyplot as plt
+import pickle
+import os.path as op
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -24,6 +27,7 @@ args = parser.parse_args()
 def main():
     path_to_data = shinobi_behav.DATA_PATH
     models = ["simple"]
+    model = "simple"
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']#, 'Kill', 'HealthLoss']#'HealthGain', 'UP']
     #additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
     contrasts = CONDS_LIST# + additional_contrasts
@@ -32,23 +36,31 @@ def main():
     else:
         subjects = shinobi_behav.SUBJECTS
     for sub in subjects:
-        mask_fname = op.join(
-            path_to_data,
-            "cneuromod.processed",
-            "smriprep",
-            sub,
-            "anat",
-            f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
-        )
-        anat_fname = op.join(
-            path_to_data,
-            "cneuromod.processed",
-            "smriprep",
-            sub,
-            "anat",
-            f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
-        )
-        for model in models:
+        mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results")
+        os.makedirs(mvpa_results_path, exist_ok=True)
+        confusion_matrices_fname = f"{sub}_{model}_confusion_matrices.pkl"
+        if op.isfile(op.join(mvpa_results_path, confusion_matrices_fname)):
+            with open(op.join(mvpa_results_path, confusion_matrices_fname), 'rb') as f:
+                confusion_matrices = pickle.load(f)
+        else:
+
+            mask_fname = op.join(
+                path_to_data,
+                "cneuromod.processed",
+                "smriprep",
+                sub,
+                "anat",
+                f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
+            )
+            anat_fname = op.join(
+                path_to_data,
+                "cneuromod.processed",
+                "smriprep",
+                sub,
+                "anat",
+                f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
+            )
+            #for model in models:
             z_maps = []
             contrast_label = []
             session_label = []
@@ -86,6 +98,12 @@ def main():
                 y_true = np.array(contrast_label)[test]
                 confusion_mat = confusion_matrix(y_true, y_pred, labels=decoder.classes_)
                 confusion_matrices.append(confusion_mat)
+        
+            # Save confusion matrices
+            with open(op.join(mvpa_results_path, confusion_matrices_fname), 'wb') as f:
+                pickle.dump(confusion_matrices, f)
+
+            # Plot confusion matrices
             averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
             std_confusion_matrix = np.std(confusion_matrices, axis=0)
             sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
