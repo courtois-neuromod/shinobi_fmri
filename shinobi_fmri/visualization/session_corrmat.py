@@ -25,7 +25,7 @@ def mem_used():
 ## Set constants
 path_to_data = DATA_PATH
 figures_path = FIG_PATH
-contrasts = ['Kill', 'HIT', 'HealthLoss']# + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
+contrasts = ['Kill', 'HealthLoss', 'HIT', 'JUMP']# + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
 
