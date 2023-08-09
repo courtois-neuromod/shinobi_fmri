@@ -84,7 +84,8 @@ def generate_kill_events(repvars, FS=60, dur=0.1):
     #build df
     events_df = pd.DataFrame(data={'onset':onset,
                                'duration':duration,
-                               'trial_type':trial_type})
+                               'trial_type':trial_type,
+                               'level':level})
     return events_df
 
 
