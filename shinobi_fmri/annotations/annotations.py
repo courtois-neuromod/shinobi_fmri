@@ -67,17 +67,19 @@ def generate_kill_events(repvars, FS=60, dur=0.1):
         An events DataFrame in Nilearn-compatible format containing the
         kill events.
     """
-    instant_score = repvars['score_Instant']
+    instant_score = repvars['instantScore']
     diff_score = np.diff(instant_score, n=1)
 
     onset = []
     duration = []
     trial_type = []
+    level = []
     for idx, x in enumerate(diff_score):
         if x in [200,300]:
             onset.append(idx/FS)
             duration.append(dur)
             trial_type.append('Kill')
+            level.append(repvars["level"])
 
     #build df
     events_df = pd.DataFrame(data={'onset':onset,
