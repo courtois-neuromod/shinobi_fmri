@@ -47,10 +47,10 @@ for contrast in contrasts:
     else:
         model = "simple"
     try:
-        files = os.listdir(path_to_data + 'processed/processed_annotXlvl_withconstant/z_maps/ses-level/{}/'.format(contrast))
+        files = os.listdir(path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast))
         for file in files:
             if model in file:
-                fpath = path_to_data + 'processed/processed_annotXlvl_withconstant/z_maps/ses-level/{}/'.format(contrast) + file
+                fpath = path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast) + file
                 file_split = file.split('_')
                 sub = file_split[0]
                 ses = file_split[1]
