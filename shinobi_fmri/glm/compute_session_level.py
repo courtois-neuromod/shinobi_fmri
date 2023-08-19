@@ -84,8 +84,7 @@ def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str,
     )
     assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
-        path_to_data, 
-        "shinobi_released",
+        path_to_data,
         "shinobi", 
         sub,
         ses,
