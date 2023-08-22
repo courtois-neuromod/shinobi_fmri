@@ -265,6 +265,13 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
     """
     if not (os.path.exists(z_map_fname)):
         print(f"Z map not found, computing : {z_map_fname}")
+
+        # Get betas
+        beta_map = fmri_glm.compute_contrast(
+                    regressor_name, output_type="effect_size"
+                )
+        os.makedirs(op.join(path_to_data, "processed", "beta_maps", "ses-level", regressor_name), exist_ok=True)
+        beta_map.to_filename(z_map_fname.replace('z_maps', 'beta_maps'))
         # Get Z_map
         z_map = fmri_glm.compute_contrast(
                     regressor_name, output_type="z_score", stat_type="F"
