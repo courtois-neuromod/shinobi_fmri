@@ -27,7 +27,7 @@ path_to_data = DATA_PATH
 figures_path = FIG_PATH
 contrasts = ['Kill', 'HealthLoss', 'HIT', 'JUMP']# + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_maps_corrs.pkl'
+results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_beta_maps_corrs.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -47,10 +47,10 @@ for contrast in contrasts:
     else:
         model = "simple"
     try:
-        files = os.listdir(path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast))
+        files = os.listdir(path_to_data + 'processed/beta_maps/ses-level/{}/'.format(contrast))
         for file in files:
             if model in file:
-                fpath = path_to_data + 'processed/z_maps/ses-level/{}/'.format(contrast) + file
+                fpath = path_to_data + 'processed/beta_maps/ses-level/{}/'.format(contrast) + file
                 file_split = file.split('_')
                 sub = file_split[0]
                 ses = file_split[1]
