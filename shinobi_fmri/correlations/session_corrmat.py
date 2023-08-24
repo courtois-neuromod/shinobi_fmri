@@ -27,7 +27,7 @@ path_to_data = DATA_PATH
 figures_path = FIG_PATH
 contrasts = ['Kill', 'HealthLoss', 'HIT', 'JUMP']# + [f"{x}X{y}" for x,y in product(["HIT", "Kill", "HealthLoss"],["lvl1", "lvl4", "lvl5"])]
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_beta_maps_corrs.pkl'
+results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_beta_maps_ICC.pkl'
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -123,6 +123,9 @@ else:
         dict = pickle.load(f)
         corr_matrix = np.array(dict['corr_matrix'])
 
+
+
+### Compute the correlation coefficients
 def compute_corrcoef(i, j, maps, corr_matrix):
     if j > i:
         if corr_matrix[i, j] == 0:
