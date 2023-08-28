@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=shinobi_corrmat
-#SBATCH --mem=128G
+#SBATCH --mem=48G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 
