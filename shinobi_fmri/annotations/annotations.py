@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 #from shinobi_behav.features import filter_run, compute_framewise_aps
 import matplotlib
 import matplotlib.collections as mc
-from shinobi_behav import ACTIONS
 
 
 def generate_key_events(repvars, key, FS=60):
