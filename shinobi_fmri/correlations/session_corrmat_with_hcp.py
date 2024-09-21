@@ -15,6 +15,7 @@ import numpy as np
 import tqdm
 import pickle
 from joblib import Parallel, delayed
+import nibabel as nib
 
 def mem_used():
     tot = psutil.virtual_memory().total / 2**30
@@ -29,6 +30,36 @@ contrasts = ['Kill', 'HealthLoss', 'HIT', 'JUMP']# + [f"{x}X{y}" for x,y in prod
 subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 results_path = '/home/hyruuk/scratch/neuromod/shinobi2023/processed/ses-level_beta_maps_ICC.pkl'
 model = "simple"
+
+# Create common masker
+mask_files = []
+for sub in subjects:
+    mask_fname = op.join(
+        path_to_data,
+        "cneuromod.processed",
+        "smriprep",
+        sub,
+        "anat",
+        f"{sub}_space-MNI152NLin6Asym_desc-brain_mask.nii.gz",
+    )
+    shinobi_fname = op.join(
+        path_to_data,
+        "shinobi.fmriprep",
+        sub,
+        "ses-005",
+        "func",
+        f"{sub}_ses-005_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+    )
+    # Load and resample (i.e. morph  ?) anat mask
+    shinobi_raw_img = nib.load(shinobi_fname)
+    aff_orig = shinobi_raw_img.affine[:, -1]
+    target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
+    target_shape = shinobi_raw_img.shape[:3]
+    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=target_shape)
+    mask_files.append(mask_resampled)
+masker = NiftiMasker()
+masker.fit(mask_files)
+print('masks done')
 
 #path_to_data = '/home/hyruuk/scratch/neuromod/shinobi_data/'
 mem_used()
@@ -64,7 +95,7 @@ for contrast in contrasts:
                     f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
                 )
                 niimap = image.load_img(fpath)
-                maps.append(niimap)
+                maps.append(masker.transform(niimap))
                 subj_arr.append(sub)
                 sess_arr.append(ses)
                 #run_arr.append(run)
@@ -87,7 +118,8 @@ for sub in subjects:
             fpath = op.join(subfolder, runfolder, 'effect_size_maps', '{}.nii.gz'.format(cond))
             print(f'Loading {fpath}')
             niimap = image.load_img(fpath)
-            maps.append(niimap)
+            resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
+            maps.append(masker.transform(resampled_img))
             subj_arr.append(sub)
             sess_arr.append('_'.join(runfolder.split('_')[2:]))
             #run_arr.append(run)
@@ -99,31 +131,7 @@ for sub in subjects:
 
 
 print('loading done')
-mem_used()
-mask_fnames = []
-for sub in subjects:
-    mask_fname = op.join(
-        path_to_data,
-        "shinobi.fmriprep",
-        sub,
-        "ses-005",
-        "func",
-        f"{sub}_ses-005_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
-    )
-    mask_fnames.append(mask_fname)
 
-# Create common masker
-masker = NiftiMasker()
-masker.fit(mask_fnames)
-print('masks done')
-mem_used()
-masked_maps = []
-for map in tqdm.tqdm(maps):
-    masked_maps.append(masker.transform(map))
-print('transforms done')
-mem_used()
-
-maps = np.array(masked_maps).squeeze()
 
 # Create the corr_matrix files or load it if it already exists
 if not os.path.isfile(results_path):
@@ -148,11 +156,7 @@ else:
 def compute_corrcoef(i, j, maps, corr_matrix):
     if j > i:
         if corr_matrix[i, j] == 0:
-            imap = maps[i]
-            imap_trim = np.array([x for x in imap if x != 0])
-            jmap = maps[j]
-            jmap_trim = np.array([x for x in jmap if x != 0])
-            coeff = np.corrcoef(imap_trim, jmap_trim)[0, 1]
+            coeff = np.corrcoef(maps[i], maps[j])[0, 1]
             return i, j, coeff
     return i, j, None
 
