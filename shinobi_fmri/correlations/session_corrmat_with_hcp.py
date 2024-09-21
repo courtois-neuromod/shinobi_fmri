@@ -156,11 +156,12 @@ else:
 def compute_corrcoef(i, j, maps, corr_matrix):
     if j > i:
         if corr_matrix[i, j] == 0:
+            print('Computing correlation between {} and {}'.format(i, j))
             coeff = np.corrcoef(maps[i], maps[j])[0, 1]
             return i, j, coeff
     return i, j, None
 
-n_jobs = -1  # Set to the number of CPUs you want to use, -1 for all available CPUs
+n_jobs = 1  # Set to the number of CPUs you want to use, -1 for all available CPUs
 for i in tqdm.tqdm(range(len(maps))):
     # Parallelize the inner loop
     results = Parallel(n_jobs=n_jobs)(
