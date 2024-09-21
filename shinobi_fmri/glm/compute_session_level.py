@@ -23,14 +23,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default="sub-06",
+    default="sub-02",
     type=str,
     help="Subject to process",
 )
 parser.add_argument(
     "-ses",
     "--session",
-    default="ses-011",
+    default="ses-006",
     type=str,
     help="Session to process",
 )
@@ -170,7 +170,8 @@ def load_image_and_mask(fmri_fname, mask_fname):
     # Load and resample (i.e. morph  ?) anat mask
     aff_orig = nib.load(fmri_fname).affine[:, -1]
     target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
-    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
+    target_shape = fmri_img.shape[:3]
+    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=target_shape)
     return fmri_img, mask_resampled
 
 def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
