@@ -95,15 +95,14 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
 
     masker = NiftiMasker(**masker_kwargs)
     masker.fit(mask_files)
-    return masker
+    return masker, target_affine, target_shape
 
 
 all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-masker = create_common_masker(path_to_data, all_subjects)
-target_affine, target_shape = masker.target_affine, masker.target_shape
+masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 
 for sub in subjects:
-    mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results")
+    mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
     os.makedirs(mvpa_results_path, exist_ok=True)
     confusion_matrices_fname = f"{sub}_{model}_confusion_matrices.pkl"
     if op.isfile(op.join(mvpa_results_path, confusion_matrices_fname)):
@@ -137,10 +136,11 @@ for sub in subjects:
             for z_map_fname in os.listdir(z_maps_fpath):
                 if model in z_map_fname:
                     if sub in z_map_fname:
+                        print(f'Loading {z_map_fname}')
                         session = z_map_fname.split("_")[1]
                         niimap = image.load_img(op.join(z_maps_fpath, z_map_fname))
                         resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
-                        z_maps.append(masker.transform(resampled_img))
+                        z_maps.append(resampled_img)
                         contrast_label.append(contrast)
                         session_label.append(session)
 
@@ -153,11 +153,11 @@ for sub in subjects:
                 print(f'Loading {fpath}')
                 niimap = image.load_img(fpath)
                 resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
-                z_maps.append(masker.transform(resampled_img))
+                z_maps.append(resampled_img)
                 session_label.append('_'.join(runfolder.split('_')[2:]))
                 contrast_label.append(cond)
 
-        decoder = Decoder(estimator='svc', mask=mask_fname, standardize=False, scoring='accuracy',
+        decoder = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
                         screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
