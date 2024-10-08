@@ -172,6 +172,7 @@ for sub in subjects:
             os.makedirs(op.join("./", "reports", "figures", "ses-level", cond, "MVPA"), exist_ok=True)
             weight_img = decoder.coef_img_[cond]
             plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
+            nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
 
         # Generate confusion matrices across folds
         confusion_matrices = []
@@ -179,7 +180,8 @@ for sub in subjects:
             decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
             y_pred = decoder.predict(np.array(z_maps)[test])
             y_true = np.array(contrast_label)[test]
-            confusion_mat = confusion_matrix(y_true, y_pred, labels=decoder.classes_)
+            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
+            confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
             confusion_matrices.append(confusion_mat)
     
         # Save confusion matrices
