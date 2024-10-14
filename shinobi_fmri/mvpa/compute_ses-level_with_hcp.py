@@ -106,27 +106,27 @@ for sub in subjects:
     os.makedirs(mvpa_results_path, exist_ok=True)
     decoder_fname = f"{sub}_{model}_decoder.pkl"
 
+    mask_fname = op.join(
+    path_to_data,
+        "cneuromod.processed",
+        "smriprep",
+        sub,
+        "anat",
+        f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
+    )
+    anat_fname = op.join(
+        path_to_data,
+        "cneuromod.processed",
+        "smriprep",
+        sub,
+        "anat",
+        f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
+    )
+
     if op.isfile(op.join(mvpa_results_path, decoder_fname)):
         with open(op.join(mvpa_results_path, decoder_fname), 'rb') as f:
             decoder = pickle.load(f)
     else:
-
-        mask_fname = op.join(
-            path_to_data,
-            "cneuromod.processed",
-            "smriprep",
-            sub,
-            "anat",
-            f"{sub}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz",
-        )
-        anat_fname = op.join(
-            path_to_data,
-            "cneuromod.processed",
-            "smriprep",
-            sub,
-            "anat",
-            f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
-        )
         #for model in models:
         z_maps = []
         contrast_label = []
