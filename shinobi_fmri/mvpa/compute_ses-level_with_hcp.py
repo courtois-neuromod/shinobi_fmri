@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
     "--subject",
-    default="sub-06",
+    default=None,
     type=str,
     help="Subject to process",
 )
@@ -104,10 +104,11 @@ masker, target_affine, target_shape = create_common_masker(path_to_data, all_sub
 for sub in subjects:
     mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
     os.makedirs(mvpa_results_path, exist_ok=True)
-    confusion_matrices_fname = f"{sub}_{model}_confusion_matrices.pkl"
-    if op.isfile(op.join(mvpa_results_path, confusion_matrices_fname)):
-        with open(op.join(mvpa_results_path, confusion_matrices_fname), 'rb') as f:
-            confusion_matrices = pickle.load(f)
+    decoder_fname = f"{sub}_{model}_decoder.pkl"
+
+    if op.isfile(op.join(mvpa_results_path, decoder_fname)):
+        with open(op.join(mvpa_results_path, decoder_fname), 'rb') as f:
+            decoder = pickle.load(f)
     else:
 
         mask_fname = op.join(
@@ -161,42 +162,47 @@ for sub in subjects:
                         screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
+        # Save decoder
+        with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
+            pickle.dump(decoder, f)
+
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
         chance_level = 1. / len(np.unique(contrast_label))
         print(f'Decoding : {sub} {model}')
         print('Classification accuracy: {:.4f} / Chance level: {}'.format(
             classification_accuracy, chance_level))
         
-        for cond in np.unique(contrast_label):
-            output_fname = op.join("./", "reports", "figures", "ses-level", cond, "MVPA", f"{sub}_{cond}_{model}_mvpa.png")
-            os.makedirs(op.join("./", "reports", "figures", "ses-level", cond, "MVPA"), exist_ok=True)
-            weight_img = decoder.coef_img_[cond]
-            plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
-            nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
+    # Plot weights
+    for cond in np.unique(contrast_label):
+        output_fname = op.join("./", "reports", "figures", "ses-level", cond, "MVPA", f"{sub}_{cond}_{model}_mvpa.png")
+        os.makedirs(op.join("./", "reports", "figures", "ses-level", cond, "MVPA"), exist_ok=True)
+        weight_img = decoder.coef_img_[cond]
+        plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
+        nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
 
-        # Generate confusion matrices across folds
-        confusion_matrices = []
-        for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
-            decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
-            y_pred = decoder.predict(np.array(z_maps)[test])
-            y_true = np.array(contrast_label)[test]
-            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
-            confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
-            confusion_matrices.append(confusion_mat)
-    
-        # Save confusion matrices
-        with open(op.join(mvpa_results_path, confusion_matrices_fname), 'wb') as f:
-            pickle.dump(confusion_matrices, f)
+    # Generate confusion matrices across folds
+    confusion_matrices = []
+    for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
+        decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
+        y_pred = decoder.predict(np.array(z_maps)[test])
+        y_true = np.array(contrast_label)[test]
+        # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
+        confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
+        confusion_matrices.append(confusion_mat)
 
-        # Plot confusion matrices
-        averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
-        std_confusion_matrix = np.std(confusion_matrices, axis=0)
-        sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
-        output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_averaged_confusion_matrix.png")
-        os.makedirs(op.join("./", "reports", "figures", "ses-level", "confusion_matrices"), exist_ok=True)
-        plt.savefig(output_fname)
-        plt.close()
-        sbn.heatmap(std_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
-        output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
-        plt.savefig(output_fname)
-        plt.close()
+    # Plot confusion matrices
+    averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
+    std_confusion_matrix = np.std(confusion_matrices, axis=0)
+    plt.figure(figsize=(10, 10))
+    sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
+    output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_averaged_confusion_matrix.png")
+    os.makedirs(op.join("./", "reports", "figures", "ses-level", "confusion_matrices"), exist_ok=True)
+    plt.savefig(output_fname)
+    print(f'Saving {output_fname}')
+    plt.close()
+    plt.figure(figsize=(10, 10))
+    sbn.heatmap(std_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
+    output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
+    plt.savefig(output_fname)
+    print(f'Saving {output_fname}')
+    plt.close()
