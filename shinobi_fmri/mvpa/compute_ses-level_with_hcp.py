@@ -166,7 +166,7 @@ for sub in subjects:
         # Save decoder
         with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
             pickle.dump(decoder, f)
-            pickle.dump(contrast_label)
+            pickle.dump(contrast_label, f)
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
         chance_level = 1. / len(np.unique(contrast_label))
