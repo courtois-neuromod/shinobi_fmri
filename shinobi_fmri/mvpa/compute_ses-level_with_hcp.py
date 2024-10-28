@@ -163,10 +163,7 @@ for sub in subjects:
                         screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
-        # Save decoder
-        with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
-            pickle.dump(decoder, f)
-            pickle.dump(contrast_label, f)
+
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
         chance_level = 1. / len(np.unique(contrast_label))
@@ -174,6 +171,22 @@ for sub in subjects:
         print('Classification accuracy: {:.4f} / Chance level: {}'.format(
             classification_accuracy, chance_level))
         
+        # Generate confusion matrices across folds
+        confusion_matrices = []
+        for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
+            decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
+            y_pred = decoder.predict(np.array(z_maps)[test])
+            y_true = np.array(contrast_label)[test]
+            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
+            confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
+            confusion_matrices.append(confusion_mat)
+
+        # Save decoder
+        with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
+            pickle.dump(decoder, f) # Fitted decoder, just in case
+            pickle.dump(contrast_label, f) # Label of each map
+            pickle.dump(confusion_matrices, f) # Confusion matrices across folds
+
     # Plot weights
     for cond in np.unique(contrast_label):
         output_fname = op.join("./", "reports", "figures", "ses-level", cond, "MVPA", f"{sub}_{cond}_{model}_mvpa.png")
@@ -182,15 +195,6 @@ for sub in subjects:
         plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
         nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
 
-    # Generate confusion matrices across folds
-    confusion_matrices = []
-    for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
-        decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
-        y_pred = decoder.predict(np.array(z_maps)[test])
-        y_true = np.array(contrast_label)[test]
-        # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
-        confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
-        confusion_matrices.append(confusion_mat)
 
     # Plot confusion matrices
     averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
