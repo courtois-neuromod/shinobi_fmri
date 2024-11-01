@@ -127,6 +127,11 @@ for sub in subjects:
         with open(op.join(mvpa_results_path, decoder_fname), 'rb') as f:
             decoder = pickle.load(f)
             contrast_label = pickle.load(f)
+            confusion_matrices_dict = pickle.load(f)
+        confusion_matrices = confusion_matrices_dict['confusion_matrices']
+        confusion_matrices_true_norm = confusion_matrices_dict['confusion_matrices_true_norm']
+        confusion_matrices_pred_norm = confusion_matrices_dict['confusion_matrices_pred_norm']
+        confusion_matrices_all_norm = confusion_matrices_dict['confusion_matrices_all_norm']
     else:
         #for model in models:
         z_maps = []
@@ -173,19 +178,40 @@ for sub in subjects:
         
         # Generate confusion matrices across folds
         confusion_matrices = []
+        confusion_matrices_true_norm = []
+        confusion_matrices_pred_norm = []
+        confusion_matrices_all_norm = []
         for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
             decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
             y_pred = decoder.predict(np.array(z_maps)[test])
             y_true = np.array(contrast_label)[test]
-            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
-            confusion_mat = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
+
+            # Compute confusion matrices
+            confusion_mat = confusion_matrix(y_true, y_pred, normalize=None, labels=decoder.classes_) 
             confusion_matrices.append(confusion_mat)
+            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
+            confusion_mat_true_norm = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
+            confusion_matrices_true_norm.append(confusion_mat_true_norm)
+            # Each column is normalized by the sum of the elements in that column (i.e., the total number of predicted instances for that class).
+            confusion_mat_pred_norm = confusion_matrix(y_true, y_pred, normalize='pred', labels=decoder.classes_)
+            confusion_matrices_pred_norm.append(confusion_mat_pred_norm)
+            # Each row is normalized by the sum of all elements in the confusion matrix.
+            confusion_mat_all_norm = confusion_matrix(y_true, y_pred, normalize='all', labels=decoder.classes_)
+            confusion_matrices_all_norm.append(confusion_mat_all_norm)
+        confusion_matrices_dict = {
+            'confusion_matrices': confusion_matrices,
+            'confusion_matrices_true_norm': confusion_matrices_true_norm,
+            'confusion_matrices_pred_norm': confusion_matrices_pred_norm,
+            'confusion_matrices_all_norm': confusion_matrices_all_norm
+        }
+
+
 
         # Save decoder
         with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
             pickle.dump(decoder, f) # Fitted decoder, just in case
             pickle.dump(contrast_label, f) # Label of each map
-            pickle.dump(confusion_matrices, f) # Confusion matrices across folds
+            pickle.dump(confusion_matrices_dict, f) # Confusion matrices across folds
 
     # Plot weights
     for cond in np.unique(contrast_label):
