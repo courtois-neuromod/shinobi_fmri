@@ -95,6 +95,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     else:
         thres_val = None
     plt.rcParams['figure.dpi'] = dpi
+
     
     plotting.plot_img_on_surf(
         img,
@@ -104,10 +105,11 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         colorbar=colorbar,
         threshold=3,#thres_val,
         vmax=vmax,
-        symmetric_cbar=False,
-        output_file=save_path,
-        title=title
+        symmetric_cbar=False
     )
+    plt.suptitle(title, fontsize=24)
+    plt.savefig(save_path)
+
 
 def create_all_images(subject, condition, fig_folder):
     '''Create all images for a given subject and condition.
