@@ -107,9 +107,17 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         vmax=vmax,
         symmetric_cbar=False
     )
-    plt.suptitle(title, fontsize=24)
-    plt.savefig(save_path)
+    # Get the current figure
+    fig = plt.gcf()
 
+    # Force layout update
+    fig.canvas.draw()
+
+    # Manually set the suptitle position
+    fig.suptitle(title, fontsize=24, y=1.05)
+
+    # Save the figure with specific bbox parameters to crop excess space
+    plt.savefig(save_path, bbox_inches="tight", pad_inches=0.1)
 
 def create_all_images(subject, condition, fig_folder):
     '''Create all images for a given subject and condition.
@@ -257,7 +265,7 @@ def make_annotation_plot(condition, save_path):
             ax.axis('off')  # To remove axes
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    fig.suptitle(f"{condition}", fontsize=18, x=0.4444)
+    fig.suptitle(f"{condition}", fontsize=18, fontweight='bold', x=0.4444)
     _,_,cmap = create_colormap()
     # Define the axes for the colorbar in the 8th column of the GridSpec
     inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
