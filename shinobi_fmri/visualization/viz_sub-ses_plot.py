@@ -91,7 +91,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     if 'sub' in title:
         fontsize=24
     elif 'ses' in title:
-        fontsize=28
+        fontsize=32
 
     if threshold is not None:
         img_data = nib.load(img).get_fdata() if isinstance(img, str) else img.get_fdata()
