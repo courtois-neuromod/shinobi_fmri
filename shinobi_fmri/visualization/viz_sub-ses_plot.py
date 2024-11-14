@@ -88,6 +88,11 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     Returns:
         None
     """
+    if 'sub' in title:
+        fontsize=24
+    elif 'ses' in title:
+        fontsize=28
+
     if threshold is not None:
         img_data = nib.load(img).get_fdata() if isinstance(img, str) else img.get_fdata()
         img_data = img_data[img_data != 0].flatten()
@@ -114,7 +119,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     fig.canvas.draw()
 
     # Manually set the suptitle position
-    fig.suptitle(title, fontsize=24, y=1.05)
+    fig.suptitle(title, fontsize=fontsize, y=1.05)
 
     # Save the figure with specific bbox parameters to crop excess space
     plt.savefig(save_path, bbox_inches="tight", pad_inches=0.1)
