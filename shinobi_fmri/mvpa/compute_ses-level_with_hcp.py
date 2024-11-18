@@ -17,6 +17,7 @@ import numpy as np
 from nilearn import image
 from nilearn.input_data import NiftiMasker
 import os
+import copy  # For deep copying objects
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -28,19 +29,16 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-#def main():
+# def main():
 path_to_data = shinobi_behav.DATA_PATH
 models = ["simple"]
 model = "simple"
-CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']#, 'Kill', 'HealthLoss']#'HealthGain', 'UP']
-#additional_contrasts = ['HIT+JUMP-RIGHT-LEFT-UP-DOWN', 'RIGHT+LEFT+UP+DOWN-HIT-JUMP']
-contrasts = CONDS_LIST# + additional_contrasts
+CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']
+contrasts = CONDS_LIST
 if args.subject is not None:
     subjects = [args.subject]
 else:
     subjects = shinobi_behav.SUBJECTS
-
-
 
 def create_common_masker(path_to_data, subjects, masker_kwargs=None):
     """
@@ -97,7 +95,6 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
     masker.fit(mask_files)
     return masker, target_affine, target_shape
 
-
 all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 
@@ -107,7 +104,7 @@ for sub in subjects:
     decoder_fname = f"{sub}_{model}_decoder.pkl"
 
     mask_fname = op.join(
-    path_to_data,
+        path_to_data,
         "cneuromod.processed",
         "smriprep",
         sub,
@@ -128,12 +125,9 @@ for sub in subjects:
             decoder = pickle.load(f)
             contrast_label = pickle.load(f)
             confusion_matrices_dict = pickle.load(f)
-        confusion_matrices = confusion_matrices_dict['confusion_matrices']
-        confusion_matrices_true_norm = confusion_matrices_dict['confusion_matrices_true_norm']
-        confusion_matrices_pred_norm = confusion_matrices_dict['confusion_matrices_pred_norm']
-        confusion_matrices_all_norm = confusion_matrices_dict['confusion_matrices_all_norm']
+            p_values = pickle.load(f)  # Load p_values from the pickle file
     else:
-        #for model in models:
+        # Prepare data
         z_maps = []
         contrast_label = []
         session_label = []
@@ -165,10 +159,8 @@ for sub in subjects:
                 contrast_label.append(cond)
 
         decoder = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
-                        screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
+                          screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
-
-
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
         chance_level = 1. / len(np.unique(contrast_label))
@@ -176,6 +168,11 @@ for sub in subjects:
         print('Classification accuracy: {:.4f} / Chance level: {}'.format(
             classification_accuracy, chance_level))
         
+        # Extract actual per-class accuracies
+        actual_per_class_accuracies = {}
+        for class_label in decoder.cv_scores_:
+            actual_per_class_accuracies[class_label] = np.mean(decoder.cv_scores_[class_label])
+
         # Generate confusion matrices across folds
         confusion_matrices = []
         confusion_matrices_true_norm = []
@@ -205,13 +202,43 @@ for sub in subjects:
             'confusion_matrices_all_norm': confusion_matrices_all_norm
         }
 
+        # Perform permutation testing
+        n_permutations = 1000  # Set the number of permutations
+        permuted_per_class_accuracies = {class_label: [] for class_label in np.unique(contrast_label)}
 
+        for perm in range(n_permutations):
+            # Shuffle labels
+            permuted_labels = np.random.permutation(contrast_label)
+            # Initialize a new decoder with the same parameters
+            decoder_perm = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
+                                   screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=0)
+            # Fit decoder with permuted labels
+            decoder_perm.fit(z_maps, permuted_labels, groups=session_label)
+            # Extract per-class accuracies
+            for class_label in decoder_perm.cv_scores_:
+                permuted_accuracy = np.mean(decoder_perm.cv_scores_[class_label])
+                permuted_per_class_accuracies[class_label].append(permuted_accuracy)
 
-        # Save decoder
+        # Compute p-values for each class
+        p_values = {}
+        for class_label in actual_per_class_accuracies:
+            actual_accuracy = actual_per_class_accuracies[class_label]
+            permuted_accuracies = permuted_per_class_accuracies[class_label]
+            # Compute p-value as the proportion of permuted accuracies >= actual accuracy
+            p_value = np.mean([acc >= actual_accuracy for acc in permuted_accuracies])
+            p_values[class_label] = p_value
+
+        # Print p-values
+        print("Class-specific p-values from permutation testing:")
+        for class_label, p_value in p_values.items():
+            print(f"Class {class_label}: p-value = {p_value}")
+
+        # Save decoder along with p-values
         with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
-            pickle.dump(decoder, f) # Fitted decoder, just in case
-            pickle.dump(contrast_label, f) # Label of each map
-            pickle.dump(confusion_matrices_dict, f) # Confusion matrices across folds
+            pickle.dump(decoder, f)  # Fitted decoder
+            pickle.dump(contrast_label, f)  # Label of each map
+            pickle.dump(confusion_matrices_dict, f)  # Confusion matrices across folds
+            pickle.dump(p_values, f)  # Save p_values in the pickle file
 
     # Plot weights
     for cond in np.unique(contrast_label):
@@ -220,7 +247,6 @@ for sub in subjects:
         weight_img = decoder.coef_img_[cond]
         plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
         nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
-
 
     # Plot confusion matrices
     averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
