@@ -11,13 +11,11 @@ from sklearn.metrics import confusion_matrix
 import seaborn as sbn
 import matplotlib.pyplot as plt
 import pickle
-import os.path as op
 import nibabel as nib
-import numpy as np
 from nilearn import image
 from nilearn.input_data import NiftiMasker
-import os
-import copy  # For deep copying objects
+from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -29,7 +27,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# def main():
+# Initialize paths and variables
 path_to_data = shinobi_behav.DATA_PATH
 models = ["simple"]
 model = "simple"
@@ -43,20 +41,6 @@ else:
 def create_common_masker(path_to_data, subjects, masker_kwargs=None):
     """
     Create a common NiftiMasker by resampling subject-specific brain masks to a common space.
-
-    Parameters
-    ----------
-    path_to_data : str
-        The base directory where the data is stored.
-    subjects : list of str
-        A list of subject identifiers (e.g., ['sub-01', 'sub-02']).
-    masker_kwargs : dict, optional
-        Additional keyword arguments to pass to the NiftiMasker.
-
-    Returns
-    -------
-    masker : NiftiMasker
-        A fitted NiftiMasker object using the resampled masks.
     """
     if masker_kwargs is None:
         masker_kwargs = {}
@@ -102,6 +86,7 @@ for sub in subjects:
     mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
     os.makedirs(mvpa_results_path, exist_ok=True)
     decoder_fname = f"{sub}_{model}_decoder.pkl"
+    decoder_pkl_path = op.join(mvpa_results_path, decoder_fname)
 
     mask_fname = op.join(
         path_to_data,
@@ -120,13 +105,26 @@ for sub in subjects:
         f"{sub}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz",
     )
 
-    if op.isfile(op.join(mvpa_results_path, decoder_fname)):
-        with open(op.join(mvpa_results_path, decoder_fname), 'rb') as f:
-            decoder = pickle.load(f)
-            contrast_label = pickle.load(f)
-            confusion_matrices_dict = pickle.load(f)
-            p_values = pickle.load(f)  # Load p_values from the pickle file
+    # Initialize variables
+    decoder = None
+    results_dict = {}
+    if op.isfile(decoder_pkl_path):
+        # Load existing results
+        with open(decoder_pkl_path, 'rb') as f:
+            results_dict = pickle.load(f)
+        decoder = results_dict.get('decoder')
+        contrast_label = results_dict.get('contrast_label')
+        confusion_matrices_dict = results_dict.get('confusion_matrices_dict')
+        actual_per_class_accuracies = results_dict.get('actual_per_class_accuracies')
+        permuted_per_class_accuracies = results_dict.get('permuted_per_class_accuracies')
+        completed_permutations = results_dict.get('completed_permutations', 0)
+        permuted_labels_list = results_dict.get('permuted_labels_list')
+        print(f"Loaded existing results for {sub} from {decoder_pkl_path}")
     else:
+        print(f"No existing results found for {sub}, starting fresh.")
+        completed_permutations = 0
+
+    if decoder is None:
         # Prepare data
         z_maps = []
         contrast_label = []
@@ -135,22 +133,21 @@ for sub in subjects:
         for contrast in contrasts:
             z_maps_fpath = op.join(path_to_data, "processed", "z_maps", "ses-level", contrast)
             for z_map_fname in os.listdir(z_maps_fpath):
-                if model in z_map_fname:
-                    if sub in z_map_fname:
-                        print(f'Loading {z_map_fname}')
-                        session = z_map_fname.split("_")[1]
-                        niimap = image.load_img(op.join(z_maps_fpath, z_map_fname))
-                        resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
-                        z_maps.append(resampled_img)
-                        contrast_label.append(contrast)
-                        session_label.append(session)
+                if model in z_map_fname and sub in z_map_fname:
+                    print(f'Loading {z_map_fname}')
+                    session = z_map_fname.split("_")[1]
+                    niimap = image.load_img(op.join(z_maps_fpath, z_map_fname))
+                    resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
+                    z_maps.append(resampled_img)
+                    contrast_label.append(contrast)
+                    session_label.append(session)
 
         subfolder = op.join(path_to_data, "hcp_results", sub)
         runfolders = [f for f in os.listdir(subfolder) if 'run-' in f]
         for runfolder in runfolders:
             conditions = [f.split('.')[0] for f in os.listdir(op.join(subfolder, runfolder, 'z_score_maps')) if '.nii.gz' in f]
             for cond in conditions:
-                fpath = op.join(subfolder, runfolder, 'z_score_maps', '{}.nii.gz'.format(cond))
+                fpath = op.join(subfolder, runfolder, 'z_score_maps', f'{cond}.nii.gz')
                 print(f'Loading {fpath}')
                 niimap = image.load_img(fpath)
                 resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
@@ -158,8 +155,10 @@ for sub in subjects:
                 session_label.append('_'.join(runfolder.split('_')[2:]))
                 contrast_label.append(cond)
 
-        decoder = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
-                          screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=1)
+        # Fit the decoder on original data
+        estimator = LogisticRegression(solver='saga', max_iter=1000)#LinearSVC(max_iter=1000, )
+        decoder = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
+                          screening_percentile=20, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
@@ -186,13 +185,10 @@ for sub in subjects:
             # Compute confusion matrices
             confusion_mat = confusion_matrix(y_true, y_pred, normalize=None, labels=decoder.classes_) 
             confusion_matrices.append(confusion_mat)
-            # Each row is normalized by the sum of the elements in that row (i.e., the total number of actual instances for that class).
             confusion_mat_true_norm = confusion_matrix(y_true, y_pred, normalize='true', labels=decoder.classes_) 
             confusion_matrices_true_norm.append(confusion_mat_true_norm)
-            # Each column is normalized by the sum of the elements in that column (i.e., the total number of predicted instances for that class).
             confusion_mat_pred_norm = confusion_matrix(y_true, y_pred, normalize='pred', labels=decoder.classes_)
             confusion_matrices_pred_norm.append(confusion_mat_pred_norm)
-            # Each row is normalized by the sum of all elements in the confusion matrix.
             confusion_mat_all_norm = confusion_matrix(y_true, y_pred, normalize='all', labels=decoder.classes_)
             confusion_matrices_all_norm.append(confusion_mat_all_norm)
         confusion_matrices_dict = {
@@ -202,13 +198,67 @@ for sub in subjects:
             'confusion_matrices_all_norm': confusion_matrices_all_norm
         }
 
-        # Perform permutation testing
+        # Initialize permutation testing variables
         n_permutations = 1000  # Set the number of permutations
         permuted_per_class_accuracies = {class_label: [] for class_label in np.unique(contrast_label)}
+        completed_permutations = 0
 
+        # Set random seed and generate all permutations upfront
+        np.random.seed(42)  # Set a seed for reproducibility
+        permuted_labels_list = []
         for perm in range(n_permutations):
-            # Shuffle labels
             permuted_labels = np.random.permutation(contrast_label)
+            permuted_labels_list.append(permuted_labels)
+        print(f"Generated {n_permutations} permutations.")
+
+        # Save initial state
+        results_dict = {
+            'decoder': decoder,
+            'contrast_label': contrast_label,
+            'confusion_matrices_dict': confusion_matrices_dict,
+            'actual_per_class_accuracies': actual_per_class_accuracies,
+            'permuted_per_class_accuracies': permuted_per_class_accuracies,
+            'completed_permutations': completed_permutations,
+            'permuted_labels_list': permuted_labels_list
+        }
+        with open(decoder_pkl_path, 'wb') as f:
+            pickle.dump(results_dict, f)
+        print(f"Initial results saved for {sub}.")
+
+    else:
+        # If decoder is already loaded, ensure z_maps and session_label are loaded
+        if 'z_maps' not in locals():
+            # Prepare data (similar to above)
+            z_maps = []
+            session_label = []
+            for contrast in contrasts:
+                z_maps_fpath = op.join(path_to_data, "processed", "z_maps", "ses-level", contrast)
+                for z_map_fname in os.listdir(z_maps_fpath):
+                    if model in z_map_fname and sub in z_map_fname:
+                        session = z_map_fname.split("_")[1]
+                        niimap = image.load_img(op.join(z_maps_fpath, z_map_fname))
+                        resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
+                        z_maps.append(resampled_img)
+                        session_label.append(session)
+
+            subfolder = op.join(path_to_data, "hcp_results", sub)
+            runfolders = [f for f in os.listdir(subfolder) if 'run-' in f]
+            for runfolder in runfolders:
+                conditions = [f.split('.')[0] for f in os.listdir(op.join(subfolder, runfolder, 'z_score_maps')) if '.nii.gz' in f]
+                for cond in conditions:
+                    fpath = op.join(subfolder, runfolder, 'z_score_maps', f'{cond}.nii.gz')
+                    niimap = image.load_img(fpath)
+                    resampled_img = image.resample_img(niimap, target_affine=target_affine, target_shape=target_shape)
+                    z_maps.append(resampled_img)
+                    session_label.append('_'.join(runfolder.split('_')[2:]))
+
+    # Perform permutation testing
+    n_permutations = 1000  # Ensure this matches the initial setting
+    print(f"Starting permutation testing for {sub}. Completed {completed_permutations}/{n_permutations} permutations so far.")
+
+    try:
+        for perm_index in range(completed_permutations, n_permutations):
+            permuted_labels = permuted_labels_list[perm_index]
             # Initialize a new decoder with the same parameters
             decoder_perm = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
                                    screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=0)
@@ -219,26 +269,48 @@ for sub in subjects:
                 permuted_accuracy = np.mean(decoder_perm.cv_scores_[class_label])
                 permuted_per_class_accuracies[class_label].append(permuted_accuracy)
 
-        # Compute p-values for each class
-        p_values = {}
-        for class_label in actual_per_class_accuracies:
-            actual_accuracy = actual_per_class_accuracies[class_label]
-            permuted_accuracies = permuted_per_class_accuracies[class_label]
-            # Compute p-value as the proportion of permuted accuracies >= actual accuracy
-            p_value = np.mean([acc >= actual_accuracy for acc in permuted_accuracies])
-            p_values[class_label] = p_value
+            completed_permutations += 1
 
-        # Print p-values
-        print("Class-specific p-values from permutation testing:")
-        for class_label, p_value in p_values.items():
-            print(f"Class {class_label}: p-value = {p_value}")
+            # Save progress after each permutation or every 10 permutations
+            if completed_permutations % 10 == 0 or completed_permutations == n_permutations:
+                # Update results_dict
+                results_dict['permuted_per_class_accuracies'] = permuted_per_class_accuracies
+                results_dict['completed_permutations'] = completed_permutations
+                with open(decoder_pkl_path, 'wb') as f:
+                    pickle.dump(results_dict, f)
+                print(f"Saved progress after {completed_permutations}/{n_permutations} permutations.")
 
-        # Save decoder along with p-values
-        with open(op.join(mvpa_results_path, f"{sub}_{model}_decoder.pkl"), 'wb') as f:
-            pickle.dump(decoder, f)  # Fitted decoder
-            pickle.dump(contrast_label, f)  # Label of each map
-            pickle.dump(confusion_matrices_dict, f)  # Confusion matrices across folds
-            pickle.dump(p_values, f)  # Save p_values in the pickle file
+            if completed_permutations % 50 == 0:
+                print(f"Completed {completed_permutations}/{n_permutations} permutations.")
+
+    except KeyboardInterrupt:
+        # Handle interruption and save progress
+        results_dict['permuted_per_class_accuracies'] = permuted_per_class_accuracies
+        results_dict['completed_permutations'] = completed_permutations
+        with open(decoder_pkl_path, 'wb') as f:
+            pickle.dump(results_dict, f)
+        print(f"Interrupted at permutation {completed_permutations}. Progress saved.")
+        exit()
+
+    # Compute p-values for each class
+    p_values = {}
+    for class_label in actual_per_class_accuracies:
+        actual_accuracy = actual_per_class_accuracies[class_label]
+        permuted_accuracies = permuted_per_class_accuracies[class_label]
+        # Compute p-value as the proportion of permuted accuracies >= actual accuracy
+        p_value = np.mean([acc >= actual_accuracy for acc in permuted_accuracies])
+        p_values[class_label] = p_value
+
+    # Print p-values
+    print("Class-specific p-values from permutation testing:")
+    for class_label, p_value in p_values.items():
+        print(f"Class {class_label}: p-value = {p_value}")
+
+    # Save final results
+    results_dict['p_values'] = p_values
+    with open(decoder_pkl_path, 'wb') as f:
+        pickle.dump(results_dict, f)
+    print(f"Saved final results for {sub} to {decoder_pkl_path}")
 
     # Plot weights
     for cond in np.unique(contrast_label):
@@ -247,20 +319,3 @@ for sub in subjects:
         weight_img = decoder.coef_img_[cond]
         plot_stat_map(weight_img, bg_img=anat_fname, title=f"SVM weights {cond}", output_file=output_fname)
         nib.save(weight_img, op.join(mvpa_results_path, f"{sub}_{cond}_{model}_mvpa.nii.gz"))
-
-    # Plot confusion matrices
-    averaged_confusion_matrix = np.mean(confusion_matrices, axis=0)
-    std_confusion_matrix = np.std(confusion_matrices, axis=0)
-    plt.figure(figsize=(10, 10))
-    sbn.heatmap(averaged_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
-    output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_averaged_confusion_matrix.png")
-    os.makedirs(op.join("./", "reports", "figures", "ses-level", "confusion_matrices"), exist_ok=True)
-    plt.savefig(output_fname)
-    print(f'Saving {output_fname}')
-    plt.close()
-    plt.figure(figsize=(10, 10))
-    sbn.heatmap(std_confusion_matrix, annot=True, cmap='Blues', fmt='g', xticklabels=decoder.classes_, yticklabels=decoder.classes_)
-    output_fname = op.join("./", "reports", "figures", "ses-level", "confusion_matrices", f"{sub}_{model}_std_confusion_matrix.png")
-    plt.savefig(output_fname)
-    print(f'Saving {output_fname}')
-    plt.close()
