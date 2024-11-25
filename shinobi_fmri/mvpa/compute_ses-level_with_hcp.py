@@ -17,6 +17,11 @@ from nilearn.input_data import NiftiMasker
 from sklearn.svm import LinearSVC
 from sklearn.linear_model import LogisticRegression
 
+# remove convergence warning
+import warnings
+from sklearn.exceptions import ConvergenceWarning
+warnings.simplefilter("ignore", ConvergenceWarning)
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
@@ -156,9 +161,9 @@ for sub in subjects:
                 contrast_label.append(cond)
 
         # Fit the decoder on original data
-        estimator = LogisticRegression(solver='saga', max_iter=1000)#LinearSVC(max_iter=1000, )
+        estimator = LinearSVC()#LogisticRegression(solver='saga', max_iter=100000)#LinearSVC(max_iter=1000, )
         decoder = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
-                          screening_percentile=20, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
+                          screening_percentile=10, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
@@ -260,8 +265,8 @@ for sub in subjects:
         for perm_index in range(completed_permutations, n_permutations):
             permuted_labels = permuted_labels_list[perm_index]
             # Initialize a new decoder with the same parameters
-            decoder_perm = Decoder(estimator='svc', mask=masker, standardize=False, scoring='accuracy',
-                                   screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=-1, verbose=0)
+            decoder_perm = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
+                            screening_percentile=10, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
             # Fit decoder with permuted labels
             decoder_perm.fit(z_maps, permuted_labels, groups=session_label)
             # Extract per-class accuracies
