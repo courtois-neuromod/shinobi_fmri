@@ -265,6 +265,7 @@ for sub in subjects:
         for perm_index in range(completed_permutations, n_permutations):
             permuted_labels = permuted_labels_list[perm_index]
             # Initialize a new decoder with the same parameters
+            estimator = LinearSVC()
             decoder_perm = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
                             screening_percentile=10, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
             # Fit decoder with permuted labels
