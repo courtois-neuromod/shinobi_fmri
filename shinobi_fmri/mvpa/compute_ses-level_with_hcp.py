@@ -258,7 +258,7 @@ for sub in subjects:
                     session_label.append('_'.join(runfolder.split('_')[2:]))
 
     # Perform permutation testing
-    n_permutations = 1000  # Ensure this matches the initial setting
+    n_permutations = 1  # Ensure this matches the initial setting
     print(f"Starting permutation testing for {sub}. Completed {completed_permutations}/{n_permutations} permutations so far.")
 
     try:
