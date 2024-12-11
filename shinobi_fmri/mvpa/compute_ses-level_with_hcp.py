@@ -163,7 +163,7 @@ for sub in subjects:
         # Fit the decoder on original data
         estimator = LinearSVC()#LogisticRegression(solver='saga', max_iter=100000)#LinearSVC(max_iter=1000, )
         decoder = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
-                          screening_percentile=10, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
+                          screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
@@ -267,7 +267,7 @@ for sub in subjects:
             # Initialize a new decoder with the same parameters
             estimator = LinearSVC()
             decoder_perm = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
-                            screening_percentile=10, cv=LeaveOneGroupOut(), n_jobs=16, verbose=1)
+                            screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=1, verbose=1)
             # Fit decoder with permuted labels
             decoder_perm.fit(z_maps, permuted_labels, groups=session_label)
             # Extract per-class accuracies
