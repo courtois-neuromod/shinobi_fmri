@@ -86,6 +86,8 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
 
 all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
+screening_percentile = 10
+n_permutations = 1
 
 for sub in subjects:
     mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
@@ -163,7 +165,7 @@ for sub in subjects:
         # Fit the decoder on original data
         estimator = LinearSVC()#LogisticRegression(solver='saga', max_iter=100000)#LinearSVC(max_iter=1000, )
         decoder = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
-                          screening_percentile=5, cv=LeaveOneGroupOut(), n_jobs=1, verbose=1)
+                          screening_percentile=screening_percentile, cv=LeaveOneGroupOut(), n_jobs=1, verbose=1)
         decoder.fit(z_maps, contrast_label, groups=session_label)
 
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
@@ -204,7 +206,6 @@ for sub in subjects:
         }
 
         # Initialize permutation testing variables
-        n_permutations = 1000  # Set the number of permutations
         permuted_per_class_accuracies = {class_label: [] for class_label in np.unique(contrast_label)}
         completed_permutations = 0
 
@@ -258,7 +259,6 @@ for sub in subjects:
                     session_label.append('_'.join(runfolder.split('_')[2:]))
 
     # Perform permutation testing
-    n_permutations = 1  # Ensure this matches the initial setting
     print(f"Starting permutation testing for {sub}. Completed {completed_permutations}/{n_permutations} permutations so far.")
 
     try:
