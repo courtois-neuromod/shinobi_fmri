@@ -86,7 +86,7 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
 
 all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
-screening_percentile = 10
+screening_percentile = 20
 n_permutations = 1
 n_jobs = 12
 
