@@ -87,8 +87,8 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
 all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 screening_percentile = 20
-n_permutations = 1
-n_jobs = 12
+n_permutations = 100
+n_jobs = -1
 
 for sub in subjects:
     mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
@@ -279,13 +279,12 @@ for sub in subjects:
             completed_permutations += 1
 
             # Save progress after each permutation or every 10 permutations
-            if completed_permutations % 10 == 0 or completed_permutations == n_permutations:
-                # Update results_dict
-                results_dict['permuted_per_class_accuracies'] = permuted_per_class_accuracies
-                results_dict['completed_permutations'] = completed_permutations
-                with open(decoder_pkl_path, 'wb') as f:
-                    pickle.dump(results_dict, f)
-                print(f"Saved progress after {completed_permutations}/{n_permutations} permutations.")
+            # Update results_dict
+            results_dict['permuted_per_class_accuracies'] = permuted_per_class_accuracies
+            results_dict['completed_permutations'] = completed_permutations
+            with open(decoder_pkl_path, 'wb') as f:
+                pickle.dump(results_dict, f)
+            print(f"Saved progress after {completed_permutations}/{n_permutations} permutations.")
 
             if completed_permutations % 50 == 0:
                 print(f"Completed {completed_permutations}/{n_permutations} permutations.")
