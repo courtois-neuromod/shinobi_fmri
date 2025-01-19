@@ -189,7 +189,9 @@ for sub in subjects:
         confusion_matrices_pred_norm = []
         confusion_matrices_all_norm = []
         for train, test in decoder.cv.split(z_maps, contrast_label, groups=session_label):
-            decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
+            with parallel_backend('threading'):
+                with tqdm_joblib(tqdm(desc="Decoder CV Progress for confusion matrices")) as progress_bar:
+                    decoder.fit(np.array(z_maps)[train], np.array(contrast_label)[train], groups=np.array(session_label)[train])
             y_pred = decoder.predict(np.array(z_maps)[test])
             y_true = np.array(contrast_label)[test]
 
