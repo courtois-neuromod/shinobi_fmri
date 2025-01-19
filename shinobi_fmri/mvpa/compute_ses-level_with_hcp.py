@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore")
 import os
 import os.path as op
 import pandas as pd
@@ -16,11 +18,11 @@ from nilearn import image
 from nilearn.input_data import NiftiMasker
 from sklearn.svm import LinearSVC
 from sklearn.linear_model import LogisticRegression
+from tqdm import tqdm
+from tqdm_joblib import tqdm_joblib
+from joblib import parallel_backend
 
-# remove convergence warning
-import warnings
-from sklearn.exceptions import ConvergenceWarning
-warnings.simplefilter("ignore", ConvergenceWarning)
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -88,7 +90,7 @@ all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 screening_percentile = 20
 n_permutations = 100
-n_jobs = -1
+n_jobs = 12
 
 for sub in subjects:
     mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
@@ -164,11 +166,12 @@ for sub in subjects:
                 contrast_label.append(cond)
 
         # Fit the decoder on original data
-        estimator = LinearSVC()#LogisticRegression(solver='saga', max_iter=100000)#LinearSVC(max_iter=1000, )
+        estimator = LinearSVC(dual='auto')#LogisticRegression(solver='saga', max_iter=100000)#LinearSVC(max_iter=1000, )
         decoder = Decoder(estimator=estimator, mask=masker, standardize=True, scoring='balanced_accuracy',
                           screening_percentile=screening_percentile, cv=LeaveOneGroupOut(), n_jobs=n_jobs, verbose=1)
-        decoder.fit(z_maps, contrast_label, groups=session_label)
-
+        with parallel_backend('threading'):
+            with tqdm_joblib(tqdm(desc="Decoder CV Progress")) as progress_bar:
+                decoder.fit(z_maps, contrast_label, groups=session_label)
         classification_accuracy = np.mean(list(decoder.cv_scores_.values()))
         chance_level = 1. / len(np.unique(contrast_label))
         print(f'Decoding : {sub} {model}')
