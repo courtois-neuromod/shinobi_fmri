@@ -35,6 +35,7 @@ args = parser.parse_args()
 ##############################################################################
 # GLOBAL CONFIG
 ##############################################################################
+np.random.seed(42)  # Global base seed for reproducibility
 path_to_data = shinobi_behav.DATA_PATH
 model = "simple"
 CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']
@@ -167,12 +168,12 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
       - A confusion matrix for each fold
       - Per-label accuracies across folds
     """
+    from sklearn.model_selection import LeaveOneGroupOut
     cv = LeaveOneGroupOut()
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
 
     def _fit_and_predict_fold(train_idx, test_idx):
-        """Helper for each fold."""
         clf = estimator_cls()
         clf.fit(X_data[train_idx], y_data[train_idx])
         y_pred = clf.predict(X_data[test_idx])
@@ -185,7 +186,6 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
                 fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
         return cm, fold_acc_dict
 
-    # Parallelize folds
     with parallel_backend('threading'):
         with tqdm_joblib(tqdm(desc="Manual CV folds", total=len(splits))):
             results = Parallel(n_jobs=n_jobs)(
@@ -193,7 +193,6 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
                 for (train_idx, test_idx) in splits
             )
 
-    # Collect fold confusion matrices & accuracies
     fold_confusions = []
     per_class_accuracies = {lbl: [] for lbl in all_labels}
     for cm, fold_acc_dict in results:
@@ -201,7 +200,6 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
         for lbl, acc in fold_acc_dict.items():
             per_class_accuracies[lbl].append(acc)
 
-    # Mean accuracy across folds for each label
     actual_per_class_accuracies = {
         lbl: np.mean(per_class_accuracies[lbl]) for lbl in all_labels
     }
@@ -223,142 +221,159 @@ def main():
         decoder_fname = f"{sub}_{model}_decoder.pkl"
         decoder_pkl_path = op.join(mvpa_results_path, decoder_fname)
 
-        # 2) Load existing results if any
+        # Load existing main results dictionary if available
         if op.isfile(decoder_pkl_path):
             with open(decoder_pkl_path, 'rb') as f:
                 results_dict = pickle.load(f)
-            print(f"Loaded existing results for {sub} from {decoder_pkl_path}.")
+            print(f"[{sub}] Loaded existing results from {decoder_pkl_path}.")
         else:
-            print(f"No existing results found for {sub}, starting fresh.")
+            print(f"[{sub}] No existing results found, starting fresh.")
             results_dict = {}
 
-        contrast_label = results_dict.get('contrast_label', None)
-        completed_permutations = results_dict.get('completed_permutations', 0)
-        permutations_data = results_dict.get('permutations', {})
+        # Try extracting relevant fields from results_dict if present
+        contrast_label_stored = results_dict.get('contrast_label', None)
         confusion_matrices_dict = results_dict.get('confusion_matrices_dict', {})
         actual_per_class_accuracies = results_dict.get('actual_per_class_accuracies', None)
+        completed_permutations = results_dict.get('completed_permutations', 0)
+        class_list = results_dict.get('class_labels', None)
+        p_values = results_dict.get('p_values', None)  # might exist if previously computed
 
-        # 3) Load subject data (list of nibabel images, plus labels)
+        # Load subject's z-maps
         z_maps, contrast_label_loaded, session_label = load_zmaps_for_subject(
             sub, model, CONDS_LIST, path_to_data, target_affine, target_shape
         )
-
-        # We also want a 2D array for manual CV
         X_niimgs = masker.transform(z_maps)
 
-        # If we never had a label list, use the newly loaded
-        if not contrast_label:
+        if contrast_label_stored:
+            # If we already have a label stored, keep using it (consistency)
+            # Otherwise, rely on what's newly loaded
+            contrast_label = contrast_label_stored
+        else:
             contrast_label = contrast_label_loaded
 
+        # We'll store class_labels once we know them from the data
+        if not class_list and len(contrast_label) > 0:
+            class_list = sorted(np.unique(contrast_label))
+
         # --------------------------------------------------------------------
-        # TASK = "classif": 
-        #    - Manual CV => get fold-level confusion matrices
-        #    - Single final Decoder => get weight maps
+        # 1) CLASSIF TASK
         # --------------------------------------------------------------------
         if args.task == "classif":
             print(f"[{sub}] Running manual cross-validation to get fold-wise confusion...")
+
+            # If there's no real data
+            if len(contrast_label) == 0:
+                print(f"[{sub}] No data found, skipping classification.")
+                continue
 
             fold_confusions, actual_per_class_accuracies = compute_crossval_confusions_and_accuracies(
                 X_niimgs, np.array(contrast_label), np.array(session_label),
                 estimator_cls=LinearSVC, n_jobs=n_jobs
             )
 
-            # Store fold-level confusion matrices
             confusion_matrices_dict = {'fold_confusions': fold_confusions}
 
             print("[Per-class accuracy across folds]:")
-            for lbl in actual_per_class_accuracies:
-                print(f"  {lbl}: {actual_per_class_accuracies[lbl]:.4f}")
+            for lbl in sorted(set(contrast_label)):
+                acc_val = actual_per_class_accuracies.get(lbl, np.nan)
+                print(f"  {lbl}: {acc_val:.4f}")
 
-            # 2) Fit a final Decoder on all data to get weight maps
+            # Fit a final Decoder on all data to get weight maps
             print(f"[{sub}] Training final Decoder on entire dataset to get weight maps...")
-            # Here, pass the *list of nibabel images* plus the *masker*:
             final_decoder = Decoder(
-                estimator=LinearSVC(),
-                mask=masker,  # essential to compute weight maps as Nifti images
+                estimator=LinearSVC(random_state=42),
+                mask=masker,
                 standardize=True,
                 scoring='balanced_accuracy',
                 screening_percentile=screening_percentile,
-                cv=None,  # no internal CV for the final model
+                cv=None,
                 n_jobs=n_jobs,
                 verbose=0
             )
-            final_decoder.fit(z_maps, contrast_label)  # pass images, not X_niimgs
+            final_decoder.fit(z_maps, contrast_label)
 
-            # final_decoder.coef_img_ now holds the weight maps. 
-            # e.g. final_decoder.coef_img_['HIT'] is a nibabel image
-
-            # If permutations_data doesn't exist, we initialize it
-            class_list = np.unique(contrast_label)
-            n_classes = len(class_list)
-            if not permutations_data:
-                permutations_data = {
-                    'class_labels': list(class_list),
-                    'accuracies': np.full((n_permutations, n_classes), np.nan)
-                }
-
-            # Save everything
+            # Save or update results_dict
             results_dict.update({
                 'decoder': final_decoder,
                 'contrast_label': contrast_label,
+                'class_labels': class_list,
                 'confusion_matrices_dict': confusion_matrices_dict,
                 'actual_per_class_accuracies': actual_per_class_accuracies,
-                'permutations': permutations_data,
-                'completed_permutations': completed_permutations
+                'completed_permutations': completed_permutations,
+                'p_values': p_values,  # might exist if computed earlier, keep it
             })
 
             with open(decoder_pkl_path, 'wb') as f:
                 pickle.dump(results_dict, f)
             print(f"[{sub}] Classification results saved to {decoder_pkl_path}.")
 
+            # Save weight maps to disk
             for class_lbl in final_decoder.classes_:
                 w_img = final_decoder.coef_img_[class_lbl]
                 out_fname = f"{sub}_{class_lbl}_{model}_weights.nii.gz"
                 nib.save(w_img, out_fname)
 
         # --------------------------------------------------------------------
-        # TASK = "perm": do permutations from a starting index or the lowest missing
+        # 2) PERM TASK
         # --------------------------------------------------------------------
         elif args.task == "perm":
-            if 'permutations' not in results_dict or not actual_per_class_accuracies:
-                raise RuntimeError(
-                    f"[{sub}] No classification info found in {decoder_pkl_path}. "
-                    "Run --task classif first."
-                )
+            # This folder will hold individual permutation results
+            perm_folder = op.join(mvpa_results_path, f"{sub}_{model}_permutations")
+            os.makedirs(perm_folder, exist_ok=True)
 
-            perm_array = permutations_data['accuracies']  # shape: (n_permutations, n_classes)
-            class_list = permutations_data['class_labels']
+            # Figure out how many permutations are already done
+            existing_perms = [f for f in os.listdir(perm_folder) 
+                              if f.startswith('perm_') and f.endswith('.pkl')]
+            done_indices = set()
+            for fname in existing_perms:
+                # e.g. 'perm_12.pkl' -> index=12
+                idx_str = fname.split('_')[1].split('.')[0]
+                done_indices.add(int(idx_str))
+            completed_permutations = len(done_indices)
+            results_dict['completed_permutations'] = completed_permutations
 
-            if args.perm_index is not None:
-                current_index = args.perm_index
+            with open(decoder_pkl_path, 'wb') as f:
+                pickle.dump(results_dict, f)
+
+            # If we have data, ensure we know what classes exist
+            if len(contrast_label) > 0 and not class_list:
+                class_list = sorted(np.unique(contrast_label))
+
+            if completed_permutations >= n_permutations:
+                print(f"[{sub}] All permutations completed ({completed_permutations}).")
             else:
-                # find the first missing
-                missing_indices = np.where(np.isnan(perm_array[:, 0]))[0]
-                if len(missing_indices) == 0:
-                    print(f"[{sub}] All permutations completed! Nothing to do.")
-                    continue
-                current_index = missing_indices[0]
+                # find the next missing index
+                if args.perm_index is not None:
+                    current_index = args.perm_index
+                else:
+                    # find the first missing
+                    candidates = [i for i in range(n_permutations) if i not in done_indices]
+                    if len(candidates) == 0:
+                        print(f"[{sub}] All permutations completed! No missing index.")
+                        current_index = n_permutations
+                    else:
+                        current_index = candidates[0]
 
-            print(f"[{sub}] Starting permutations at index={current_index} (up to {n_permutations-1})...")
+                print(f"[{sub}] Starting permutations at index={current_index} (up to {n_permutations-1})...")
 
-            try:
                 while current_index < n_permutations:
-                    # Skip if already done
-                    if not np.isnan(perm_array[current_index, 0]):
+                    if current_index in done_indices:
                         print(f"[{sub}] Perm {current_index} is already computed. Skipping.")
                         current_index += 1
                         continue
 
+                    if len(contrast_label) == 0:
+                        print(f"[{sub}] No real data to permute. Skipping permutations.")
+                        break
+
                     print(f"[{sub}] Computing permutation {current_index}...")
 
-                    # Make perm labels
-                    np.random.seed(42 + current_index)
+                    np.random.seed(42 + current_index)  # stable, reproducible
                     perm_labels = np.random.permutation(contrast_label)
 
-                    # Use nilearn Decoder with CV in one shot
                     decoder_perm = Decoder(
-                        estimator=LinearSVC(),
-                        mask=masker,  # pass the same mask used for real classification
+                        estimator=LinearSVC(random_state=42),
+                        mask=masker,
                         standardize=True,
                         scoring='balanced_accuracy',
                         screening_percentile=screening_percentile,
@@ -366,22 +381,40 @@ def main():
                         n_jobs=n_jobs,
                         verbose=0
                     )
-                    with parallel_backend('threading'):
-                        with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
-                            decoder_perm.fit(z_maps, perm_labels, groups=session_label)
+                    try:
+                        with parallel_backend('threading'):
+                            with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
+                                decoder_perm.fit(z_maps, perm_labels, groups=session_label)
+                    except KeyboardInterrupt:
+                        print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
+                        break
 
-                    # Store average CV accuracy for each class
-                    for i_class, c_lbl in enumerate(class_list):
-                        if c_lbl not in decoder_perm.cv_scores_:
-                            perm_array[current_index, i_class] = np.nan
-                        else:
-                            perm_array[current_index, i_class] = np.mean(decoder_perm.cv_scores_[c_lbl])
+                    # Collect average CV accuracy for each class
+                    perm_acc_dict = {}
+                    # If we have classes from real data, use that ordering
+                    if class_list:
+                        for c_lbl in class_list:
+                            if c_lbl not in decoder_perm.cv_scores_:
+                                perm_acc_dict[c_lbl] = np.nan
+                            else:
+                                perm_acc_dict[c_lbl] = np.mean(decoder_perm.cv_scores_[c_lbl])
+                    else:
+                        # no real data => just skip
+                        perm_acc_dict = {}
 
-                    # Save
-                    permutations_data['accuracies'] = perm_array
-                    completed_permutations = np.sum(~np.isnan(perm_array[:, 0]))
+                    # Save the single-permutation results to a dedicated file
+                    perm_results = {
+                        'index': current_index,
+                        'class_list': class_list,
+                        'acc': perm_acc_dict,
+                    }
+                    single_perm_path = op.join(perm_folder, f'perm_{current_index}.pkl')
+                    with open(single_perm_path, 'wb') as pf:
+                        pickle.dump(perm_results, pf)
+
+                    done_indices.add(current_index)
+                    completed_permutations = len(done_indices)
                     results_dict['completed_permutations'] = completed_permutations
-                    results_dict['permutations'] = permutations_data
 
                     with open(decoder_pkl_path, 'wb') as f:
                         pickle.dump(results_dict, f)
@@ -389,42 +422,91 @@ def main():
                     print(f"[{sub}] => Perm {current_index} done. "
                           f"{completed_permutations}/{n_permutations} completed.")
 
-                    # Check if we finished them all
                     if completed_permutations == n_permutations:
-                        print(f"[{sub}] All permutations done! Computing p-values per class...")
-                        p_values = {}
-                        for i_class, c_lbl in enumerate(class_list):
-                            real_acc = actual_per_class_accuracies[c_lbl]
-                            perms_acc = perm_array[:, i_class]
-                            p_val = np.mean(perms_acc >= real_acc)
-                            p_values[c_lbl] = p_val
-                        results_dict['p_values'] = p_values
-
-                        with open(decoder_pkl_path, 'wb') as f:
-                            pickle.dump(results_dict, f)
-
-                        print("[Final p-values]:")
-                        for c_lbl, val in p_values.items():
-                            print(f"  {c_lbl}: p={val:.4f}")
                         break
+                    current_index += 1
+
+            # ----------------------------------------------------------------
+            # If we now have all permutations, gather them into one file
+            # ----------------------------------------------------------------
+            if completed_permutations == n_permutations:
+                print(f"[{sub}] All permutations done! Checking for final aggregated file...")
+                all_perms_path = op.join(perm_folder, 'all_permutations.pkl')
+                if op.exists(all_perms_path):
+                    print(f"[{sub}] The final aggregated file already exists: {all_perms_path}")
+                else:
+                    print(f"[{sub}] Aggregating all permutation results into {all_perms_path}...")
+                    # We'll load each perm_*.pkl
+                    if class_list:
+                        n_classes = len(class_list)
+                        perm_array = np.full((n_permutations, n_classes), np.nan)
+                        perm_files = sorted(
+                            [f for f in os.listdir(perm_folder) 
+                             if f.startswith('perm_') and f.endswith('.pkl')]
+                        )
+                        for fname in perm_files:
+                            idx_str = fname.split('_')[1].split('.')[0]
+                            idx_int = int(idx_str)
+                            with open(op.join(perm_folder, fname), 'rb') as pf:
+                                p_data = pickle.load(pf)
+                            for i_class, c_lbl in enumerate(class_list):
+                                perm_array[idx_int, i_class] = p_data['acc'].get(c_lbl, np.nan)
                     else:
-                        current_index += 1
+                        # No real data => no permutations to combine
+                        perm_array = None
 
-            except KeyboardInterrupt:
-                print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
-                permutations_data['accuracies'] = perm_array
-                results_dict['permutations'] = permutations_data
-                results_dict['completed_permutations'] = np.sum(~np.isnan(perm_array[:, 0]))
+                    # Save the big array
+                    with open(all_perms_path, 'wb') as pf:
+                        pickle.dump({
+                            'perm_array': perm_array,
+                            'class_list': class_list
+                        }, pf)
 
-                with open(decoder_pkl_path, 'wb') as f:
-                    pickle.dump(results_dict, f)
-                print(f"[{sub}] Progress saved. Exiting.")
-                continue
+                    # Delete all the perm_*.pkl files
+                    print(f"[{sub}] Deleting individual perm_* files...")
+                    for fname in os.listdir(perm_folder):
+                        if fname.startswith('perm_') and fname.endswith('.pkl'):
+                            os.remove(op.join(perm_folder, fname))
+
+                # If classification has been done (actual_per_class_accuracies != None),
+                # compute p-values. If not, we skip for now.
+                if actual_per_class_accuracies and class_list:
+                    with open(all_perms_path, 'rb') as pf:
+                        merged_data = pickle.load(pf)
+                    perm_array = merged_data['perm_array']
+
+                    p_values = {}
+                    for i_class, c_lbl in enumerate(class_list):
+                        real_acc = actual_per_class_accuracies.get(c_lbl, np.nan)
+                        perms_acc = perm_array[:, i_class]
+                        # Some classes might have NaNs if no data
+                        valid_mask = ~np.isnan(perms_acc)
+                        if not np.any(valid_mask):
+                            p_val = np.nan
+                        else:
+                            p_val = np.mean(perms_acc[valid_mask] >= real_acc)
+                        p_values[c_lbl] = p_val
+
+                    results_dict['p_values'] = p_values
+                    with open(decoder_pkl_path, 'wb') as f:
+                        pickle.dump(results_dict, f)
+
+                    print("[Final p-values]:")
+                    for c_lbl, val in p_values.items():
+                        print(f"  {c_lbl}: p={val:.4f}")
+
+                else:
+                    print(f"[{sub}] Classification not done yet (or no real data). "
+                          "Skipping p-value computation.")
+            else:
+                print(f"[{sub}] Not all permutations are done => no final aggregation yet.")
+
+            print(f"[{sub}] Done with permutations.\n")
 
         else:
             raise RuntimeError(f"Unknown task {args.task}.")
 
-        print(f"[{sub}] Done with task={args.task}.\n")
+        print(f"[{sub}] Finished task={args.task}.\n")
 
 
 if __name__ == "__main__":
