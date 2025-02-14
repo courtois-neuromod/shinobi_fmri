@@ -46,7 +46,7 @@ else:
 
 screening_percentile = 20
 n_permutations = 1000
-n_jobs = 12
+n_jobs = 40
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -311,7 +311,9 @@ def main():
             for class_lbl in final_decoder.classes_:
                 w_img = final_decoder.coef_img_[class_lbl]
                 out_fname = f"{sub}_{class_lbl}_{model}_weights.nii.gz"
-                nib.save(w_img, out_fname)
+                out_path = op.join(mvpa_results_path, 'weight_maps', out_fname)
+                os.makedirs(op.dirname(out_path), exist_ok=True)
+                nib.save(w_img, out_path)
 
         # --------------------------------------------------------------------
         # 2) PERM TASK
