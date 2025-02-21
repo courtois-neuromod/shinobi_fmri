@@ -53,7 +53,7 @@ else:
 
 screening_percentile = 20
 n_permutations = 1000
-n_jobs = 16
+n_jobs = 8
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -189,11 +189,23 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
+    clf = clone(estimator)
+    def _fit_and_predict_fold(train_idx, test_idx):
+        
+        import os
+        import psutil
 
-    def _fit_and_predict_fold(train_idx, test_idx, estimator):
-        clf = clone(estimator)
-            
+        process = psutil.Process(os.getpid())
+        memory_usage = process.memory_info().rss  # in bytes
+        print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
+
         clf.fit(X_data[train_idx], y_data[train_idx])
+
+        process = psutil.Process(os.getpid())
+        memory_usage = process.memory_info().rss  # in bytes
+        print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
+
+
         y_pred = clf.predict(X_data[test_idx])
         cm = confusion_matrix(y_data[test_idx], y_pred, labels=all_labels)
         
@@ -209,7 +221,7 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     with parallel_backend('threading'):
         with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
-                delayed(_fit_and_predict_fold)(train_idx, test_idx, estimator)
+                delayed(_fit_and_predict_fold)(train_idx, test_idx)
                 for (train_idx, test_idx) in splits
             )
             pbar.update(len(splits))
