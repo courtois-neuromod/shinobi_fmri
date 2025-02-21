@@ -211,7 +211,7 @@ def _fit_and_predict_fold(X_train, X_test, y_train, y_test, all_labels):
     return cm, fold_acc_dict
 
 
-def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, estimator, cv=LeaveOneGroupOut(), n_jobs=1):
+def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, cv=LeaveOneGroupOut(), n_jobs=1):
     """
     Manually implement cross-validation to compute:
       - A confusion matrix for each fold
@@ -233,21 +233,11 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
     
-    decoder = Decoder(
-                estimator=LinearSVC(random_state=42),
-                mask=masker,
-                standardize=True,
-                scoring='balanced_accuracy',
-                screening_percentile=20,
-                cv=None,
-                n_jobs=1,
-                verbose=0
-            )
 
     with parallel_backend('threading'):
         with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
-                delayed(_fit_and_predict_fold)(X_data[train_idx], X_data[test_idx], y_data[train_idx], y_data[test_idx], clone(estimator))
+                delayed(_fit_and_predict_fold)(X_data[train_idx], X_data[test_idx], y_data[train_idx], y_data[test_idx], all_labels)
                 for (train_idx, test_idx) in splits
             )
             pbar.update(len(splits))
