@@ -190,7 +190,7 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
     clf = clone(estimator)
-    def _fit_and_predict_fold(train_idx, test_idx):
+    def _fit_and_predict_fold(X_train, X_test, y_train, y_test):
         
         import os
         import psutil
@@ -199,19 +199,19 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
         memory_usage = process.memory_info().rss  # in bytes
         print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
 
-        clf.fit(X_data[train_idx], y_data[train_idx])
-
+        clf.fit(X_train, y_train)
+        print('fit done')
         process = psutil.Process(os.getpid())
         memory_usage = process.memory_info().rss  # in bytes
         print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
 
 
-        y_pred = clf.predict(X_data[test_idx])
-        cm = confusion_matrix(y_data[test_idx], y_pred, labels=all_labels)
+        y_pred = clf.predict(X_test)
+        cm = confusion_matrix(y_test, y_pred, labels=all_labels)
         
         fold_acc_dict = {}
         for lbl in all_labels:
-            lbl_mask = (y_data[test_idx] == lbl)
+            lbl_mask = (y_test == lbl)
             if np.sum(lbl_mask) > 0:
                 fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
         return cm, fold_acc_dict
@@ -221,7 +221,7 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     with parallel_backend('threading'):
         with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
-                delayed(_fit_and_predict_fold)(train_idx, test_idx)
+                delayed(_fit_and_predict_fold)(X_data[train_idx], X_data[test_idx], y_data[train_idx], y_data[test_idx])
                 for (train_idx, test_idx) in splits
             )
             pbar.update(len(splits))
@@ -286,6 +286,16 @@ def main():
         if not class_list and len(contrast_label) > 0:
             class_list = sorted(np.unique(contrast_label))
 
+        decoder = Decoder(
+                        estimator=LinearSVC(random_state=42),
+                        mask=masker,
+                        standardize=True,
+                        scoring='balanced_accuracy',
+                        screening_percentile=screening_percentile,
+                        cv=None,
+                        n_jobs=1,
+                        verbose=0
+                    )
         # --------------------------------------------------------------------
         # 1) CLASSIF TASK
         # --------------------------------------------------------------------
@@ -297,16 +307,7 @@ def main():
                 print(f"[{sub}] No data found, skipping classification.")
                 continue
 
-            decoder_main = Decoder(
-                        estimator=LinearSVC(random_state=42),
-                        mask=masker,
-                        standardize=True,
-                        scoring='balanced_accuracy',
-                        screening_percentile=screening_percentile,
-                        cv=None,
-                        n_jobs=n_jobs,
-                        verbose=0
-                    )
+            decoder_main = clone(decoder)
 
             fold_confusions, actual_per_class_accuracies = compute_crossval_confusions_and_accuracies(
                 np.array(z_maps), np.array(contrast_label), np.array(session_label),
@@ -322,7 +323,7 @@ def main():
 
             # Fit a final Decoder on all data to get weight maps
             print(f"[{sub}] Training final Decoder on entire dataset to get weight maps...")
-            final_decoder = Decoder(
+            decoder_final = Decoder(
                 estimator=LinearSVC(random_state=42),
                 mask=masker,
                 standardize=True,
@@ -332,11 +333,11 @@ def main():
                 n_jobs=n_jobs,
                 verbose=0
             )
-            final_decoder.fit(z_maps, contrast_label)
+            decoder_final.fit(z_maps, contrast_label)
 
             # Save or update results_dict
             results_dict.update({
-                'decoder': final_decoder,
+                'decoder': decoder_final,
                 'contrast_label': contrast_label,
                 'class_labels': class_list,
                 'confusion_matrices_dict': confusion_matrices_dict,
@@ -350,8 +351,8 @@ def main():
             print(f"[{sub}] Classification results saved to {decoder_pkl_path}.")
 
             # Save weight maps to disk
-            for class_lbl in final_decoder.classes_:
-                w_img = final_decoder.coef_img_[class_lbl]
+            for class_lbl in decoder_final.classes_:
+                w_img = decoder_final.coef_img_[class_lbl]
                 out_fname = f"{sub}_{class_lbl}_{model}_weights.nii.gz"
                 out_path = op.join(mvpa_results_path, 'weight_maps', out_fname)
                 os.makedirs(op.dirname(out_path), exist_ok=True)
@@ -415,16 +416,7 @@ def main():
                     np.random.seed(42 + current_index)  # stable, reproducible
                     perm_labels = np.random.permutation(contrast_label)
 
-                    decoder_perm = Decoder(
-                        estimator=LinearSVC(random_state=42),
-                        mask=masker,
-                        standardize=True,
-                        scoring='balanced_accuracy',
-                        screening_percentile=screening_percentile,
-                        cv=None,
-                        n_jobs=n_jobs,
-                        verbose=0
-                    )
+                    decoder_perm = clone(decoder)
                     try:
                         with parallel_backend('threading'):
                             with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
