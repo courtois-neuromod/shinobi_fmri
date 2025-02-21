@@ -5,7 +5,8 @@ import os.path as op
 import numpy as np
 import pickle
 import argparse
-
+from joblib import Parallel, delayed, parallel_backend
+from tqdm.auto import tqdm
 import shinobi_behav
 import nibabel as nib
 from nilearn import image
@@ -52,7 +53,7 @@ else:
     subjects = shinobi_behav.SUBJECTS
 
 screening_percentile = 20
-n_permutations = 1000
+n_permutations = 10
 n_jobs = 8
 
 ##############################################################################
@@ -189,9 +190,9 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
-    clf = clone(estimator)
+    
     def _fit_and_predict_fold(train_idx, test_idx):
-        
+        clf = clone(estimator)
         import os
         import psutil
 
@@ -200,11 +201,6 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
         print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
 
         clf.fit(X_data[train_idx], y_data[train_idx])
-
-        process = psutil.Process(os.getpid())
-        memory_usage = process.memory_info().rss  # in bytes
-        print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
-
 
         y_pred = clf.predict(X_data[test_idx])
         cm = confusion_matrix(y_data[test_idx], y_pred, labels=all_labels)
@@ -216,8 +212,7 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
                 fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
         return cm, fold_acc_dict
 
-    from joblib import Parallel, delayed, parallel_backend
-    from tqdm.auto import tqdm
+
     with parallel_backend('threading'):
         with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
@@ -235,7 +230,6 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
 
     actual_per_class_accuracies = {lbl: np.mean(per_class_accuracies[lbl]) for lbl in all_labels}
     return fold_confusions, actual_per_class_accuracies
-
 
 
 ##############################################################################
@@ -273,8 +267,9 @@ def main():
         z_maps, contrast_label_loaded, session_label = load_zmaps_for_subject(
             sub, model, CONDS_LIST, path_to_data, target_affine, target_shape
         )
-        #X_niimgs = masker.transform(z_maps)
-
+        # Precompute features from the z-maps (this is the solution offered in 2)
+        print(f"[{sub}] Transforming z-maps using masker...")
+        #X_features = masker.transform(z_maps)
         if contrast_label_stored:
             # If we already have a label stored, keep using it (consistency)
             # Otherwise, rely on what's newly loaded
@@ -304,7 +299,7 @@ def main():
                         scoring='balanced_accuracy',
                         screening_percentile=screening_percentile,
                         cv=None,
-                        n_jobs=n_jobs,
+                        n_jobs=1,
                         verbose=0
                     )
 
@@ -328,11 +323,11 @@ def main():
                 standardize=True,
                 scoring='balanced_accuracy',
                 screening_percentile=screening_percentile,
-                cv=None,
+                cv=LeaveOneGroupOut(),
                 n_jobs=n_jobs,
                 verbose=0
             )
-            final_decoder.fit(z_maps, contrast_label)
+            final_decoder.fit(z_maps, contrast_label, groups=session_label)
 
             # Save or update results_dict
             results_dict.update({
@@ -422,7 +417,7 @@ def main():
                         scoring='balanced_accuracy',
                         screening_percentile=screening_percentile,
                         cv=None,
-                        n_jobs=n_jobs,
+                        n_jobs=1,
                         verbose=0
                     )
                     try:
