@@ -26,6 +26,10 @@ from joblib import Parallel, delayed, parallel_backend
 from tqdm.auto import tqdm
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
+from joblib import Parallel, delayed, parallel_backend
+from tqdm.auto import tqdm
+import os
+import psutil
 
 ##############################################################################
 # ARGUMENT PARSING
@@ -168,6 +172,45 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
     return z_maps, contrast_label, session_label
 
 
+def _fit_and_predict_fold(X_train, X_test, y_train, y_test, all_labels):
+    
+
+    process = psutil.Process(os.getpid())
+    memory_usage = process.memory_info().rss  # in bytes
+    print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
+
+    all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+    masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
+    clf = Decoder(
+        estimator=LinearSVC(random_state=42),
+        mask=masker,
+        standardize=True,
+        scoring='balanced_accuracy',
+        screening_percentile=20,
+        cv=None,
+        n_jobs=1,
+        verbose=0
+    )
+
+    clf.fit(X_train, y_train)
+    print('fit done')
+
+    process = psutil.Process(os.getpid())
+    memory_usage = process.memory_info().rss  # in bytes
+    print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
+
+
+    y_pred = clf.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred, labels=all_labels)
+    
+    fold_acc_dict = {}
+    for lbl in all_labels:
+        lbl_mask = (y_test == lbl)
+        if np.sum(lbl_mask) > 0:
+            fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
+    return cm, fold_acc_dict
+
+
 def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, estimator, cv=LeaveOneGroupOut(), n_jobs=1):
     """
     Manually implement cross-validation to compute:
@@ -190,33 +233,17 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
     
-    def _fit_and_predict_fold(X_train, X_test, y_train, y_test, clf):
-        
-        import os
-        import psutil
-        process = psutil.Process(os.getpid())
-        memory_usage = process.memory_info().rss  # in bytes
-        print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
+    decoder = Decoder(
+                estimator=LinearSVC(random_state=42),
+                mask=masker,
+                standardize=True,
+                scoring='balanced_accuracy',
+                screening_percentile=20,
+                cv=None,
+                n_jobs=1,
+                verbose=0
+            )
 
-        clf.fit(X_train, y_train)
-        print('fit done')
-        process = psutil.Process(os.getpid())
-        memory_usage = process.memory_info().rss  # in bytes
-        print(f"Memory usage: {memory_usage / (1024 ** 2):.2f} MB")
-
-
-        y_pred = clf.predict(X_test)
-        cm = confusion_matrix(y_test, y_pred, labels=all_labels)
-        
-        fold_acc_dict = {}
-        for lbl in all_labels:
-            lbl_mask = (y_test == lbl)
-            if np.sum(lbl_mask) > 0:
-                fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
-        return cm, fold_acc_dict
-
-    from joblib import Parallel, delayed, parallel_backend
-    from tqdm.auto import tqdm
     with parallel_backend('threading'):
         with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
