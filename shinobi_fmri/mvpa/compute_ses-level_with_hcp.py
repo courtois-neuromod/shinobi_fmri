@@ -20,6 +20,13 @@ from tqdm import tqdm
 from tqdm_joblib import tqdm_joblib
 from joblib import parallel_backend, Parallel, delayed
 
+from sklearn.metrics import confusion_matrix
+from sklearn.base import clone
+from joblib import Parallel, delayed, parallel_backend
+from tqdm.auto import tqdm
+import numpy as np
+from sklearn.model_selection import LeaveOneGroupOut
+
 ##############################################################################
 # ARGUMENT PARSING
 ##############################################################################
@@ -46,7 +53,7 @@ else:
 
 screening_percentile = 20
 n_permutations = 1000
-n_jobs = 40
+n_jobs = 16
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -161,24 +168,35 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
     return z_maps, contrast_label, session_label
 
 
-def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, estimator_cls=LinearSVC, n_jobs=1):
+def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, estimator, cv=LeaveOneGroupOut(), n_jobs=1):
     """
-    Manually implement cross-validation (e.g., LeaveOneGroupOut) *in parallel* 
-    to get:
+    Manually implement cross-validation to compute:
       - A confusion matrix for each fold
       - Per-label accuracies across folds
+
+    Parameters:
+      X_data       : array-like feature data
+      y_data       : array-like labels
+      group_labels : array-like group assignments (for CV)
+      estimator    : Either an estimator class (e.g., LinearSVC) or an instance 
+                     (e.g., a configured Nilearn Decoder that includes a cv attribute)
+      n_jobs       : Number of parallel jobs
+
+    Returns:
+      fold_confusions         : list of confusion matrices (one per fold)
+      actual_per_class_accuracy: dict mapping each label to its average accuracy across folds
     """
-    from sklearn.model_selection import LeaveOneGroupOut
-    cv = LeaveOneGroupOut()
+    
     splits = list(cv.split(X_data, y_data, groups=group_labels))
     all_labels = np.unique(y_data)
 
-    def _fit_and_predict_fold(train_idx, test_idx):
-        clf = estimator_cls()
+    def _fit_and_predict_fold(train_idx, test_idx, estimator):
+        clf = clone(estimator)
+            
         clf.fit(X_data[train_idx], y_data[train_idx])
         y_pred = clf.predict(X_data[test_idx])
         cm = confusion_matrix(y_data[test_idx], y_pred, labels=all_labels)
-        # Per-label accuracy in this fold
+        
         fold_acc_dict = {}
         for lbl in all_labels:
             lbl_mask = (y_data[test_idx] == lbl)
@@ -186,12 +204,15 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
                 fold_acc_dict[lbl] = np.mean(y_pred[lbl_mask] == lbl)
         return cm, fold_acc_dict
 
+    from joblib import Parallel, delayed, parallel_backend
+    from tqdm.auto import tqdm
     with parallel_backend('threading'):
-        with tqdm_joblib(tqdm(desc="Manual CV folds", total=len(splits))):
+        with tqdm(total=len(splits), desc="Manual CV folds") as pbar:
             results = Parallel(n_jobs=n_jobs)(
-                delayed(_fit_and_predict_fold)(train_idx, test_idx)
+                delayed(_fit_and_predict_fold)(train_idx, test_idx, estimator)
                 for (train_idx, test_idx) in splits
             )
+            pbar.update(len(splits))
 
     fold_confusions = []
     per_class_accuracies = {lbl: [] for lbl in all_labels}
@@ -200,10 +221,9 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, est
         for lbl, acc in fold_acc_dict.items():
             per_class_accuracies[lbl].append(acc)
 
-    actual_per_class_accuracies = {
-        lbl: np.mean(per_class_accuracies[lbl]) for lbl in all_labels
-    }
+    actual_per_class_accuracies = {lbl: np.mean(per_class_accuracies[lbl]) for lbl in all_labels}
     return fold_confusions, actual_per_class_accuracies
+
 
 
 ##############################################################################
@@ -237,12 +257,11 @@ def main():
         completed_permutations = results_dict.get('completed_permutations', 0)
         class_list = results_dict.get('class_labels', None)
         p_values = results_dict.get('p_values', None)  # might exist if previously computed
-
         # Load subject's z-maps
         z_maps, contrast_label_loaded, session_label = load_zmaps_for_subject(
             sub, model, CONDS_LIST, path_to_data, target_affine, target_shape
         )
-        X_niimgs = masker.transform(z_maps)
+        #X_niimgs = masker.transform(z_maps)
 
         if contrast_label_stored:
             # If we already have a label stored, keep using it (consistency)
@@ -266,9 +285,20 @@ def main():
                 print(f"[{sub}] No data found, skipping classification.")
                 continue
 
+            decoder_main = Decoder(
+                        estimator=LinearSVC(random_state=42),
+                        mask=masker,
+                        standardize=True,
+                        scoring='balanced_accuracy',
+                        screening_percentile=screening_percentile,
+                        cv=None,
+                        n_jobs=n_jobs,
+                        verbose=0
+                    )
+
             fold_confusions, actual_per_class_accuracies = compute_crossval_confusions_and_accuracies(
-                X_niimgs, np.array(contrast_label), np.array(session_label),
-                estimator_cls=LinearSVC, n_jobs=n_jobs
+                np.array(z_maps), np.array(contrast_label), np.array(session_label),
+                estimator=decoder_main, n_jobs=n_jobs
             )
 
             confusion_matrices_dict = {'fold_confusions': fold_confusions}
@@ -379,36 +409,28 @@ def main():
                         standardize=True,
                         scoring='balanced_accuracy',
                         screening_percentile=screening_percentile,
-                        cv=LeaveOneGroupOut(),
+                        cv=None,
                         n_jobs=n_jobs,
                         verbose=0
                     )
                     try:
                         with parallel_backend('threading'):
                             with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
-                                decoder_perm.fit(z_maps, perm_labels, groups=session_label)
+                                fold_confusions, perm_per_class_accuracies = compute_crossval_confusions_and_accuracies(
+                                                        np.array(z_maps), np.array(perm_labels), np.array(session_label),
+                                                        estimator=decoder_perm, n_jobs=n_jobs
+                                                        )
                     except KeyboardInterrupt:
                         print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
                         break
 
-                    # Collect average CV accuracy for each class
-                    perm_acc_dict = {}
-                    # If we have classes from real data, use that ordering
-                    if class_list:
-                        for c_lbl in class_list:
-                            if c_lbl not in decoder_perm.cv_scores_:
-                                perm_acc_dict[c_lbl] = np.nan
-                            else:
-                                perm_acc_dict[c_lbl] = np.mean(decoder_perm.cv_scores_[c_lbl])
-                    else:
-                        # no real data => just skip
-                        perm_acc_dict = {}
+
 
                     # Save the single-permutation results to a dedicated file
                     perm_results = {
                         'index': current_index,
                         'class_list': class_list,
-                        'acc': perm_acc_dict,
+                        'acc': perm_per_class_accuracies,
                     }
                     single_perm_path = op.join(perm_folder, f'perm_{current_index}.pkl')
                     with open(single_perm_path, 'wb') as pf:
