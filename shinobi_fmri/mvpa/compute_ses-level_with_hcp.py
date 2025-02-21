@@ -326,8 +326,7 @@ def main():
             decoder_main = clone(decoder)
 
             fold_confusions, actual_per_class_accuracies = compute_crossval_confusions_and_accuracies(
-                np.array(z_maps), np.array(contrast_label), np.array(session_label),
-                estimator=decoder_main, n_jobs=n_jobs
+                np.array(z_maps), np.array(contrast_label), np.array(session_label), n_jobs=n_jobs
             )
 
             confusion_matrices_dict = {'fold_confusions': fold_confusions}
