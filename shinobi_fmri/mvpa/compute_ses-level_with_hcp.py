@@ -56,8 +56,8 @@ else:
     subjects = shinobi_behav.SUBJECTS
 
 screening_percentile = 20
-n_permutations = 1000
-n_jobs = 8
+n_permutations = 10
+n_jobs = 1
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -437,7 +437,7 @@ def main():
                             with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
                                 fold_confusions, perm_per_class_accuracies = compute_crossval_confusions_and_accuracies(
                                                         np.array(z_maps), np.array(perm_labels), np.array(session_label),
-                                                        estimator=decoder_perm, n_jobs=n_jobs
+                                                        n_jobs=n_jobs
                                                         )
                     except KeyboardInterrupt:
                         print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
