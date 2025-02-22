@@ -2,7 +2,7 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=3:00:00
 #SBATCH --job-name=shi_mvpa_seslvl
-#SBATCH --mem=6G
+#SBATCH --mem=16G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 
