@@ -57,7 +57,7 @@ else:
 
 screening_percentile = 20
 n_permutations = 10
-n_jobs = 1
+n_jobs = 8
 
 ##############################################################################
 # HELPER FUNCTIONS
