@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
-#SBATCH --time=12:00:00
+#SBATCH --time=16:00:00
 #SBATCH --job-name=shi_mvpa_seslvl
 #SBATCH --mem=128G
 #SBATCH --nodes=1
