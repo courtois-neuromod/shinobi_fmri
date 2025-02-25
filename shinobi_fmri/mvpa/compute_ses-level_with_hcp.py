@@ -56,7 +56,7 @@ else:
     subjects = shinobi_behav.SUBJECTS
 
 screening_percentile = 20
-n_permutations = 10
+n_permutations = 1000
 n_jobs = 8
 
 ##############################################################################
@@ -258,7 +258,7 @@ def compute_crossval_confusions_and_accuracies(X_data, y_data, group_labels, cv=
 # MAIN SCRIPT
 ##############################################################################
 def main():
-    # 1) Build or reuse a common masker
+
     all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
     masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 
@@ -289,6 +289,7 @@ def main():
         z_maps, contrast_label_loaded, session_label = load_zmaps_for_subject(
             sub, model, CONDS_LIST, path_to_data, target_affine, target_shape
         )
+        print(f'Number of maps : {len(z_maps)}')
         #X_niimgs = masker.transform(z_maps)
 
         if contrast_label_stored:
@@ -301,17 +302,7 @@ def main():
         # We'll store class_labels once we know them from the data
         if not class_list and len(contrast_label) > 0:
             class_list = sorted(np.unique(contrast_label))
-
-        decoder = Decoder(
-                        estimator=LinearSVC(random_state=42),
-                        mask=masker,
-                        standardize=True,
-                        scoring='balanced_accuracy',
-                        screening_percentile=screening_percentile,
-                        cv=None,
-                        n_jobs=1,
-                        verbose=0
-                    )
+        
         # --------------------------------------------------------------------
         # 1) CLASSIF TASK
         # --------------------------------------------------------------------
@@ -322,9 +313,7 @@ def main():
             if len(contrast_label) == 0:
                 print(f"[{sub}] No data found, skipping classification.")
                 continue
-
-            decoder_main = clone(decoder)
-
+            
             fold_confusions, actual_per_class_accuracies = compute_crossval_confusions_and_accuracies(
                 np.array(z_maps), np.array(contrast_label), np.array(session_label), n_jobs=n_jobs
             )
@@ -431,7 +420,9 @@ def main():
                     np.random.seed(42 + current_index)  # stable, reproducible
                     perm_labels = np.random.permutation(contrast_label)
 
-                    decoder_perm = clone(decoder)
+                    single_perm_path = op.join(perm_folder, f'perm_{current_index}.pkl')
+                    open(single_perm_path, "w").close() # create empty file so it's not computed again
+
                     try:
                         with parallel_backend('threading'):
                             with tqdm_joblib(tqdm(desc=f"[{sub}] Perm {current_index} CV Progress", leave=False)):
@@ -443,15 +434,14 @@ def main():
                         print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
                         break
 
-
-
                     # Save the single-permutation results to a dedicated file
                     perm_results = {
                         'index': current_index,
                         'class_list': class_list,
                         'acc': perm_per_class_accuracies,
                     }
-                    single_perm_path = op.join(perm_folder, f'perm_{current_index}.pkl')
+
+                    os.remove(single_perm_path) # delete empty file
                     with open(single_perm_path, 'wb') as pf:
                         pickle.dump(perm_results, pf)
 
