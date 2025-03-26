@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=def-pbellec
+#SBATCH --account=rrg-pbellec
 #SBATCH --time=6:00:00
 #SBATCH --job-name=shi_mvpa_seslvl
 #SBATCH --mem=128G
