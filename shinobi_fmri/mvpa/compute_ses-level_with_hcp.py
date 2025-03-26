@@ -56,8 +56,8 @@ else:
     subjects = shinobi_behav.SUBJECTS
 
 screening_percentile = 20
-n_permutations = 1000
-n_jobs = 8
+n_permutations = 100
+n_jobs = -1
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -431,7 +431,12 @@ def main():
                                                         n_jobs=n_jobs
                                                         )
                     except KeyboardInterrupt:
+                        os.remove(single_perm_path) # delete empty file
                         print(f"[{sub}] Interrupted at permutation {current_index}. Saving progress...")
+                        break
+                    except Exception as e:
+                        os.remove(single_perm_path) # delete empty file
+                        print(f"[{sub}] Error during permutation {current_index}: {e}")
                         break
 
                     # Save the single-permutation results to a dedicated file
