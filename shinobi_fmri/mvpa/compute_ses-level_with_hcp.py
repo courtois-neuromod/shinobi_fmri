@@ -107,6 +107,7 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None):
         aff_orig = shinobi_raw_img.affine[:, -1]
         target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
         target_shape = shinobi_raw_img.shape[:3]
+        print(f"Target shape: {target_shape}, Target affine: {target_affine}")
 
         mask_resampled = image.resample_img(
             mask_fname, target_affine=target_affine, target_shape=target_shape
