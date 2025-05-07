@@ -67,7 +67,7 @@ else:
     subjects = shinobi_behav.SUBJECTS
 
 screening_percentile = 20
-n_permutations = 10
+n_permutations = 100
 n_jobs = 8
 
 
