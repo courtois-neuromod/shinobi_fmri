@@ -8,6 +8,7 @@ __pycache__/
 # Input/Output folders
 data/
 reports/
+reports2023/
 data/processed/
 
 # Distribution / packaging
