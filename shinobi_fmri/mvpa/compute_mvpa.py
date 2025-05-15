@@ -144,7 +144,6 @@ def main(args):
     masker, target_affine, target_shape = create_common_masker(path_to_data, all_subjects)
 
     for sub in subjects:
-        print(f"\n===== Processing {sub} ===== (Task: {args.task})")
         mvpa_results_path = op.join(path_to_data, "processed", "mvpa_results_with_hcp")
         os.makedirs(mvpa_results_path, exist_ok=True)
         decoder_fname = f"{sub}_{model}_decoder.pkl"
