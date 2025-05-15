@@ -5,28 +5,15 @@ import os.path as op
 import numpy as np
 import pickle
 import argparse
-from joblib import Parallel, delayed, parallel_backend
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import shinobi_behav
 import nibabel as nib
 from nilearn import image
 from nilearn.input_data import NiftiMasker
 from nilearn.decoding import Decoder
-
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import confusion_matrix
-
-from tqdm import tqdm
-from tqdm_joblib import tqdm_joblib
-from joblib import parallel_backend, Parallel, delayed
-
-from sklearn.metrics import confusion_matrix
-from sklearn.base import clone
-from joblib import Parallel, delayed, parallel_backend
-from tqdm.auto import tqdm
-import numpy as np
-from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.model_selection import cross_val_predict
 
 def create_common_masker(path_to_data, subjects, masker_kwargs=None):
