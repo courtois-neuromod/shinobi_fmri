@@ -15,6 +15,8 @@ from sklearn.svm import LinearSVC
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import cross_val_predict
+from sklearn.dummy import DummyClassifier
+from scipy import stats
 
 def create_common_masker(path_to_data, subjects, masker_kwargs=None):
     """
@@ -178,6 +180,27 @@ def main(args):
         cm = confusion_matrix(contrast_label, y_pred, labels=class_list)
 
         # --------------------------------------------------------------------
+        # DUMMY CLASSIF
+        # --------------------------------------------------------------------
+        dummy_decoder = Decoder(
+            estimator=DummyClassifier(strategy='prior'),
+            mask=masker,
+            standardize=True,
+            scoring='balanced_accuracy',
+            screening_percentile=screening_percentile,
+            cv=LeaveOneGroupOut(),
+            n_jobs=n_jobs,
+            verbose=1
+        )
+        dummy_decoder.fit(z_maps, contrast_label, groups=session_label)
+        from sklearn.model_selection import cross_val_score
+        # Compute confusion matrices and accuracies
+        scores = cross_val_score(decoder, z_maps, contrast_label, groups=session_label, scoring='balanced_accuracy', cv=decoder.cv, fit_params={'groups': session_label})
+        dummy_scores = cross_val_score(dummy_decoder, z_maps, contrast_label, groups=session_label, scoring='balanced_accuracy', cv=decoder.cv, fit_params={'groups': session_label})
+        t_stat, p_val = stats.ttest_ind(scores, dummy_scores)
+        print(f"[{sub}] T-test between decoder and dummy classifier: t-stat={t_stat:.3f}, p-value={p_val:.3f}")
+
+        # --------------------------------------------------------------------
         # SAVE RESULTS
         # --------------------------------------------------------------------
         # Save or update results_dict
@@ -185,7 +208,10 @@ def main(args):
             'decoder': decoder,
             'contrast_label': contrast_label,
             'class_labels': class_list,
-            'confusion_matrices': cm
+            'confusion_matrices': cm,
+            'balanced_accuracy': scores,
+            't_stat': t_stat,
+            'p_val': p_val,
         })
 
         with open(decoder_pkl_path, 'wb') as f:
