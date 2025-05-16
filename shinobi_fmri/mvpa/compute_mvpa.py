@@ -136,8 +136,8 @@ def main(args):
         subjects = [args.subject]
     else:
         subjects = shinobi_behav.SUBJECTS
-    screening_percentile = 20
-    n_jobs = -1
+    screening_percentile = args.screening
+    n_jobs = args.n_jobs
 
     # Build a common masker
     all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
