@@ -24,6 +24,7 @@ import pickle
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 import glob
 import warnings
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 parser = argparse.ArgumentParser()
@@ -90,15 +91,18 @@ def get_filenames(sub, ses, run, path_to_data):
     )
     assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
-        path_to_data, 
-        "shinobi", 
+        path_to_data,
+        "shinobi",
         sub,
         ses,
         "func",
-        f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv"
+        f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv",
     )
-    assert op.isfile(events_fname), f"Annotated events file not found for {sub}_{ses}_{run}" 
+    assert op.isfile(
+        events_fname
+    ), f"Annotated events file not found for {sub}_{ses}_{run}"
     return fmri_fname, anat_fname, events_fname, mask_fname
+
 
 def load_image_and_mask(fmri_fname, mask_fname):
     """
@@ -127,8 +131,13 @@ def load_image_and_mask(fmri_fname, mask_fname):
     # Load and resample (i.e. morph  ?) anat mask
     aff_orig = nib.load(fmri_fname).affine[:, -1]
     target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
-    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=fmri_img.get_fdata().shape[:3])
+    mask_resampled = image.resample_img(
+        mask_fname,
+        target_affine=target_affine,
+        target_shape=fmri_img.get_fdata().shape[:3],
+    )
     return fmri_img, mask_resampled
+
 
 def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     """
@@ -149,40 +158,81 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         Design matrix after cleaning
     """
     # Load confounds
-    confounds = nilearn.interfaces.fmriprep.load_confounds(fmri_fname, strategy=('motion', 'high_pass', 'wm_csf'), 
-                                                           motion='full', wm_csf='basic', global_signal='full')
+    confounds = nilearn.interfaces.fmriprep.load_confounds(
+        fmri_fname,
+        strategy=("motion", "high_pass", "wm_csf"),
+        motion="full",
+        wm_csf="basic",
+        global_signal="full",
+    )
 
     # Generate design matrix
     bold_shape = fmri_img.shape
     n_slices = bold_shape[-1]
     frame_times = np.arange(n_slices) * t_r
+
+    confounds_ppc = add_psychophysiological_confounds(confounds, run_events)
+
     design_matrix_raw = make_first_level_design_matrix(
         frame_times,
         events=annotation_events,
         drift_model=None,
         hrf_model=hrf_model,
-        add_regs=confounds[0],
-        add_reg_names=confounds[0].keys(),
+        add_regs=confounds_ppc[0],
+        add_reg_names=confounds_ppc[0].keys(),
     )
 
-    # Clean regressors 
-    regressors_clean = clean(
-        design_matrix_raw.to_numpy(),
-        detrend=True,
-        standardize=True,
-        high_pass=None,
-        t_r=t_r,
-        ensure_finite=True,
-        confounds=None,
-    )
+    design_matrix_full = get_scrub_regressor(run_events, design_matrix_raw)
+    return design_matrix_full
 
-    # Recombine design_matrix (restoring constant after cleaning and adding scrub regressors)
-    design_matrix_clean = pd.DataFrame(
-        regressors_clean, columns=design_matrix_raw.columns.to_list()
-    )
-    design_matrix_clean["constant"] = 1
-    design_matrix_clean = get_scrub_regressor(run_events, design_matrix_clean)
-    return design_matrix_clean
+
+def add_psychophysiological_confounds(confounds, run_events):
+    """
+    Add psychophysiological confounds to the confounds dataframe
+    """
+    n_volumes = len(confounds[0])
+    ppc_data = {}  # Dictionary to store accumulated data for each key
+
+    for idx, row in run_events.iterrows():
+        if row["trial_type"] != "gym-retro_game":
+            continue
+
+        ppc_fname = op.join(
+            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_confs.npy")
+        )
+
+        if not os.path.exists(ppc_fname):
+            continue
+
+        ppc_rep = np.load(ppc_fname, allow_pickle=True).item()
+        onset = float(row["onset"])
+        onset_offset = int(round(onset / t_r))
+
+        for key, val in ppc_rep.items():
+            x = np.asarray(val, dtype=float)
+
+            # Bin-average into TR windows aligned to onset
+            t = np.arange(x.size) / 60.0  # 60 Hz sampling
+            bins = np.floor((t - onset) / t_r).astype(int)
+            m = bins >= 0
+            y_tr = np.bincount(bins[m], weights=x[m]) / np.bincount(bins[m])
+
+            # Initialize array for this key if not exists
+            if key not in ppc_data:
+                ppc_data[key] = np.zeros(n_volumes)
+
+            # Position the resampled time series in the correct location
+            end_idx = min(onset_offset + len(y_tr), n_volumes)
+            valid_length = end_idx - onset_offset
+            if valid_length > 0:
+                ppc_data[key][onset_offset:end_idx] += y_tr[:valid_length]
+
+    # Add ppc columns to confounds[0]
+    for key, data in ppc_data.items():
+        confounds[0][key] = data
+
+    return confounds
+
 
 def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     """
@@ -214,19 +264,26 @@ def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
     return fmri_glm
 
+
 def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
     # Get Z_map
     z_map = fmri_glm.compute_contrast(
-                regressor_name, output_type="z_score", stat_type="F"
-            )
-    os.makedirs(op.join(path_to_data, "processed", "z_maps", "run-level", regressor_name), exist_ok=True)
+        regressor_name, output_type="z_score", stat_type="F"
+    )
+    os.makedirs(
+        op.join(path_to_data, "processed", "z_maps", "run-level", regressor_name),
+        exist_ok=True,
+    )
     z_map.to_filename(z_map_fname)
-    
+
     # Get report
-    os.makedirs(op.join(figures_path, "run-level", regressor_name, "report"), exist_ok=True)
+    os.makedirs(
+        op.join(figures_path, "run-level", regressor_name, "report"), exist_ok=True
+    )
     report = fmri_glm.generate_report(contrasts=[regressor_name])
     report.save_as_html(report_fname)
     return z_map
+
 
 def load_run(fmri_fname, mask_fname, events_fname):
     # Load events
@@ -237,37 +294,52 @@ def load_run(fmri_fname, mask_fname, events_fname):
 
     # Load images
     fmri_img, mask_resampled = load_image_and_mask(fmri_fname, mask_fname)
-    
+
     # Make design matrix
-    design_matrix_clean = get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events)
+    design_matrix_clean = get_clean_matrix(
+        fmri_fname, fmri_img, annotation_events, run_events
+    )
     return design_matrix_clean, fmri_img, mask_resampled
+
 
 def load_session(sub, ses, run_list, path_to_data):
     design_matrices = []
     fmri_imgs = []
     for run in run_list:
-        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
+            sub, ses, run, path_to_data
+        )
         print(f"Loading : {fmri_fname}")
-        design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+        design_matrix_clean, fmri_img, mask_resampled = load_run(
+            fmri_fname, mask_fname, events_fname
+        )
         design_matrices.append(design_matrix_clean)
         fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname
 
-def process_run(sub, ses, run, path_to_data):
-    
 
-    #Full model first
-    glm_fname = op.join(path_to_data,
-            "processed",
-            "glm",
-            "run-level",
-            sub,
-            f"{sub}_{ses}_{run}_fullmodel_fitted_glm.pkl")
-    os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
+def process_run(sub, ses, run, path_to_data):
+
+    # Full model first
+    glm_fname = op.join(
+        path_to_data,
+        "processed",
+        "glm",
+        "run-level",
+        sub,
+        f"{sub}_{ses}_{run}_fullmodel_fitted_glm.pkl",
+    )
+    os.makedirs(
+        op.join(path_to_data, "processed", "glm", "run-level", sub), exist_ok=True
+    )
     if not (os.path.exists(glm_fname)):
-        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
+            sub, ses, run, path_to_data
+        )
         print(f"Loading : {fmri_fname}")
-        design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+        design_matrix_clean, fmri_img, mask_resampled = load_run(
+            fmri_fname, mask_fname, events_fname
+        )
         fmri_glm = make_and_fit_glm(fmri_img, design_matrix_clean, mask_resampled)
         with open(glm_fname, "wb") as f:
             pickle.dump(fmri_glm, f, protocol=4)
@@ -277,17 +349,22 @@ def process_run(sub, ses, run, path_to_data):
             fmri_glm = pickle.load(f)
             print("Loaded.")
         # Compute all contrasts
-    for regressor_name in CONDS_LIST+additional_contrasts:
+    for regressor_name in CONDS_LIST + additional_contrasts:
         try:
             z_map_fname = op.join(
-                    path_to_data,
-                    "processed",
-                    "z_maps",
-                    "run-level",
-                    regressor_name,
-                    f"{sub}_{ses}_{run}_fullmodel_{regressor_name}.nii.gz",
-                )
-            os.makedirs(op.join(path_to_data,"processed","z_maps","run-level", regressor_name), exist_ok=True)
+                path_to_data,
+                "processed",
+                "z_maps",
+                "run-level",
+                regressor_name,
+                f"{sub}_{ses}_{run}_fullmodel_{regressor_name}.nii.gz",
+            )
+            os.makedirs(
+                op.join(
+                    path_to_data, "processed", "z_maps", "run-level", regressor_name
+                ),
+                exist_ok=True,
+            )
             if not (os.path.exists(z_map_fname)):
                 print(f"Z map not found, computing : {z_map_fname}")
                 report_fname = op.join(
@@ -297,29 +374,41 @@ def process_run(sub, ses, run, path_to_data):
                     "report",
                     f"{sub}_{ses}_{run}_fullmodel_{regressor_name}_report.html",
                 )
-                os.makedirs(op.join(figures_path,"run-level",regressor_name,"report"), exist_ok=True)
+                os.makedirs(
+                    op.join(figures_path, "run-level", regressor_name, "report"),
+                    exist_ok=True,
+                )
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
             else:
                 print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
-    
-   # Intermediate model
+
+    # Intermediate model
     for regressor_name in additional_contrasts:
         try:
-            glm_fname = op.join(path_to_data,
-                        "processed",
-                        "glm",
-                        "run-level",
-                        sub,
-                        f"{sub}_{ses}_{run}_intermediatemodel_fitted_glm.pkl")
-            os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
+            glm_fname = op.join(
+                path_to_data,
+                "processed",
+                "glm",
+                "run-level",
+                sub,
+                f"{sub}_{ses}_{run}_intermediatemodel_fitted_glm.pkl",
+            )
+            os.makedirs(
+                op.join(path_to_data, "processed", "glm", "run-level", sub),
+                exist_ok=True,
+            )
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
-                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
+                    sub, ses, run, path_to_data
+                )
                 print(f"Loading : {fmri_fname}")
-                design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
-                
+                design_matrix_clean, fmri_img, mask_resampled = load_run(
+                    fmri_fname, mask_fname, events_fname
+                )
+
                 # Trim the design matrices from unwanted regressors
                 regressors_to_remove = CONDS_LIST.copy()
                 for toremove in ["HIT", "JUMP", "LEFT", "RIGHT", "DOWN"]:
@@ -333,8 +422,9 @@ def process_run(sub, ses, run, path_to_data):
                         print(e)
                         print(f"Regressor {reg} might be missing ?")
 
-                
-                fmri_glm = make_and_fit_glm(fmri_img, trimmed_design_matrix, mask_resampled)
+                fmri_glm = make_and_fit_glm(
+                    fmri_img, trimmed_design_matrix, mask_resampled
+                )
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
             else:
@@ -342,17 +432,19 @@ def process_run(sub, ses, run, path_to_data):
                     print(f"GLM found, loading : {glm_fname}")
                     fmri_glm = pickle.load(f)
                     print("Loaded.")
-            
+
             # Compute contrast
             z_map_fname = op.join(
-                    path_to_data,
-                    "processed",
-                    "z_maps",
-                    "run-level",
-                    regressor_name,
-                    f"{sub}_{ses}_{run}_intermediatemodel_{regressor_name}.nii.gz",
-                )
-            os.makedirs(op.join(path_to_data,"processed","z_maps","run-level"), exist_ok=True)
+                path_to_data,
+                "processed",
+                "z_maps",
+                "run-level",
+                regressor_name,
+                f"{sub}_{ses}_{run}_intermediatemodel_{regressor_name}.nii.gz",
+            )
+            os.makedirs(
+                op.join(path_to_data, "processed", "z_maps", "run-level"), exist_ok=True
+            )
             if not (os.path.exists(z_map_fname)):
                 print(f"Z map not found, computing : {z_map_fname}")
                 report_fname = op.join(
@@ -362,28 +454,40 @@ def process_run(sub, ses, run, path_to_data):
                     "report",
                     f"{sub}_{ses}_{run}_intermediatemodel_{regressor_name}_report.html",
                 )
-                os.makedirs(op.join(figures_path,"run-level",regressor_name,"report"), exist_ok=True)
+                os.makedirs(
+                    op.join(figures_path, "run-level", regressor_name, "report"),
+                    exist_ok=True,
+                )
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
             else:
                 print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
-    
+
     # Simple model
     for regressor_name in CONDS_LIST:
         try:
-            glm_fname = op.join(path_to_data,
-                        "processed",
-                        "glm",
-                        "run-level",
-                        sub,
-                        f"{sub}_{ses}_{run}_{regressor_name}_simplemodel_fitted_glm.pkl")
-            os.makedirs(op.join(path_to_data,"processed","glm","run-level", sub), exist_ok=True)
+            glm_fname = op.join(
+                path_to_data,
+                "processed",
+                "glm",
+                "run-level",
+                sub,
+                f"{sub}_{ses}_{run}_{regressor_name}_simplemodel_fitted_glm.pkl",
+            )
+            os.makedirs(
+                op.join(path_to_data, "processed", "glm", "run-level", sub),
+                exist_ok=True,
+            )
             if not (os.path.exists(glm_fname)):
                 print(f"GLM not found, computing : {glm_fname}")
-                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+                fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
+                    sub, ses, run, path_to_data
+                )
                 print(f"Loading : {fmri_fname}")
-                design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+                design_matrix_clean, fmri_img, mask_resampled = load_run(
+                    fmri_fname, mask_fname, events_fname
+                )
                 design_matrices = [design_matrix_clean]
                 fmri_imgs = [fmri_img]
                 # Trim the design matrices from unwanted regressors
@@ -394,13 +498,17 @@ def process_run(sub, ses, run, path_to_data):
                     trimmed_design_matrix = design_matrix
                     for reg in regressors_to_remove:
                         try:
-                            trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
+                            trimmed_design_matrix = trimmed_design_matrix.drop(
+                                columns=reg
+                            )
                         except Exception as e:
                             print(e)
                             print(f"Regressor {reg} might be missing ?")
                     trimmed_design_matrices.append(trimmed_design_matrix)
-                
-                fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+
+                fmri_glm = make_and_fit_glm(
+                    fmri_imgs, trimmed_design_matrices, mask_resampled
+                )
                 with open(glm_fname, "wb") as f:
                     pickle.dump(fmri_glm, f, protocol=4)
             else:
@@ -411,14 +519,19 @@ def process_run(sub, ses, run, path_to_data):
 
             # Compute contrast
             z_map_fname = op.join(
-                    path_to_data,
-                    "processed",
-                    "z_maps",
-                    "run-level",
-                    regressor_name,
-                    f"{sub}_{ses}_{run}_simplemodel_{regressor_name}.nii.gz",
-                )
-            os.makedirs(op.join(path_to_data,"processed","z_maps","run-level", regressor_name), exist_ok=True)
+                path_to_data,
+                "processed",
+                "z_maps",
+                "run-level",
+                regressor_name,
+                f"{sub}_{ses}_{run}_simplemodel_{regressor_name}.nii.gz",
+            )
+            os.makedirs(
+                op.join(
+                    path_to_data, "processed", "z_maps", "run-level", regressor_name
+                ),
+                exist_ok=True,
+            )
             if not (os.path.exists(z_map_fname)):
                 print(f"Z map not found, computing : {z_map_fname}")
                 report_fname = op.join(
@@ -428,18 +541,26 @@ def process_run(sub, ses, run, path_to_data):
                     "report",
                     f"{sub}_{ses}_{run}_simplemodel_{regressor_name}_report.html",
                 )
-                os.makedirs(op.join(figures_path,"run-level",regressor_name,"report"), exist_ok=True)
+                os.makedirs(
+                    op.join(figures_path, "run-level", regressor_name, "report"),
+                    exist_ok=True,
+                )
                 z_map = make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name)
             else:
                 print(f"Z map found, skipping : {z_map_fname}")
         except Exception as e:
             print(e)
-    return 
+    return
+
 
 def process_ses(sub, ses, path_to_data):
-    ses_fpath = op.join(path_to_data,"shinobi.fmriprep",sub,ses,"func")
+    ses_fpath = op.join(path_to_data, "shinobi.fmriprep", sub, ses, "func")
     ses_files = os.listdir(ses_fpath)
-    run_files = [x for x in ses_files if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x]
+    run_files = [
+        x
+        for x in ses_files
+        if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x
+    ]
     run_list = [x[32] for x in run_files]
     for run in run_list:
         print(f"Run : {run}")
@@ -450,11 +571,24 @@ def process_ses(sub, ses, path_to_data):
 def main():
     fmri_glm = process_ses(sub, ses, path_to_data)
 
+
 if __name__ == "__main__":
-    figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+    figures_path = (
+        shinobi_behav.FIG_PATH
+    )  #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthGain', 'HealthLoss']
-    additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
+    CONDS_LIST = [
+        "HIT",
+        "JUMP",
+        "DOWN",
+        "LEFT",
+        "RIGHT",
+        "UP",
+        "Kill",
+        "HealthGain",
+        "HealthLoss",
+    ]
+    additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]
     sub = args.subject
     ses = args.session
     t_r = 1.49

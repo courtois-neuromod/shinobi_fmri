@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=shi_runlevel
 #SBATCH --mem=96G
 #SBATCH --nodes=1
