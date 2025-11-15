@@ -14,6 +14,7 @@ import logging
 import pickle
 import nilearn
 import warnings
+
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -37,8 +38,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-
-def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str, str, str, str]:
+def get_filenames(
+    sub: str, ses: str, run: str, path_to_data: str
+) -> Tuple[str, str, str, str]:
     """
     Returns file names for fMRI, anatomy and annotation events.
     Parameters
@@ -85,21 +87,24 @@ def get_filenames(sub: str, ses: str, run: str, path_to_data: str) -> Tuple[str,
     assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     events_fname = op.join(
         path_to_data,
-        "shinobi", 
+        "shinobi",
         sub,
         ses,
         "func",
-        f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv"
+        f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv",
     )
-    assert op.isfile(events_fname), f"Annotated events file not found for {sub}_{ses}_{run}" 
+    assert op.isfile(
+        events_fname
+    ), f"Annotated events file not found for {sub}_{ses}_{run}"
     return fmri_fname, anat_fname, events_fname, mask_fname
+
 
 def get_output_names(sub, ses, regressor_output_name):
     """
     Constructs and returns the file paths for the GLM, z-map, and report files.
 
     This function constructs the file paths for the GLM (general linear model),
-    z-map, and report files for a given subject, session, and regressor, using a predefined 
+    z-map, and report files for a given subject, session, and regressor, using a predefined
     directory structure and file naming convention.
 
     Parameters:
@@ -118,30 +123,32 @@ def get_output_names(sub, ses, regressor_output_name):
     report_fname : str
         The file path for the report file.
     """
-    glm_fname = op.join(shinobi_behav.DATA_PATH,
-            "processed",
-            "glm",
-            "ses-level",
-            f"{sub}_{ses}_{regressor_output_name}_simplemodel_fitted_glm.pkl")
-    
+    glm_fname = op.join(
+        shinobi_behav.DATA_PATH,
+        "processed",
+        "glm",
+        "ses-level",
+        f"{sub}_{ses}_{regressor_output_name}_simplemodel_fitted_glm.pkl",
+    )
+
     z_map_fname = op.join(
-            shinobi_behav.DATA_PATH,
-            "processed",
-            "z_maps",
-            "ses-level",
-            regressor_output_name,
-            f"{sub}_{ses}_simplemodel_{regressor_output_name}.nii.gz",
-        )
-    
-    
+        shinobi_behav.DATA_PATH,
+        "processed",
+        "z_maps",
+        "ses-level",
+        regressor_output_name,
+        f"{sub}_{ses}_simplemodel_{regressor_output_name}.nii.gz",
+    )
+
     report_fname = op.join(
-            shinobi_behav.FIG_PATH,
-            "ses-level",
-            regressor_output_name,
-            "report",
-            f"{sub}_{ses}_simplemodel_{regressor_output_name}_report.html",
-        )
+        shinobi_behav.FIG_PATH,
+        "ses-level",
+        regressor_output_name,
+        "report",
+        f"{sub}_{ses}_simplemodel_{regressor_output_name}_report.html",
+    )
     return glm_fname, z_map_fname, report_fname
+
 
 def load_image_and_mask(fmri_fname, mask_fname):
     """
@@ -171,8 +178,11 @@ def load_image_and_mask(fmri_fname, mask_fname):
     aff_orig = nib.load(fmri_fname).affine[:, -1]
     target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
     target_shape = fmri_img.shape[:3]
-    mask_resampled = image.resample_img(mask_fname, target_affine=target_affine, target_shape=target_shape)
+    mask_resampled = image.resample_img(
+        mask_fname, target_affine=target_affine, target_shape=target_shape
+    )
     return fmri_img, mask_resampled
+
 
 def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     """
@@ -193,8 +203,14 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         Design matrix after cleaning
     """
     # Load confounds
-    confounds = nilearn.interfaces.fmriprep.load_confounds(fmri_fname, strategy=('motion', 'high_pass', 'wm_csf'), 
-                                                           motion='full', wm_csf='basic', global_signal='full')
+    confounds = nilearn.interfaces.fmriprep.load_confounds(
+        fmri_fname,
+        strategy=("motion", "high_pass", "wm_csf"),
+        motion="full",
+        wm_csf="basic",
+        global_signal="full",
+    )
+    confounds = add_psychophysiological_confounds(confounds, run_events)
 
     # Generate design matrix
     bold_shape = fmri_img.shape
@@ -210,8 +226,79 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     )
 
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
-    #design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
+    # design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
     return design_matrix_clean
+
+
+def downsample_to_TR(signal, fs=60.0, TR=1.49):
+    """
+    signal : 1D np.array sampled at 60 Hz
+    fs     : original sampling rate (Hz)
+    TR     : target sampling period (seconds), e.g. 1.49
+
+    Returns
+    -------
+    ds     : downsampled signal (bin averages)
+    t_ds   : time points of each bin center (seconds)
+    """
+    n = len(signal)
+    t = np.arange(n) / fs  # time of each original sample
+    bin_idx = (t // TR).astype(int)  # which TR-bin each sample falls into
+
+    # Average within bins using bincount
+    sums = np.bincount(bin_idx, weights=signal)
+    counts = np.bincount(bin_idx)
+    ds = sums / counts  # bin means
+
+    # Time of each downsampled point (bin centers)
+    t_ds = (np.arange(len(ds)) + 0.5) * TR
+
+    return ds, t_ds
+
+
+def add_psychophysiological_confounds(confounds, run_events):
+    """
+    Add psychophysiological confounds to the confounds dataframe
+    """
+    n_volumes = len(confounds[0])
+    ppc_data = {}  # Dictionary to store accumulated data for each key
+
+    for idx, row in run_events.iterrows():
+        if row["trial_type"] != "gym-retro_game":
+            continue
+
+        ppc_fname = op.join(
+            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_confs.npy")
+        )
+
+        if not os.path.exists(ppc_fname):
+            continue
+
+        ppc_rep = np.load(ppc_fname, allow_pickle=True).item()
+        onset = float(row["onset"])
+        onset_offset = int(round(onset / t_r))
+
+        for key, val in ppc_rep.items():
+            x = np.asarray(val, dtype=float)
+
+            # Downsample to TR
+            y_tr, t_ds = downsample_to_TR(x, fs=60.0, TR=t_r)
+
+            # Initialize array for this key if not exists
+            if key not in ppc_data:
+                ppc_data[key] = np.zeros(n_volumes)
+
+            # Position the resampled time series in the correct location
+            end_idx = min(onset_offset + len(y_tr), n_volumes)
+            valid_length = end_idx - onset_offset
+            if valid_length > 0:
+                ppc_data[key][onset_offset:end_idx] += y_tr[:valid_length]
+
+    # Add ppc columns to confounds[0]
+    for key, data in ppc_data.items():
+        confounds[0][key] = data
+    return confounds
+
 
 def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     """
@@ -243,12 +330,13 @@ def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
     return fmri_glm
 
+
 def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
     """
     Creates or loads a z-score map for a given GLM and regressor.
 
-    This function creates the z-score map for a given GLM and regressor, 
-    then saves the map to a file and generates a report. If the z-score 
+    This function creates the z-score map for a given GLM and regressor,
+    then saves the map to a file and generates a report. If the z-score
     map file already exists, it skips the creation process.
 
     Parameters:
@@ -268,31 +356,40 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
         print(f"Z map not found, computing : {z_map_fname}")
 
         # Get betas
-        beta_map = fmri_glm.compute_contrast(
-                    regressor_name, output_type="effect_size"
-                )
-        os.makedirs(op.join(path_to_data, "processed", "beta_maps", "ses-level", regressor_name), exist_ok=True)
-        beta_map.to_filename(z_map_fname.replace('z_maps', 'beta_maps'))
+        beta_map = fmri_glm.compute_contrast(regressor_name, output_type="effect_size")
+        os.makedirs(
+            op.join(
+                path_to_data, "processed", "beta_maps", "ses-level", regressor_name
+            ),
+            exist_ok=True,
+        )
+        beta_map.to_filename(z_map_fname.replace("z_maps", "beta_maps"))
         # Get Z_map
         z_map = fmri_glm.compute_contrast(
-                    regressor_name, output_type="z_score", stat_type="F"
-                )
-        os.makedirs(op.join(path_to_data, "processed", "z_maps", "ses-level", regressor_name), exist_ok=True)
+            regressor_name, output_type="z_score", stat_type="F"
+        )
+        os.makedirs(
+            op.join(path_to_data, "processed", "z_maps", "ses-level", regressor_name),
+            exist_ok=True,
+        )
         z_map.to_filename(z_map_fname)
 
         # Get report
-        os.makedirs(op.join(figures_path, "ses-level", regressor_name, "report"), exist_ok=True)
+        os.makedirs(
+            op.join(figures_path, "ses-level", regressor_name, "report"), exist_ok=True
+        )
         report = fmri_glm.generate_report(contrasts=[regressor_name])
         report.save_as_html(report_fname)
     else:
         print(f"Z map found, skipping : {z_map_fname}")
-    #return z_map
+    # return z_map
+
 
 def select_events(run_events):
     """
     Selects and prepares event data for a given run.
 
-    This function filters the events of a run based on a predefined list 
+    This function filters the events of a run based on a predefined list
     of conditions, prepares the event data for analysis, and returns it.
 
     Parameters:
@@ -304,22 +401,23 @@ def select_events(run_events):
         The prepared event data.
     """
     # Select events
-    annotation_events = run_events[run_events["trial_type"].isin(shinobi_behav.CONDS_LIST)]
+    annotation_events = run_events[run_events["trial_type"].isin(CONDS_LIST)]
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
 
-    #replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"] --- REMOVE ? MAKE FUNCTION ?
-    #replevel_events["trial_type"] = replevel_events["level"]
-    #replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
-    #replevel_events = replevel_events[["trial_type", "onset", "duration"]]
-    #annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
+    # replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"] --- REMOVE ? MAKE FUNCTION ?
+    # replevel_events["trial_type"] = replevel_events["level"]
+    # replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
+    # replevel_events = replevel_events[["trial_type", "onset", "duration"]]
+    # annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
     return annotation_events
+
 
 def load_run(fmri_fname, mask_fname, events_fname):
     """
     Loads and prepares the data for a given run.
 
-    This function loads the image data, event data, and mask for a given 
-    run, prepares the event data, and generates a clean design matrix. 
+    This function loads the image data, event data, and mask for a given
+    run, prepares the event data, and generates a clean design matrix.
 
     Parameters:
     fmri_fname : str
@@ -343,16 +441,19 @@ def load_run(fmri_fname, mask_fname, events_fname):
 
     # Load images
     fmri_img, mask_resampled = load_image_and_mask(fmri_fname, mask_fname)
-    
+
     # Make design matrix
-    design_matrix_clean = get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events)
+    design_matrix_clean = get_clean_matrix(
+        fmri_fname, fmri_img, annotation_events, run_events
+    )
     return design_matrix_clean, fmri_img, mask_resampled
+
 
 def load_session(sub, ses, run_list, path_to_data):
     """
     Loads and prepares the data for a given session.
 
-    This function loads and prepares the image data, event data, and mask 
+    This function loads and prepares the image data, event data, and mask
     for each run in a given session.
 
     Parameters:
@@ -378,18 +479,25 @@ def load_session(sub, ses, run_list, path_to_data):
     design_matrices = []
     fmri_imgs = []
     for run in run_list:
-        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(sub, ses, run, path_to_data)
+        fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
+            sub, ses, run, path_to_data
+        )
         print(f"Loading : {fmri_fname}")
-        design_matrix_clean, fmri_img, mask_resampled = load_run(fmri_fname, mask_fname, events_fname)
+        design_matrix_clean, fmri_img, mask_resampled = load_run(
+            fmri_fname, mask_fname, events_fname
+        )
         design_matrices.append(design_matrix_clean)
         fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname
 
-def remove_runs_without_target_regressor(regressor_names, fmri_imgs, trimmed_design_matrices):
+
+def remove_runs_without_target_regressor(
+    regressor_names, fmri_imgs, trimmed_design_matrices
+):
     """
     Removes runs that do not contain all target regressors.
 
-    This function filters out the runs that do not contain all target 
+    This function filters out the runs that do not contain all target
     regressors in their design matrix.
 
     Parameters:
@@ -413,12 +521,13 @@ def remove_runs_without_target_regressor(regressor_names, fmri_imgs, trimmed_des
             if reg not in df.columns:
                 images_copy.remove(img)
                 dataframes_copy.remove(df)
-            
+
     return images_copy, dataframes_copy
+
 
 def trim_design_matrices(design_matrices, regressor_name):
     """
-    This function removes unwanted regressors from the design matrix for each run. 
+    This function removes unwanted regressors from the design matrix for each run.
 
     Parameters
     ----------
@@ -435,7 +544,7 @@ def trim_design_matrices(design_matrices, regressor_name):
     # Copy the list of conditions and levels to create a list of regressors to remove
     regressors_to_remove = CONDS_LIST.copy()
     # We don't want to remove the current regressor of interest, so remove it from the list of regressors to remove
-    if not 'lvl' in regressor_name:
+    if not "lvl" in regressor_name:
         regressors_to_remove.remove(regressor_name)
 
     trimmed_design_matrices = []
@@ -453,13 +562,14 @@ def trim_design_matrices(design_matrices, regressor_name):
         trimmed_design_matrices.append(trimmed_design_matrix)
     return trimmed_design_matrices
 
+
 def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
     """
     Creates a General Linear Model (GLM) if it doesn't already exist, or loads it from disk if it does.
 
-    This function uses the provided list of regressors to create the GLM. It first checks if the specified 
+    This function uses the provided list of regressors to create the GLM. It first checks if the specified
     GLM file already exists. If it does, the function loads and returns the GLM. If not, the function creates
-    the GLM. 
+    the GLM.
 
     If image and design matrix data have been previously loaded and saved to global variables, the function
     uses this data to create the GLM, thereby avoiding reloading all the data. Once the GLM has been created,
@@ -485,7 +595,9 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
     if not (os.path.exists(glm_fname)):
         # Avoid reloading all the data if it is already loaded
         if fmri_imgs_copy is None:
-            fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(sub, ses, run_list, path_to_data)
+            fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(
+                sub, ses, run_list, path_to_data
+            )
             fmri_imgs_copy = fmri_imgs.copy()
             design_matrices_copy = design_matrices.copy()
         else:
@@ -494,11 +606,18 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
 
         print(f"GLM not found, computing : {glm_fname}")
         print(glm_regressors)
-        trimmed_design_matrices = trim_design_matrices(design_matrices, glm_regressors[0])
-        fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor(glm_regressors, fmri_imgs, trimmed_design_matrices)
+        trimmed_design_matrices = trim_design_matrices(
+            design_matrices, glm_regressors[0]
+        )
+        fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor(
+            glm_regressors, fmri_imgs, trimmed_design_matrices
+        )
         if len(glm_regressors) == 2:
             for dm in trimmed_design_matrices:
-                dm.eval(f"{glm_regressors[0]}X{glm_regressors[1]} = {glm_regressors[0]} * {glm_regressors[1]}", inplace=True)
+                dm.eval(
+                    f"{glm_regressors[0]}X{glm_regressors[1]} = {glm_regressors[0]} * {glm_regressors[1]}",
+                    inplace=True,
+                )
         fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
         with open(glm_fname, "wb") as f:
             pickle.dump(fmri_glm, f, protocol=4)
@@ -508,6 +627,7 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
             fmri_glm = pickle.load(f)
             print("Loaded.")
     return fmri_glm
+
 
 def process_ses(sub, ses, path_to_data):
     """
@@ -540,20 +660,26 @@ def process_ses(sub, ses, path_to_data):
         glm_regressors = [regressor_name] if lvl is None else [regressor_name] + [lvl]
 
         print(f"Simple model of : {regressor_output_name}")
-        glm_fname, z_map_fname, report_fname = get_output_names(sub, ses, regressor_output_name)
+        glm_fname, z_map_fname, report_fname = get_output_names(
+            sub, ses, regressor_output_name
+        )
         if not (os.path.exists(z_map_fname)):
             fmri_glm = make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname)
             make_z_map(z_map_fname, report_fname, fmri_glm, regressor_output_name)
         else:
             print(f"Z map found, skipping : {z_map_fname}")
 
-    ses_fpath = op.join(path_to_data,"shinobi.fmriprep",sub,ses,"func")
+    ses_fpath = op.join(path_to_data, "shinobi.fmriprep", sub, ses, "func")
     ses_files = os.listdir(ses_fpath)
-    run_files = [x for x in ses_files if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x]
+    run_files = [
+        x
+        for x in ses_files
+        if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x
+    ]
     run_list = [x[32] for x in run_files]
 
     # Make a GLM with each regressor separately (simple models)
-    for regressor_name in CONDS_LIST+LEVELS:
+    for regressor_name in CONDS_LIST + LEVELS:
         try:
             process_regressor(regressor_name)
         except Exception as e:
@@ -571,16 +697,21 @@ def process_ses(sub, ses, path_to_data):
 
 def main():
     # Make folders if needed
-    os.makedirs(op.join(path_to_data,"processed","glm","ses-level"), exist_ok=True)
-    os.makedirs(op.join(path_to_data,"processed","z_maps","ses-level"), exist_ok=True)
+    os.makedirs(op.join(path_to_data, "processed", "glm", "ses-level"), exist_ok=True)
+    os.makedirs(
+        op.join(path_to_data, "processed", "z_maps", "ses-level"), exist_ok=True
+    )
     fmri_glm = process_ses(sub, ses, path_to_data)
 
+
 if __name__ == "__main__":
-    figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+    figures_path = (
+        shinobi_behav.FIG_PATH
+    )  #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
     path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
-    LEVELS = []#["lvl1", "lvl4", "lvl5"]
-    additional_contrasts = ['HIT+JUMP', 'RIGHT+LEFT+DOWN']
+    CONDS_LIST = ["HIT", "JUMP", "DOWN", "LEFT", "RIGHT", "UP", "Kill", "HealthLoss"]
+    LEVELS = []  # ["lvl1", "lvl4", "lvl5"]
+    additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]
     sub = args.subject
     ses = args.session
     t_r = 1.49

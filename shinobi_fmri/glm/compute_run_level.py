@@ -171,19 +171,45 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
     n_slices = bold_shape[-1]
     frame_times = np.arange(n_slices) * t_r
 
-    confounds_ppc = add_psychophysiological_confounds(confounds, run_events)
+    confounds = add_psychophysiological_confounds(confounds, run_events)
 
     design_matrix_raw = make_first_level_design_matrix(
         frame_times,
         events=annotation_events,
         drift_model=None,
         hrf_model=hrf_model,
-        add_regs=confounds_ppc[0],
-        add_reg_names=confounds_ppc[0].keys(),
+        add_regs=confounds[0],
+        add_reg_names=confounds[0].keys(),
     )
 
     design_matrix_full = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_full
+
+
+def downsample_to_TR(signal, fs=60.0, TR=1.49):
+    """
+    signal : 1D np.array sampled at 60 Hz
+    fs     : original sampling rate (Hz)
+    TR     : target sampling period (seconds), e.g. 1.49
+
+    Returns
+    -------
+    ds     : downsampled signal (bin averages)
+    t_ds   : time points of each bin center (seconds)
+    """
+    n = len(signal)
+    t = np.arange(n) / fs  # time of each original sample
+    bin_idx = (t // TR).astype(int)  # which TR-bin each sample falls into
+
+    # Average within bins using bincount
+    sums = np.bincount(bin_idx, weights=signal)
+    counts = np.bincount(bin_idx)
+    ds = sums / counts  # bin means
+
+    # Time of each downsampled point (bin centers)
+    t_ds = (np.arange(len(ds)) + 0.5) * TR
+
+    return ds, t_ds
 
 
 def add_psychophysiological_confounds(confounds, run_events):
@@ -211,11 +237,8 @@ def add_psychophysiological_confounds(confounds, run_events):
         for key, val in ppc_rep.items():
             x = np.asarray(val, dtype=float)
 
-            # Bin-average into TR windows aligned to onset
-            t = np.arange(x.size) / 60.0  # 60 Hz sampling
-            bins = np.floor((t - onset) / t_r).astype(int)
-            m = bins >= 0
-            y_tr = np.bincount(bins[m], weights=x[m]) / np.bincount(bins[m])
+            # Downsample to TR
+            y_tr, t_ds = downsample_to_TR(x, fs=60.0, TR=t_r)
 
             # Initialize array for this key if not exists
             if key not in ppc_data:
@@ -230,7 +253,6 @@ def add_psychophysiological_confounds(confounds, run_events):
     # Add ppc columns to confounds[0]
     for key, data in ppc_data.items():
         confounds[0][key] = data
-
     return confounds
 
 
@@ -266,6 +288,13 @@ def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
 
 
 def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
+    # Get betas
+    beta_map = fmri_glm.compute_contrast(regressor_name, output_type="effect_size")
+    os.makedirs(
+        op.join(path_to_data, "processed", "beta_maps", "run-level", regressor_name),
+        exist_ok=True,
+    )
+    beta_map.to_filename(z_map_fname.replace("z_maps", "beta_maps"))
     # Get Z_map
     z_map = fmri_glm.compute_contrast(
         regressor_name, output_type="z_score", stat_type="F"
@@ -562,7 +591,7 @@ def process_ses(sub, ses, path_to_data):
         if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x
     ]
     run_list = [x[32] for x in run_files]
-    for run in run_list:
+    for run in sorted(run_list):
         print(f"Run : {run}")
         process_run(sub, ses, run, path_to_data)
     return
