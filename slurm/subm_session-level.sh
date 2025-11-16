@@ -6,4 +6,4 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 
-/home/hyruuk/python_envs/shinobi_env/bin/python /home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri/shinobi_fmri/glm/compute_session_level.py --subject $1 --session $2
+/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/shinobi_fmri/shinobi_fmri/glm/compute_session_level.py --subject $1 --session $2
