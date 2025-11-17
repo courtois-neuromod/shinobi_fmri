@@ -12,7 +12,8 @@ nistats
 tqdm
 scipy
 load_confounds
-matplotlib
+matplotlib==3.7.3
+psutil
 seaborn
 ptitprince
 pandas
