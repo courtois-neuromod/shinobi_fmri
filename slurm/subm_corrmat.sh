@@ -6,4 +6,4 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 
-/home/hyruuk/python_envs/shinobi_env/bin/python /home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri/shinobi_fmri/correlations/session_corrmat.py
+/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/shinobi_fmri/shinobi_fmri/correlations/session_corrmat.py
