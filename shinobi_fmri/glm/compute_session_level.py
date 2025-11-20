@@ -236,9 +236,6 @@ def add_button_press_confounds(confounds, run_events):
     
     # For each button, detect transitions (press/release events)
     for button in button_columns:
-        if button not in frame_events.columns:
-            print(f"Warning: Button {button} not in frame_events columns")
-            continue
         
         # Get button states as boolean array
         button_states = frame_events[button].copy()
@@ -253,8 +250,6 @@ def add_button_press_confounds(confounds, run_events):
         button_states = button_states.values
         onsets = frame_events['onset'].values
         
-        print(f"Button {button}: {button_states.sum()} frames with button held")
-        
         # Detect transitions: False->True = press, True->False = release
         presses = np.zeros(len(button_states), dtype=bool)
         releases = np.zeros(len(button_states), dtype=bool)
@@ -264,8 +259,6 @@ def add_button_press_confounds(confounds, run_events):
                 presses[i] = True
             elif button_states[i-1] and not button_states[i]:
                 releases[i] = True
-        
-        print(f"Button {button}: {presses.sum()} presses, {releases.sum()} releases detected")
         
         # Map events to volumes (TR bins)
         for i, onset in enumerate(onsets):
@@ -460,27 +453,19 @@ def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
 
         # Get betas
         beta_map = fmri_glm.compute_contrast(regressor_name, output_type="effect_size")
-        os.makedirs(
-            op.join(
-                path_to_data, "processed", "beta_maps", "ses-level", regressor_name
-            ),
-            exist_ok=True,
-        )
-        beta_map.to_filename(z_map_fname.replace("z_maps", "beta_maps"))
+        beta_map_fname = z_map_fname.replace("z_maps", "beta_maps")
+        os.makedirs(os.path.dirname(beta_map_fname), exist_ok=True)
+        beta_map.to_filename(beta_map_fname)
+        
         # Get Z_map
         z_map = fmri_glm.compute_contrast(
             regressor_name, output_type="z_score", stat_type="F"
         )
-        os.makedirs(
-            op.join(path_to_data, "processed", "z_maps", "ses-level", regressor_name),
-            exist_ok=True,
-        )
+        os.makedirs(os.path.dirname(z_map_fname), exist_ok=True)
         z_map.to_filename(z_map_fname)
 
         # Get report
-        os.makedirs(
-            op.join(figures_path, "ses-level", regressor_name, "report"), exist_ok=True
-        )
+        os.makedirs(os.path.dirname(report_fname), exist_ok=True)
         report = fmri_glm.generate_report(contrasts=[regressor_name])
         report.save_as_html(report_fname)
     else:
