@@ -99,7 +99,7 @@ def get_filenames(
     return fmri_fname, anat_fname, events_fname, mask_fname
 
 
-def get_output_names(sub, ses, regressor_output_name):
+def get_output_names(sub, ses, regressor_output_name, n_runs=None):
     """
     Constructs and returns the file paths for the GLM, z-map, and report files.
 
@@ -114,6 +114,9 @@ def get_output_names(sub, ses, regressor_output_name):
         The session identifier.
     regressor_output_name : str
         The name of the regressor, used in the naming of the output files.
+    n_runs : int, optional
+        Number of runs to include. If None, uses all runs (ses-level).
+        If specified, uses ses-level_Nrun directory.
 
     Returns:
     glm_fname : str
@@ -123,29 +126,36 @@ def get_output_names(sub, ses, regressor_output_name):
     report_fname : str
         The file path for the report file.
     """
+    if n_runs is None:
+        level_dir = "ses-level"
+        run_suffix = ""
+    else:
+        level_dir = f"ses-level_{n_runs}run"
+        run_suffix = f"_{n_runs}run"
+    
     glm_fname = op.join(
         shinobi_behav.DATA_PATH,
         "processed",
         "glm",
-        "ses-level",
-        f"{sub}_{ses}_{regressor_output_name}_simplemodel_fitted_glm.pkl",
+        level_dir,
+        f"{sub}_{ses}_{regressor_output_name}_simplemodel{run_suffix}_fitted_glm.pkl",
     )
 
     z_map_fname = op.join(
         shinobi_behav.DATA_PATH,
         "processed",
         "z_maps",
-        "ses-level",
+        level_dir,
         regressor_output_name,
-        f"{sub}_{ses}_simplemodel_{regressor_output_name}.nii.gz",
+        f"{sub}_{ses}_simplemodel_{regressor_output_name}{run_suffix}.nii.gz",
     )
 
     report_fname = op.join(
         shinobi_behav.FIG_PATH,
-        "ses-level",
+        level_dir,
         regressor_output_name,
         "report",
-        f"{sub}_{ses}_simplemodel_{regressor_output_name}_report.html",
+        f"{sub}_{ses}_simplemodel_{regressor_output_name}{run_suffix}_report.html",
     )
     return glm_fname, z_map_fname, report_fname
 
@@ -656,7 +666,7 @@ def trim_design_matrices(design_matrices, regressor_name):
     return trimmed_design_matrices
 
 
-def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
+def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampled_global=None):
     """
     Creates a General Linear Model (GLM) if it doesn't already exist, or loads it from disk if it does.
 
@@ -679,23 +689,19 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
         List of regressors to consider when creating the GLM.
     glm_fname : str
         The name of the file to which the GLM will be dumped, or from which it will be loaded.
+    mask_resampled_global : nibabel.Nifti1Image, optional
+        Preloaded mask to avoid reloading.
 
     Returns:
     fmri_glm : nistats.regression.FirstLevelModel
         The GLM, either loaded from disk or newly created.
+    mask_resampled : nibabel.Nifti1Image
+        The mask used for the GLM.
     """
-    global fmri_imgs_copy, design_matrices_copy, mask_resampled
     if not (os.path.exists(glm_fname)):
-        # Avoid reloading all the data if it is already loaded
-        if fmri_imgs_copy is None:
-            fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(
-                sub, ses, run_list, path_to_data
-            )
-            fmri_imgs_copy = fmri_imgs.copy()
-            design_matrices_copy = design_matrices.copy()
-        else:
-            fmri_imgs = fmri_imgs_copy.copy()
-            design_matrices = design_matrices_copy.copy()
+        fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(
+            sub, ses, run_list, path_to_data
+        )
 
         print(f"GLM not found, computing : {glm_fname}")
         print(glm_regressors)
@@ -711,7 +717,15 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
                     f"{glm_regressors[0]}X{glm_regressors[1]} = {glm_regressors[0]} * {glm_regressors[1]}",
                     inplace=True,
                 )
-        fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_resampled)
+        
+        # Use provided mask if available, otherwise use loaded one
+        mask_to_use = mask_resampled_global if mask_resampled_global is not None else mask_resampled
+        
+        fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_to_use)
+        
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(glm_fname), exist_ok=True)
+        
         with open(glm_fname, "wb") as f:
             pickle.dump(fmri_glm, f, protocol=4)
     else:
@@ -719,13 +733,16 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname):
             print(f"GLM found, loading : {glm_fname}")
             fmri_glm = pickle.load(f)
             print("Loaded.")
-    return fmri_glm
+        mask_resampled = mask_resampled_global
+    
+    return fmri_glm, mask_resampled
 
 
 def process_ses(sub, ses, path_to_data):
     """
     Process an fMRI session for a given subject and session.
     It runs General Linear Models (GLM) for different regressors, creating them if they don't already exist.
+    Computes GLMs incrementally for 1 run, 2 runs, 3 runs, etc.
 
     Parameters:
     sub : str
@@ -738,30 +755,40 @@ def process_ses(sub, ses, path_to_data):
     Returns:
     None
     """
-    global fmri_imgs_copy, design_matrices_copy
-    fmri_imgs_copy = None
-    design_matrices_copy = None
-
-    def process_regressor(regressor_name, lvl=None):
-        global fmri_imgs_copy, design_matrices_copy
+    
+    def process_regressor(regressor_name, run_list_subset, n_runs_label, lvl=None):
+        """
+        Process a single regressor with a specific subset of runs.
+        
+        Parameters:
+        regressor_name : str
+            Name of the regressor to process
+        run_list_subset : list
+            List of runs to include in this GLM
+        n_runs_label : int or None
+            Number of runs being processed (for directory naming). None means all runs.
+        lvl : str, optional
+            Level interaction term
+        """
         if lvl is None:
             glm_regressors = [regressor_name]
             regressor_output_name = regressor_name
         else:
             glm_regressors = [regressor_name] + [lvl]
             regressor_output_name = f"{regressor_name}X{lvl}"
-        glm_regressors = [regressor_name] if lvl is None else [regressor_name] + [lvl]
-
-        print(f"Simple model of : {regressor_output_name}")
+        
+        print(f"Simple model of : {regressor_output_name} with {len(run_list_subset)} runs")
         glm_fname, z_map_fname, report_fname = get_output_names(
-            sub, ses, regressor_output_name
+            sub, ses, regressor_output_name, n_runs=n_runs_label
         )
+        
         if not (os.path.exists(z_map_fname)):
-            fmri_glm = make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname)
+            fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname)
             make_z_map(z_map_fname, report_fname, fmri_glm, regressor_output_name)
         else:
             print(f"Z map found, skipping : {z_map_fname}")
 
+    # Get list of runs for this session
     ses_fpath = op.join(path_to_data, "shinobi.fmriprep", sub, ses, "func")
     ses_files = os.listdir(ses_fpath)
     run_files = [
@@ -769,31 +796,50 @@ def process_ses(sub, ses, path_to_data):
         for x in ses_files
         if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x
     ]
-    run_list = [x[32] for x in run_files]
-
-    # Make a GLM with each regressor separately (simple models)
-    for regressor_name in CONDS_LIST + LEVELS:
-        try:
-            process_regressor(regressor_name)
-        except Exception as e:
-            print(e)
-
-    # Still simple models but split by level (interaction annotation X level) --- TO REMOVE ??
-    for lvl in LEVELS:
-        for regressor_name in CONDS_LIST:
+    run_list = sorted([x[32] for x in run_files])
+    
+    print(f"Found {len(run_list)} runs for {sub} {ses}: {run_list}")
+    
+    # Process incrementally: 1 run, 2 runs, 3 runs, etc.
+    for n_runs in range(1, len(run_list) + 1):
+        run_list_subset = run_list[:n_runs]
+        
+        # Determine the directory label
+        # If using all runs, store in ses-level; otherwise in ses-level_Nrun
+        n_runs_label = None if n_runs == len(run_list) else n_runs
+        
+        print(f"\n{'='*60}")
+        print(f"Processing {sub} {ses} with {n_runs} run(s): {run_list_subset}")
+        print(f"{'='*60}\n")
+        
+        # Make a GLM with each regressor separately (simple models)
+        for regressor_name in CONDS_LIST + LEVELS:
             try:
-                process_regressor(regressor_name, lvl)
+                process_regressor(regressor_name, run_list_subset, n_runs_label)
             except Exception as e:
-                print(e)
+                print(f"Error processing {regressor_name} with {n_runs} runs: {e}")
+
+        # Still simple models but split by level (interaction annotation X level)
+        for lvl in LEVELS:
+            for regressor_name in CONDS_LIST:
+                try:
+                    process_regressor(regressor_name, run_list_subset, n_runs_label, lvl)
+                except Exception as e:
+                    print(f"Error processing {regressor_name}X{lvl} with {n_runs} runs: {e}")
+    
     return
 
 
 def main():
-    # Make folders if needed
+    # Make folders if needed for all possible run counts
     os.makedirs(op.join(path_to_data, "processed", "glm", "ses-level"), exist_ok=True)
-    os.makedirs(
-        op.join(path_to_data, "processed", "z_maps", "ses-level"), exist_ok=True
-    )
+    os.makedirs(op.join(path_to_data, "processed", "z_maps", "ses-level"), exist_ok=True)
+    
+    # Create directories for incremental runs (1-5 runs)
+    for n in range(1, 6):
+        os.makedirs(op.join(path_to_data, "processed", "glm", f"ses-level_{n}run"), exist_ok=True)
+        os.makedirs(op.join(path_to_data, "processed", "z_maps", f"ses-level_{n}run"), exist_ok=True)
+    
     fmri_glm = process_ses(sub, ses, path_to_data)
 
 
