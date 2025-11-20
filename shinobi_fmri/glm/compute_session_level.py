@@ -183,52 +183,98 @@ def load_image_and_mask(fmri_fname, mask_fname):
     )
     return fmri_img, mask_resampled
 
-
-def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
+def add_button_press_confounds(confounds, run_events):
     """
-    Load confounds, create design matrix and return a cleaned matrix
+    Add button press/release event regressors to the confounds dataframe.
+    Creates regressors for:
+    - binary indicator if any button was pressed in a volume
+    - binary indicator if any button was released in a volume
+    - count of buttons pressed in a volume
+    - count of buttons released in a volume
+    
     Parameters
     ----------
-    fmri_fname : str
-        File name of fMRI image
-    fmri_img : nifti-image
-        Cleaned fMRI image
-    annotation_events : dataframe
-        Dataframe containing annotation events
+    confounds : tuple
+        Tuple containing confounds dataframe
     run_events : dataframe
-        Dataframe containing run events
+        Dataframe containing run events with button press columns
+        
     Returns
     -------
-    matrix
-        Design matrix after cleaning
+    confounds : tuple
+        Updated confounds with button press regressors added
     """
-    # Load confounds
-    confounds = nilearn.interfaces.fmriprep.load_confounds(
-        fmri_fname,
-        strategy=("motion", "high_pass", "wm_csf"),
-        motion="full",
-        wm_csf="basic",
-        global_signal="full",
-    )
-    confounds = add_psychophysiological_confounds(confounds, run_events)
-
-    # Generate design matrix
-    bold_shape = fmri_img.shape
-    n_slices = bold_shape[-1]
-    frame_times = np.arange(n_slices) * t_r
-    design_matrix_raw = make_first_level_design_matrix(
-        frame_times,
-        events=annotation_events,
-        drift_model=None,
-        hrf_model=hrf_model,
-        add_regs=confounds[0],
-        add_reg_names=confounds[0].keys(),
-    )
-
-    design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
-    # design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
-    return design_matrix_clean
-
+    n_volumes = len(confounds[0])
+    
+    # Button columns to extract
+    button_columns = ['DOWN', 'LEFT', 'RIGHT', 'UP', 'C', 'Y', 'X', 'Z']
+    
+    # Get only frame events - reset index to ensure we can iterate properly
+    frame_events = run_events[run_events['trial_type'] == 'frame'].copy().reset_index(drop=True)
+    
+    if len(frame_events) == 0:
+        print("Warning: No frame events found in run_events")
+        return confounds
+    
+    print(f"Found {len(frame_events)} frame events")
+    
+    # Initialize regressors
+    any_press = np.zeros(n_volumes)  # 1 if any button pressed
+    any_release = np.zeros(n_volumes)  # 1 if any button released
+    count_press = np.zeros(n_volumes)  # number of buttons pressed
+    count_release = np.zeros(n_volumes)  # number of buttons released
+    
+    # For each button, detect transitions (press/release events)
+    for button in button_columns:
+        if button not in frame_events.columns:
+            print(f"Warning: Button {button} not in frame_events columns")
+            continue
+        
+        # Get button states as boolean array
+        button_states = frame_events[button].copy()
+        
+        # Convert to boolean, handling NaN and various types
+        button_states = button_states.fillna(False)
+        # Handle string 'False'/'True' if present
+        if button_states.dtype == 'object':
+            button_states = button_states.replace({'False': False, 'True': True, False: False, True: True})
+        button_states = button_states.astype(bool)
+        
+        button_states = button_states.values
+        onsets = frame_events['onset'].values
+        
+        print(f"Button {button}: {button_states.sum()} frames with button held")
+        
+        # Detect transitions: False->True = press, True->False = release
+        presses = np.zeros(len(button_states), dtype=bool)
+        releases = np.zeros(len(button_states), dtype=bool)
+        
+        for i in range(1, len(button_states)):
+            if not button_states[i-1] and button_states[i]:
+                presses[i] = True
+            elif button_states[i-1] and not button_states[i]:
+                releases[i] = True
+        
+        print(f"Button {button}: {presses.sum()} presses, {releases.sum()} releases detected")
+        
+        # Map events to volumes (TR bins)
+        for i, onset in enumerate(onsets):
+            volume_idx = int(np.round(onset / t_r))
+            if 0 <= volume_idx < n_volumes:
+                if presses[i]:
+                    any_press[volume_idx] = 1
+                    count_press[volume_idx] += 1
+                if releases[i]:
+                    any_release[volume_idx] = 1
+                    count_release[volume_idx] += 1
+    
+    # Add regressors to confounds[0]
+    #confounds[0]['button_any_press'] = any_press
+    #confounds[0]['button_any_release'] = any_release
+    confounds[0]['button_count_press'] = count_press
+    #confounds[0]['button_count_release'] = count_release
+    
+    return confounds
 
 def downsample_to_TR(signal, fs=60.0, TR=1.49):
     """
@@ -255,10 +301,9 @@ def downsample_to_TR(signal, fs=60.0, TR=1.49):
 
     return ds, t_ds
 
-
-def add_psychophysiological_confounds(confounds, run_events):
+def add_psychophysics_confounds(confounds, run_events):
     """
-    Add psychophysiological confounds to the confounds dataframe
+    Add psychophysics confounds to the confounds dataframe
     """
     n_volumes = len(confounds[0])
     ppc_data = {}  # Dictionary to store accumulated data for each key
@@ -297,7 +342,55 @@ def add_psychophysiological_confounds(confounds, run_events):
     # Add ppc columns to confounds[0]
     for key, data in ppc_data.items():
         confounds[0][key] = data
+
     return confounds
+
+def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
+    """
+    Load confounds, create design matrix and return a cleaned matrix
+    Parameters
+    ----------
+    fmri_fname : str
+        File name of fMRI image
+    fmri_img : nifti-image
+        Cleaned fMRI image
+    annotation_events : dataframe
+        Dataframe containing annotation events
+    run_events : dataframe
+        Dataframe containing run events
+    Returns
+    -------
+    matrix
+        Design matrix after cleaning
+    """
+    # Load confounds
+    confounds = nilearn.interfaces.fmriprep.load_confounds(
+        fmri_fname,
+        strategy=("motion", "high_pass", "wm_csf"),
+        motion="full",
+        wm_csf="basic",
+        global_signal="full",
+    )
+    confounds = add_psychophysics_confounds(confounds, run_events)
+    confounds = add_button_press_confounds(confounds, run_events)
+    
+    # Generate design matrix
+    bold_shape = fmri_img.shape
+    n_slices = bold_shape[-1]
+    frame_times = np.arange(n_slices) * t_r
+    design_matrix_raw = make_first_level_design_matrix(
+        frame_times,
+        events=annotation_events,
+        drift_model=None,
+        hrf_model=hrf_model,
+        add_regs=confounds[0],
+        add_reg_names=confounds[0].keys(),
+    )
+
+    design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
+    # design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
+    return design_matrix_clean
+
 
 
 def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
