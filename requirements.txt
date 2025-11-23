@@ -21,3 +21,4 @@ numpy
 atlasreader
 reportlab
 ipykernel
+tqdm_joblib

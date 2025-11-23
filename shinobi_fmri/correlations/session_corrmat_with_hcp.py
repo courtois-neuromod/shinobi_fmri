@@ -12,11 +12,13 @@ import seaborn as sbn
 from nilearn import image
 from nilearn.maskers import NiftiMasker
 from joblib import Parallel, delayed
+from tqdm.auto import tqdm
+from tqdm_joblib import tqdm_joblib
 
 CONTRASTS = ['Kill', 'HealthLoss', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'DOWN']
 SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 MODEL = "simple"
-RESULTS_PATH = '/scratch/hyruuk/neuromod/shinobi2025/processed/beta_maps_correlations.pkl'
+RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
 
 
 def parse_args():
@@ -25,7 +27,7 @@ def parse_args():
     parser.add_argument("--quiet", dest="verbose", action="store_false", help="Reduce logging output.")
     parser.add_argument("--chunk-size", type=int, default=100, help="Number of map indices handled by this job.")
     parser.add_argument("--chunk-index", type=int, default=0, help="Zero-based chunk selector.")
-    parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
+    parser.add_argument("--n-jobs", type=int, default=16, help="Parallel workers for correlation computation.")
     parser.add_argument("--backend", choices=["threading", "loky"], default="threading", help="Joblib backend.")
     parser.set_defaults(verbose=True)
     return parser.parse_args()
@@ -156,7 +158,10 @@ def compute_pairs_batch(pairs, records, masker, target_affine, target_shape, n_j
     if not pairs:
         return {}
     log(f"Computing {len(pairs)} correlations with {n_jobs} workers (backend={backend})...", verbose)
-    values = Parallel(n_jobs=n_jobs, backend=backend)(delayed(compute_pair)(i, j, records, masker, target_affine, target_shape) for i, j in pairs)
+    with tqdm_joblib(tqdm(total=len(pairs), desc="Correlations", disable=not verbose)):
+        values = Parallel(n_jobs=n_jobs, backend=backend)(
+            delayed(compute_pair)(i, j, records, masker, target_affine, target_shape) for i, j in pairs
+        )
     return dict(zip(pairs, values))
 
 
@@ -234,19 +239,6 @@ def report_progress(idx, total, names, i, j, value, verbose):
         print(f"{idx}/{total}", end="\r" if idx < total else "\n")
 
 
-def process_pending_pairs(records, data, masker, target_affine, target_shape, verbose):
-    matrix, mask = data['corr_matrix'], data['computed_mask']
-    total = count_pending(mask)
-    log(f"Pending correlations to compute: {total}", verbose)
-    if not total:
-        return
-    for idx, (i, j) in enumerate(pending_indices(mask), 1):
-        value = compute_pair(i, j, records, masker, target_affine, target_shape)
-        mark_pair(matrix, mask, i, j, value)
-        report_progress(idx, total, data['mapnames'], i, j, value, verbose)
-    log("Correlation computation complete.", verbose)
-
-
 def load_existing_dict(results_path):
     if not op.isfile(results_path):
         return None
@@ -262,9 +254,11 @@ def save_with_retry(path, payload, verbose):
                 pickle.dump(payload, f)
             log("Results saved successfully.", verbose)
             return
-        except OSError:
+        except OSError as e:
             log("Save failed, retrying in 100ms...", verbose)
+            print(e)
             time.sleep(0.1)
+
 
 
 def save_heatmap(matrix, mapnames, figures_path, verbose):
