@@ -12,6 +12,7 @@ import seaborn as sbn
 from nilearn import image
 from nilearn.maskers import NiftiMasker
 from joblib import Parallel, delayed
+from collections import defaultdict
 from tqdm.auto import tqdm
 from tqdm_joblib import tqdm_joblib
 
@@ -26,9 +27,9 @@ def parse_args():
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Enable detailed logging.")
     parser.add_argument("--quiet", dest="verbose", action="store_false", help="Reduce logging output.")
     parser.add_argument("--chunk-size", type=int, default=100, help="Number of map indices handled by this job.")
-    parser.add_argument("--chunk-index", type=int, default=0, help="Zero-based chunk selector.")
-    parser.add_argument("--n-jobs", type=int, default=16, help="Parallel workers for correlation computation.")
-    parser.add_argument("--backend", choices=["threading", "loky"], default="threading", help="Joblib backend.")
+    parser.add_argument("--chunk-start", type=int, default=0, help="Explicit map index to start chunk from.")
+    parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
+    parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
     parser.set_defaults(verbose=True)
     return parser.parse_args()
 
@@ -113,8 +114,9 @@ def ensure_output_file(path, records, existing, verbose):
     return data
 
 
-def chunk_range(total, chunk_size, chunk_index):
-    start = chunk_index * chunk_size
+def chunk_range(total, chunk_size, chunk_start):
+    chunk_size = max(1, chunk_size)
+    start = min(max(0, chunk_start), total)
     end = min(total, start + chunk_size)
     return range(start, end)
 
@@ -152,6 +154,27 @@ def compute_pair(i, j, records, masker, target_affine, target_shape):
     del vec_i, vec_j
     gc.collect()
     return coeff
+
+
+def group_pairs_by_first_index(pairs):
+    groups = defaultdict(list)
+    for i, j in pairs:
+        groups[i].append(j)
+    return groups
+
+
+def compute_row_correlations(item, records, masker, target_affine, target_shape):
+    i, js = item
+    vec_i = load_vector(records[i], masker, target_affine, target_shape)
+    row = {}
+    for j in js:
+        vec_j = load_vector(records[j], masker, target_affine, target_shape)
+        coeff = float(np.nan_to_num(np.corrcoef(vec_i, vec_j)[0, 1]))
+        row[(i, j)] = coeff
+        del vec_j
+    del vec_i
+    gc.collect()
+    return row
 
 
 def compute_pairs_batch(pairs, records, masker, target_affine, target_shape, n_jobs, backend, verbose):
@@ -297,7 +320,8 @@ def main():
     existing = load_existing_dict(RESULTS_PATH)
     data = ensure_output_file(RESULTS_PATH, records, existing, verbose)
     total_maps = len(records)
-    chunk_indices = list(chunk_range(total_maps, max(1, args.chunk_size), args.chunk_index))
+    chunk_size = max(1, args.chunk_size)
+    chunk_indices = list(chunk_range(total_maps, chunk_size, args.chunk_start))
     if not chunk_indices:
         log("Chunk contains no map indices; exiting.", verbose)
         save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, verbose)
