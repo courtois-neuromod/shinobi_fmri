@@ -26,7 +26,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Compute cross-dataset correlation matrix.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Enable detailed logging.")
     parser.add_argument("--quiet", dest="verbose", action="store_false", help="Reduce logging output.")
-    parser.add_argument("--chunk-size", type=int, default=100, help="Number of map indices handled by this job.")
+    parser.add_argument("--chunk-size", type=int, default=None, help="Number of map indices handled by this job.")
     parser.add_argument("--chunk-start", type=int, default=0, help="Explicit map index to start chunk from.")
     parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
     parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
@@ -115,6 +115,8 @@ def ensure_output_file(path, records, existing, verbose):
 
 
 def chunk_range(total, chunk_size, chunk_start):
+    if chunk_size is None:
+        return range(total)
     chunk_size = max(1, chunk_size)
     start = min(max(0, chunk_start), total)
     end = min(total, start + chunk_size)
@@ -320,8 +322,7 @@ def main():
     existing = load_existing_dict(RESULTS_PATH)
     data = ensure_output_file(RESULTS_PATH, records, existing, verbose)
     total_maps = len(records)
-    chunk_size = max(1, args.chunk_size)
-    chunk_indices = list(chunk_range(total_maps, chunk_size, args.chunk_start))
+    chunk_indices = list(chunk_range(total_maps, args.chunk_size, args.chunk_start))
     if not chunk_indices:
         log("Chunk contains no map indices; exiting.", verbose)
         save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, verbose)
