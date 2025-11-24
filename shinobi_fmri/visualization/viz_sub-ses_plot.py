@@ -149,9 +149,10 @@ def create_all_images(subject, condition, fig_folder):
             plot_inflated_zmap(sublevel_zmap_path, save_path=sublevel_save_path, title=f"{subject}", colorbar=False)
         # If no file, then create an empty image
         else:
-            allfigs_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+            allfigs_folder = os.path.join(".", 
                 "reports", "figures", "full_zmap_plot", subject)
             other_images = glob.glob(os.path.join(allfigs_folder, "*", "*.png"))
+            breakpoint()
             model_image = other_images[0]
             img_size = Image.open(model_image).size
             missing_img = Image.new('RGB', img_size, color = (255, 255, 255))
@@ -176,7 +177,7 @@ def create_all_images(subject, condition, fig_folder):
                 plot_inflated_zmap(zmap_path, save_path=save_path, title=f"{session}", colorbar=False)
             # If no file, then create an empty image
             else:
-                allfigs_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                allfigs_folder = os.path.join(".", 
                     "reports", "figures", "full_zmap_plot", subject)
                 other_images = glob.glob(os.path.join(allfigs_folder, "*", "*.png"))
                 model_image = other_images[0]
@@ -192,7 +193,7 @@ def make_annotation_plot(condition, save_path):
     images = []
     for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
         print(f"Processing {subject}")
-        fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+        fig_folder = os.path.join(".", 
                         "reports", "figures", "full_zmap_plot", subject, condition)
         # obtain top 4 sesmaps
         ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
@@ -284,12 +285,12 @@ def make_annotation_plot(condition, save_path):
 
 if __name__ == "__main__":
 
-    output_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", "reports", "figures", "full_zmap_plot", "annotations")
+    output_folder = os.path.join(".", "reports", "figures", "full_zmap_plot", "annotations")
     os.makedirs(output_folder, exist_ok=True)
 
     for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:#, 'lvl1', 'lvl4', 'lvl5']:
         for subject in shinobi_behav.SUBJECTS:
-            fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+            fig_folder = os.path.join(".", 
                                     "reports", "figures", "full_zmap_plot", subject, condition)
             os.makedirs(fig_folder, exist_ok=True)
 
@@ -300,7 +301,7 @@ if __name__ == "__main__":
         for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:
             condition = f"{condition}X{lvl}"
             for subject in shinobi_behav.SUBJECTS:
-                fig_folder = os.path.join("/home/hyruuk/projects/def-pbellec/hyruuk/shinobi_fmri", 
+                fig_folder = os.path.join(".", 
                                         "reports", "figures", "full_zmap_plot", subject, condition)
                 os.makedirs(fig_folder, exist_ok=True)
 
