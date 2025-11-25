@@ -22,3 +22,7 @@ atlasreader
 reportlab
 ipykernel
 tqdm_joblib
+
+# Task automation
+invoke>=2.0.0
+airoh
