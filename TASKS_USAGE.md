@@ -439,5 +439,5 @@ invoke info
 ## Additional Resources
 
 - [Invoke documentation](https://www.pyinvoke.org/)
-- [Airoh documentation](https://github.com/pvandyken/airoh)
+- [Airoh documentation](https://github.com/simexp/airoh)
 - [Compute Canada SLURM guide](https://docs.alliancecan.ca/wiki/Running_jobs)
