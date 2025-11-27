@@ -34,6 +34,7 @@ from nilearn.plotting.cm import _cmap_d as nilearn_cmaps
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, landscape
+from tqdm import tqdm
 
 try:
     import shinobi_behav
@@ -129,7 +130,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder):
+def create_all_images(subject, condition, fig_folder, pbar=None):
     """Create all individual brain map images for a subject and condition.
 
     This includes:
@@ -140,9 +141,8 @@ def create_all_images(subject, condition, fig_folder):
         subject (str): Subject ID (e.g., 'sub-01')
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
+        pbar (tqdm): Optional progress bar to update
     """
-    print(f"Creating images for {subject} {condition}")
-
     # Create subject-level z-map
     sublevel_zmap_path = op.join(
         DATA_PATH,
@@ -164,8 +164,10 @@ def create_all_images(subject, condition, fig_folder):
             )
         else:
             # Create blank image if z-map doesn't exist
-            print(f"Warning: {sublevel_zmap_path} not found, creating blank image")
             create_blank_image(sublevel_save_path, fig_folder)
+
+    if pbar:
+        pbar.update(1)
 
     # Create session-level z-maps
     ses_dir = op.join(DATA_PATH, "shinobi", subject)
@@ -193,8 +195,10 @@ def create_all_images(subject, condition, fig_folder):
                     )
                 else:
                     # Create blank image if z-map doesn't exist
-                    print(f"Warning: {zmap_path} not found, creating blank image")
                     create_blank_image(save_path, fig_folder)
+
+            if pbar:
+                pbar.update(1)
 
 
 def create_blank_image(save_path, fig_folder):
@@ -217,7 +221,7 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path):
+def make_annotation_plot(condition, save_path, pbar=None):
     """Create a combined panel showing all subjects for one annotation.
 
     Creates a 4x9 grid showing:
@@ -228,13 +232,11 @@ def make_annotation_plot(condition, save_path):
     Args:
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
+        pbar (tqdm): Optional progress bar to update
     """
-    print(f"\nCreating annotation plot for {condition}")
-
     images = []
 
     for idx_subj, subject in enumerate(SUBJECTS):
-        print(f"  Processing {subject}")
         fig_folder = op.join(".", "reports", "figures", "full_zmap_plot", subject, condition)
 
         # Find top 4 session maps based on number of voxels above threshold
@@ -346,18 +348,19 @@ def make_annotation_plot(condition, save_path):
     fig.tight_layout()
     fig.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
-    print(f"  Saved: {save_path}")
+
+    if pbar:
+        pbar.update(1)
 
 
-def create_pdf_with_images(image_folder, pdf_filename):
+def create_pdf_with_images(image_folder, pdf_filename, pbar=None):
     """Create a PDF with all panel images in a folder.
 
     Args:
         image_folder (str): Path to folder containing PNG images
         pdf_filename (str): Path to output PDF file
+        pbar (tqdm): Optional progress bar to update
     """
-    print(f"\nCreating PDF: {pdf_filename}")
-
     images = sorted([
         op.join(image_folder, img)
         for img in os.listdir(image_folder)
@@ -365,7 +368,7 @@ def create_pdf_with_images(image_folder, pdf_filename):
     ])
 
     if not images:
-        print("  Warning: No images found in folder")
+        print("Warning: No images found in folder")
         return
 
     c = canvas.Canvas(pdf_filename)
@@ -373,12 +376,15 @@ def create_pdf_with_images(image_folder, pdf_filename):
     c.setPageSize(size)
 
     for image_path in images:
-        print(f"  Adding: {op.basename(image_path)}")
         c.drawImage(image_path, 0, 0, width=size[0], height=size[1])
         c.showPage()
+        if pbar:
+            pbar.update(1)
 
     c.save()
-    print(f"  PDF saved: {pdf_filename}")
+
+    if pbar:
+        pbar.set_description("PDF created")
 
 
 def main():
@@ -433,40 +439,82 @@ def main():
 
     print(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
     print(f"Subjects: {', '.join(SUBJECTS)}")
-    print(f"Output directory: {args.output_dir}")
+    print(f"Output directory: {args.output_dir}\n")
 
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Calculate total work for progress tracking
+    total_individual_images = 0
+    if not args.skip_individual:
+        for condition in conditions:
+            for subject in SUBJECTS:
+                # Count: 1 subject-level + N session-level images
+                ses_dir = op.join(DATA_PATH, "shinobi", subject)
+                if op.exists(ses_dir):
+                    n_sessions = len(os.listdir(ses_dir))
+                    total_individual_images += 1 + n_sessions  # subject + sessions
+                else:
+                    total_individual_images += 1  # just subject
+
     # Process each condition
     for condition in conditions:
-        print(f"\n{'='*60}")
-        print(f"Processing condition: {condition}")
+        print(f"\nCondition: {condition}")
         print(f"{'='*60}")
 
         # Generate individual images for each subject
         if not args.skip_individual:
-            for subject in SUBJECTS:
-                fig_folder = op.join(
-                    ".", "reports", "figures", "full_zmap_plot",
-                    subject, condition
-                )
-                os.makedirs(fig_folder, exist_ok=True)
-                create_all_images(subject, condition, fig_folder)
+            with tqdm(total=total_individual_images // len(conditions),
+                     desc=f"Creating images for {condition}",
+                     unit="img") as pbar:
+                for subject in SUBJECTS:
+                    fig_folder = op.join(
+                        ".", "reports", "figures", "full_zmap_plot",
+                        subject, condition
+                    )
+                    os.makedirs(fig_folder, exist_ok=True)
+                    create_all_images(subject, condition, fig_folder, pbar=pbar)
 
         # Create combined annotation panel
         if not args.skip_panels:
             save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
-            make_annotation_plot(condition, save_path)
+            with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
+                make_annotation_plot(condition, save_path, pbar=pbar)
 
     # Create PDF with all panels
     if not args.skip_pdf:
         pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
-        create_pdf_with_images(args.output_dir, pdf_path)
+        panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
+        with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
+            create_pdf_with_images(args.output_dir, pdf_path, pbar=pbar)
 
+    # Print summary of outputs
     print(f"\n{'='*60}")
     print("All done!")
-    print(f"{'='*60}\n")
+    print(f"{'='*60}")
+
+    if not args.skip_individual:
+        print(f"\n📊 Individual brain maps saved to:")
+        print(f"   ./reports/figures/full_zmap_plot/<subject>/<condition>/")
+        print(f"   - Subject-level: <subject>_<condition>.png")
+        print(f"   - Session-level: <subject>_<session>_<condition>.png")
+
+    if not args.skip_panels:
+        print(f"\n🎨 Annotation panels saved to:")
+        print(f"   {op.abspath(args.output_dir)}/")
+        for condition in conditions:
+            panel_file = f"annotations_plot_{condition}.png"
+            if op.exists(op.join(args.output_dir, panel_file)):
+                print(f"   - {panel_file}")
+
+    if not args.skip_pdf:
+        pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
+        if op.exists(pdf_path):
+            print(f"\n📄 PDF compilation saved to:")
+            print(f"   {op.abspath(pdf_path)}")
+            print(f"   ({len(panel_images)} pages)")
+
+    print(f"\n{'='*60}\n")
 
 
 if __name__ == "__main__":
