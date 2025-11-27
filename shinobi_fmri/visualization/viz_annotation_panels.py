@@ -115,7 +115,8 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         colorbar=colorbar,
         threshold=threshold,
         vmax=vmax,
-        symmetric_cbar=False
+        symmetric_cbar=False,
+        darkness=None  # Suppress deprecation warning
     )
 
     # Get current figure and add title
