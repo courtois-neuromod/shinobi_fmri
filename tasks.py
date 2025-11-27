@@ -298,6 +298,51 @@ def viz_subject_level(c, slurm=False):
     c.run(cmd)
 
 
+@task
+def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False):
+    """
+    Generate annotation panels with subject-level and session-level brain maps.
+
+    Creates:
+    - Individual inflated brain maps for each subject/session
+    - Combined panels (1 subject-level + top 4 session-level maps per subject)
+    - PDF with all annotation panels
+
+    Args:
+        condition: Single condition to process (e.g., 'HIT')
+        conditions: Comma-separated conditions (e.g., 'HIT,JUMP,Kill')
+        skip_individual: Skip generating individual brain maps
+        skip_panels: Skip generating annotation panels
+        skip_pdf: Skip generating PDF
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_annotation_panels.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if condition:
+        cmd_parts.extend(['--condition', condition])
+    elif conditions:
+        cmd_parts.extend(['--conditions', conditions])
+
+    if skip_individual:
+        cmd_parts.append('--skip-individual')
+    if skip_panels:
+        cmd_parts.append('--skip-panels')
+    if skip_pdf:
+        cmd_parts.append('--skip-pdf')
+
+    cmd = ' '.join(cmd_parts)
+    print(f"Generating annotation panels...")
+    if condition:
+        print(f"  Condition: {condition}")
+    elif conditions:
+        print(f"  Conditions: {conditions}")
+    else:
+        print(f"  Processing all default conditions")
+
+    c.run(cmd)
+
+
 # =============================================================================
 # Batch Processing Tasks
 # =============================================================================
@@ -506,6 +551,7 @@ viz_collection = Collection('viz')
 viz_collection.add_task(viz_run_level, name='run-level')
 viz_collection.add_task(viz_session_level, name='session-level')
 viz_collection.add_task(viz_subject_level, name='subject-level')
+viz_collection.add_task(viz_annotation_panels, name='annotation-panels')
 namespace.add_collection(viz_collection)
 
 # Batch processing tasks

@@ -170,6 +170,12 @@ invoke viz.session-level --slurm
 # Subject-level visualizations
 invoke viz.subject-level
 invoke viz.subject-level --slurm
+
+# Annotation panels (subject-level + top 4 session-level maps)
+invoke viz.annotation-panels                                   # All conditions
+invoke viz.annotation-panels --condition HIT                   # Single condition
+invoke viz.annotation-panels --conditions "HIT,JUMP,Kill"      # Multiple conditions
+invoke viz.annotation-panels --skip-pdf                        # Skip PDF generation
 ```
 
 ### Full Pipeline Workflows
