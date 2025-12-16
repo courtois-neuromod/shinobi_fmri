@@ -17,6 +17,11 @@ import os
 import os.path as op
 import glob
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Try to import airoh utilities (optional)
 try:
     from airoh import utils, containers
@@ -29,8 +34,11 @@ except ImportError:
 try:
     from shinobi_behav import DATA_PATH
 except ImportError:
-    DATA_PATH = "/home/hyruuk/scratch/data"
-    print(f"Warning: shinobi_behav not found. Using default DATA_PATH: {DATA_PATH}")
+    DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
+    if "SHINOBI_DATA_PATH" not in os.environ and not op.exists(DATA_PATH):
+        print(f"Warning: Default DATA_PATH {DATA_PATH} does not exist. Set SHINOBI_DATA_PATH env var.")
+    else:
+        print(f"Using DATA_PATH: {DATA_PATH}")
 
 
 # =============================================================================
@@ -38,10 +46,11 @@ except ImportError:
 # =============================================================================
 
 # Python environment for local execution
-PYTHON_BIN = "python"  # Uses current environment
+PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")  # Uses current environment or specified
 
 # Python environment for SLURM execution
-SLURM_PYTHON_BIN = "/home/hyruuk/python_envs/shinobi/bin/python"
+# Default to a placeholder or raise error if not set when needed
+SLURM_PYTHON_BIN = os.getenv("SHINOBI_SLURM_PYTHON_BIN", "python")
 
 # Project paths
 PROJECT_ROOT = op.dirname(op.abspath(__file__))
@@ -344,6 +353,45 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
 
 
 # =============================================================================
+# Diagnostic Tasks
+# =============================================================================
+
+@task
+def diagnose_missing_zmaps(c, level='session', subject=None, session=None, condition=None, missing_only=False):
+    """
+    Diagnose why z-maps are missing for GLM analysis.
+
+    Checks for:
+    - Missing input files (fMRI, events, masks)
+    - Insufficient events for a condition
+    - Failed GLM computations
+
+    Args:
+        level: Analysis level to check ('session' or 'subject')
+        subject: Specific subject to check (default: all)
+        session: Specific session to check (requires subject)
+        condition: Specific condition to check (default: all)
+        missing_only: Only show missing z-maps
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "glm", "diagnose_missing_zmaps.py")
+
+    cmd_parts = [PYTHON_BIN, script, '--level', level]
+
+    if subject:
+        cmd_parts.extend(['--subject', subject])
+    if session:
+        cmd_parts.extend(['--session', session])
+    if condition:
+        cmd_parts.extend(['--condition', condition])
+    if missing_only:
+        cmd_parts.append('--missing-only')
+
+    cmd = ' '.join(cmd_parts)
+    print(f"Diagnosing {level}-level z-maps...")
+    c.run(cmd)
+
+
+# =============================================================================
 # Batch Processing Tasks
 # =============================================================================
 
@@ -573,6 +621,11 @@ setup_collection = Collection('setup')
 setup_collection.add_task(setup_env, name='env')
 setup_collection.add_task(setup_airoh, name='airoh')
 namespace.add_collection(setup_collection)
+
+# Diagnostic tasks
+diagnostic_collection = Collection('diag')
+diagnostic_collection.add_task(diagnose_missing_zmaps, name='missing-zmaps')
+namespace.add_collection(diagnostic_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)
