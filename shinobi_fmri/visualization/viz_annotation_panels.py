@@ -35,6 +35,8 @@ from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, landscape
 from tqdm import tqdm
+from shinobi_fmri.utils.logger import ShinobiLogger
+import logging
 
 try:
     import shinobi_behav
@@ -130,7 +132,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder, pbar=None):
+def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
     """Create all individual brain map images for a subject and condition.
 
     This includes:
@@ -142,6 +144,7 @@ def create_all_images(subject, condition, fig_folder, pbar=None):
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
         pbar (tqdm): Optional progress bar to update
+        logger (ShinobiLogger): Logger instance
     """
     # Create subject-level z-map
     sublevel_zmap_path = op.join(
@@ -150,12 +153,14 @@ def create_all_images(subject, condition, fig_folder, pbar=None):
         "z_maps",
         "subject-level",
         condition,
-        f"{subject}_simplemodel_{condition}.nii.gz"
+        f"{subject}_{condition}.nii.gz"
     )
     sublevel_save_path = op.join(fig_folder, f"{subject}_{condition}.png")
 
     if not op.isfile(sublevel_save_path):
         if op.isfile(sublevel_zmap_path):
+            if logger:
+                logger.debug(f"Plotting subject-level map: {sublevel_zmap_path}")
             plot_inflated_zmap(
                 sublevel_zmap_path,
                 save_path=sublevel_save_path,
@@ -164,6 +169,8 @@ def create_all_images(subject, condition, fig_folder, pbar=None):
             )
         else:
             # Create blank image if z-map doesn't exist
+            if logger:
+                logger.debug(f"Subject-level map missing, creating blank: {sublevel_save_path}")
             create_blank_image(sublevel_save_path, fig_folder)
 
     if pbar:
@@ -181,12 +188,14 @@ def create_all_images(subject, condition, fig_folder, pbar=None):
                 "z_maps",
                 "ses-level",
                 condition,
-                f"{subject}_{session}_simplemodel_{condition}.nii.gz"
+                f"{subject}_{session}_{condition}.nii.gz"
             )
             save_path = op.join(fig_folder, f"{subject}_{session}_{condition}.png")
 
             if not op.isfile(save_path):
                 if op.isfile(zmap_path):
+                    if logger:
+                        logger.debug(f"Plotting session-level map: {zmap_path}")
                     plot_inflated_zmap(
                         zmap_path,
                         save_path=save_path,
@@ -195,6 +204,8 @@ def create_all_images(subject, condition, fig_folder, pbar=None):
                     )
                 else:
                     # Create blank image if z-map doesn't exist
+                    if logger:
+                        logger.debug(f"Session-level map missing, creating blank: {save_path}")
                     create_blank_image(save_path, fig_folder)
 
             if pbar:
@@ -221,7 +232,7 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path, pbar=None):
+def make_annotation_plot(condition, save_path, pbar=None, logger=None):
     """Create a combined panel showing all subjects for one annotation.
 
     Creates a 4x9 grid showing:
@@ -233,6 +244,7 @@ def make_annotation_plot(condition, save_path, pbar=None):
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
         pbar (tqdm): Optional progress bar to update
+        logger (ShinobiLogger): Logger instance
     """
     images = []
 
@@ -242,7 +254,8 @@ def make_annotation_plot(condition, save_path, pbar=None):
         # Find top 4 session maps based on number of voxels above threshold
         ses_dir = op.join(DATA_PATH, "shinobi", subject)
         if not op.exists(ses_dir):
-            print(f"    Warning: Session directory not found for {subject}")
+            if logger:
+                logger.warning(f"Session directory not found for {subject}")
             continue
 
         ses_list = sorted(os.listdir(ses_dir))
@@ -257,7 +270,7 @@ def make_annotation_plot(condition, save_path, pbar=None):
                     "z_maps",
                     "ses-level",
                     condition,
-                    f"{subject}_{session}_simplemodel_{condition}.nii.gz"
+                    f"{subject}_{session}_{condition}.nii.gz"
                 )
 
                 if op.isfile(zmap_path):
@@ -267,10 +280,12 @@ def make_annotation_plot(condition, save_path, pbar=None):
                     sesmap_vox_above_thresh.append(nb_vox_above_thresh)
                     sesmap_name.append(session)
                 else:
-                    print(f"    Warning: {zmap_path} not found")
+                    if logger:
+                        logger.debug(f"{zmap_path} not found")
 
             except Exception as e:
-                print(f"    Error loading {session}: {e}")
+                if logger:
+                    logger.error(f"Error loading {session}: {e}")
 
         # Get top 4 sessions
         if len(sesmap_vox_above_thresh) >= 4:
@@ -278,14 +293,16 @@ def make_annotation_plot(condition, save_path, pbar=None):
             top4_names = np.sort(np.array(sesmap_name)[top4_idx])
         else:
             top4_names = np.array(sesmap_name)
-            print(f"    Warning: Only {len(top4_names)} sessions found for {subject}")
+            if logger:
+                logger.debug(f"Only {len(top4_names)} sessions found for {subject}")
 
         # Load subject-level image
         subj_img_path = op.join(fig_folder, f"{subject}_{condition}.png")
         if op.isfile(subj_img_path):
             subj_images = [np.array(Image.open(subj_img_path))]
         else:
-            print(f"    Warning: Subject image not found: {subj_img_path}")
+            if logger:
+                logger.warning(f"Subject image not found: {subj_img_path}")
             continue
 
         # Load top session images
@@ -294,12 +311,15 @@ def make_annotation_plot(condition, save_path, pbar=None):
             if op.isfile(ses_img_path):
                 subj_images.append(np.array(Image.open(ses_img_path)))
             else:
-                print(f"    Warning: Session image not found: {ses_img_path}")
+                if logger:
+                    logger.warning(f"Session image not found: {ses_img_path}")
 
         images.append(subj_images)
 
     # Create the combined figure
-    print(f"  Assembling figure...")
+    if logger:
+        logger.info(f"Assembling figure for {condition}")
+        
     fig = plt.figure(figsize=(16, 8), dpi=300)
     gs = fig.add_gridspec(4, 9)
 
@@ -426,95 +446,114 @@ def main():
         action='store_true',
         help='Skip generating PDF'
     )
+    parser.add_argument(
+        '-v', '--verbose',
+        action="count",
+        default=0,
+        help="Increase verbosity level (e.g. -v for INFO, -vv for DEBUG)",
+    )
+    parser.add_argument(
+        '--log-dir',
+        default=None,
+        help='Directory for log files'
+    )
 
     args = parser.parse_args()
-
-    # Determine which conditions to process
-    if args.condition:
-        conditions = [args.condition]
-    elif args.conditions:
-        conditions = [c.strip() for c in args.conditions.split(',')]
+    
+    # Determine verbosity
+    if args.verbose == 0:
+        log_level = logging.WARNING
+    elif args.verbose == 1:
+        log_level = logging.INFO
     else:
-        conditions = DEFAULT_CONDITIONS
+        log_level = logging.DEBUG
 
-    print(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
-    print(f"Subjects: {', '.join(SUBJECTS)}")
-    print(f"Output directory: {args.output_dir}\n")
+    # Initialize logger
+    logger = ShinobiLogger(
+        log_name="Viz_panels",
+        log_dir=args.log_dir,
+        verbosity=log_level
+    )
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    try:
+        # Determine which conditions to process
+        if args.condition:
+            conditions = [args.condition]
+        elif args.conditions:
+            conditions = [c.strip() for c in args.conditions.split(',')]
+        else:
+            conditions = DEFAULT_CONDITIONS
 
-    # Calculate total work for progress tracking
-    total_individual_images = 0
-    if not args.skip_individual:
-        for condition in conditions:
-            for subject in SUBJECTS:
-                # Count: 1 subject-level + N session-level images
-                ses_dir = op.join(DATA_PATH, "shinobi", subject)
-                if op.exists(ses_dir):
-                    n_sessions = len(os.listdir(ses_dir))
-                    total_individual_images += 1 + n_sessions  # subject + sessions
-                else:
-                    total_individual_images += 1  # just subject
+        logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
+        logger.info(f"Subjects: {', '.join(SUBJECTS)}")
+        logger.info(f"Output directory: {args.output_dir}\n")
 
-    # Process each condition
-    for condition in conditions:
-        print(f"\nCondition: {condition}")
-        print(f"{'='*60}")
+        # Create output directory
+        os.makedirs(args.output_dir, exist_ok=True)
 
-        # Generate individual images for each subject
+        # Calculate total work for progress tracking
+        total_individual_images = 0
         if not args.skip_individual:
-            with tqdm(total=total_individual_images // len(conditions),
-                     desc=f"Creating images for {condition}",
-                     unit="img") as pbar:
+            for condition in conditions:
                 for subject in SUBJECTS:
-                    fig_folder = op.join(
-                        ".", "reports", "figures", "full_zmap_plot",
-                        subject, condition
-                    )
-                    os.makedirs(fig_folder, exist_ok=True)
-                    create_all_images(subject, condition, fig_folder, pbar=pbar)
+                    # Count: 1 subject-level + N session-level images
+                    ses_dir = op.join(DATA_PATH, "shinobi", subject)
+                    if op.exists(ses_dir):
+                        n_sessions = len(os.listdir(ses_dir))
+                        total_individual_images += 1 + n_sessions  # subject + sessions
+                    else:
+                        total_individual_images += 1  # just subject
 
-        # Create combined annotation panel
-        if not args.skip_panels:
-            save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
-            with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
-                make_annotation_plot(condition, save_path, pbar=pbar)
-
-    # Create PDF with all panels
-    if not args.skip_pdf:
-        pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
-        panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
-        with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
-            create_pdf_with_images(args.output_dir, pdf_path, pbar=pbar)
-
-    # Print summary of outputs
-    print(f"\n{'='*60}")
-    print("All done!")
-    print(f"{'='*60}")
-
-    if not args.skip_individual:
-        print(f"\n📊 Individual brain maps saved to:")
-        print(f"   ./reports/figures/full_zmap_plot/<subject>/<condition>/")
-        print(f"   - Subject-level: <subject>_<condition>.png")
-        print(f"   - Session-level: <subject>_<session>_<condition>.png")
-
-    if not args.skip_panels:
-        print(f"\n🎨 Annotation panels saved to:")
-        print(f"   {op.abspath(args.output_dir)}/")
+        # Process each condition
         for condition in conditions:
-            panel_file = f"annotations_plot_{condition}.png"
-            if op.exists(op.join(args.output_dir, panel_file)):
-                print(f"   - {panel_file}")
+            logger.info(f"Processing condition: {condition}")
 
-    if not args.skip_pdf:
-        pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
-        if op.exists(pdf_path):
-            print(f"\n📄 PDF compilation saved to:")
-            print(f"   {op.abspath(pdf_path)}")
-            print(f"   ({len(panel_images)} pages)")
+            # Generate individual images for each subject
+            if not args.skip_individual:
+                with tqdm(total=total_individual_images // len(conditions),
+                        desc=f"Creating images for {condition}",
+                        unit="img") as pbar:
+                    for subject in SUBJECTS:
+                        fig_folder = op.join(
+                            ".", "reports", "figures", "full_zmap_plot",
+                            subject, condition
+                        )
+                        os.makedirs(fig_folder, exist_ok=True)
+                        create_all_images(subject, condition, fig_folder, pbar=pbar, logger=logger)
 
-    print(f"\n{'='*60}\n")
+            # Create combined annotation panel
+            if not args.skip_panels:
+                save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
+                with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
+                    make_annotation_plot(condition, save_path, pbar=pbar, logger=logger)
+
+        # Create PDF with all panels
+        if not args.skip_pdf:
+            pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
+            panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
+            with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
+                create_pdf_with_images(args.output_dir, pdf_path, pbar=pbar)
+
+        # Print summary of outputs
+        logger.info("All done!")
+
+        if not args.skip_individual:
+            logger.info(f"Individual brain maps saved to ./reports/figures/full_zmap_plot/<subject>/<condition>/")
+
+        if not args.skip_panels:
+            logger.info(f"Annotation panels saved to {op.abspath(args.output_dir)}/")
+            for condition in conditions:
+                panel_file = f"annotations_plot_{condition}.png"
+                if op.exists(op.join(args.output_dir, panel_file)):
+                    logger.debug(f"Saved: {panel_file}")
+
+        if not args.skip_pdf:
+            pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
+            if op.exists(pdf_path):
+                logger.info(f"PDF compilation saved to {op.abspath(pdf_path)} ({len(panel_images)} pages)")
+                
+    finally:
+        logger.close()
 
 
 if __name__ == "__main__":

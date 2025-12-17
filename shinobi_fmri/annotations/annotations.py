@@ -296,13 +296,21 @@ def get_scrub_regressor(run_events, design_matrix):
                 if time[i] >= rep['onset'] and time[i] <= rep['onset'] + rep['duration']:
                     to_keep[i] = 1.0
 
+    # Collect all scrub regressors first, then concat at once for better performance
+    scrub_regressors = {}
     scrub_idx = 1
     for idx, timepoint in enumerate(to_keep):
         if timepoint == 0.0: # If to_keep is zero create a scrub regressor to remove this frame
             scrub_regressor = np.zeros(len(time))
             scrub_regressor[idx] = 1.0
-            design_matrix[f'scrub{scrub_idx}'] = scrub_regressor
+            scrub_regressors[f'scrub{scrub_idx}'] = scrub_regressor
             scrub_idx += 1
+
+    # Add all scrub regressors at once using pd.concat instead of repeated insertion
+    if scrub_regressors:
+        scrub_df = pd.DataFrame(scrub_regressors, index=design_matrix.index)
+        design_matrix = pd.concat([design_matrix, scrub_df], axis=1)
+
     return design_matrix
 
 def trim_events_df(events_df, trim_by='LvR'):

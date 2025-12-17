@@ -136,12 +136,12 @@ def create_all_images(subject, condition, fig_folder):
     # Create images
     ## Make subject level z_maps
     print(f"Create images for {subject} {condition}")
-    sublevel_zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
+    sublevel_zmap_path = os.path.join(shinobi_behav.DATA_PATH,
                                       "processed",
                                       "z_maps",
                                       "subject-level",
-                                      condition, 
-                                      f"{subject}_simplemodel_{condition}.nii.gz")
+                                      condition,
+                                      f"{subject}_{condition}.nii.gz")
     sublevel_save_path = os.path.join(fig_folder,
                                       f"{subject}_{condition}.png")
     if not os.path.isfile(sublevel_save_path):
@@ -164,12 +164,12 @@ def create_all_images(subject, condition, fig_folder):
     ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
     for session in ses_list:
         
-        zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
+        zmap_path = os.path.join(shinobi_behav.DATA_PATH,
                                           "processed",
                                           "z_maps",
                                           "ses-level",
-                                          condition, 
-                                          f"{subject}_{session}_simplemodel_{condition}.nii.gz")
+                                          condition,
+                                          f"{subject}_{session}_{condition}.nii.gz")
         save_path = os.path.join(fig_folder,
                                 f"{subject}_{session}_{condition}.png")
         if not os.path.isfile(save_path):
@@ -206,8 +206,8 @@ def make_annotation_plot(condition, save_path):
                                                 "processed",
                                                 "z_maps",
                                                 "ses-level",
-                                                condition, 
-                                                f"{subject}_{session}_simplemodel_{condition}.nii.gz")
+                                                condition,
+                                                f"{subject}_{session}_{condition}.nii.gz")
                 img = nib.load(zmap_path).get_fdata()
                 img_vox_above_thresh = [1 if abs(x) > 3 else 0 for x in img.flatten()]
                 nb_vox_above_thresh = sum(img_vox_above_thresh)

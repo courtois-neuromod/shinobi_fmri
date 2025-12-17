@@ -15,6 +15,8 @@ from joblib import Parallel, delayed
 from collections import defaultdict
 from tqdm.auto import tqdm
 from tqdm_joblib import tqdm_joblib
+from shinobi_fmri.utils.logger import ShinobiLogger
+import logging
 
 CONTRASTS = ['Kill', 'HealthLoss', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'DOWN']
 SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
@@ -24,13 +26,12 @@ RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute cross-dataset correlation matrix.")
-    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Enable detailed logging.")
-    parser.add_argument("--quiet", dest="verbose", action="store_false", help="Reduce logging output.")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity level.")
     parser.add_argument("--chunk-size", type=int, default=None, help="Number of map indices handled by this job.")
     parser.add_argument("--chunk-start", type=int, default=0, help="Explicit map index to start chunk from.")
     parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
     parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
-    parser.set_defaults(verbose=True)
+    parser.add_argument("--log-dir", default=None, help="Directory for log files")
     return parser.parse_args()
 
 
@@ -94,8 +95,10 @@ def build_raw_path(path_to_data, subj, ses):
     return op.join(path_to_data, "shinobi.fmriprep", subj, ses, "func", f"{subj}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz")
 
 
-def log(message, verbose):
-    if verbose:
+def log(message, logger=None):
+    if logger:
+        logger.info(message)
+    else:
         print(message)
 
 
@@ -106,11 +109,11 @@ def summarize_sources(records):
     return ", ".join(f"{src}: {counts[src]}" for src in sorted(counts)) if counts else "no sources"
 
 
-def ensure_output_file(path, records, existing, verbose):
+def ensure_output_file(path, records, existing, logger=None):
     if existing:
         return existing
     data = prepare_output_dict(records, None)
-    save_with_retry(path, data, verbose)
+    save_with_retry(path, data, logger)
     return data
 
 
@@ -165,25 +168,11 @@ def group_pairs_by_first_index(pairs):
     return groups
 
 
-def compute_row_correlations(item, records, masker, target_affine, target_shape):
-    i, js = item
-    vec_i = load_vector(records[i], masker, target_affine, target_shape)
-    row = {}
-    for j in js:
-        vec_j = load_vector(records[j], masker, target_affine, target_shape)
-        coeff = float(np.nan_to_num(np.corrcoef(vec_i, vec_j)[0, 1]))
-        row[(i, j)] = coeff
-        del vec_j
-    del vec_i
-    gc.collect()
-    return row
-
-
-def compute_pairs_batch(pairs, records, masker, target_affine, target_shape, n_jobs, backend, verbose):
+def compute_pairs_batch(pairs, records, masker, target_affine, target_shape, n_jobs, backend, logger=None):
     if not pairs:
         return {}
-    log(f"Computing {len(pairs)} correlations with {n_jobs} workers (backend={backend})...", verbose)
-    with tqdm_joblib(tqdm(total=len(pairs), desc="Correlations", disable=not verbose)):
+    log(f"Computing {len(pairs)} correlations with {n_jobs} workers (backend={backend})...", logger)
+    with tqdm_joblib(tqdm(total=len(pairs), desc="Correlations")):
         values = Parallel(n_jobs=n_jobs, backend=backend)(
             delayed(compute_pair)(i, j, records, masker, target_affine, target_shape) for i, j in pairs
         )
@@ -231,7 +220,7 @@ def collect_pending_pairs_for_indices(path, indices):
     return pairs, data
 
 
-def merge_updates(path, updates, verbose):
+def merge_updates(path, updates, logger=None):
     if not updates:
         return load_existing_dict(path)
     while True:
@@ -240,28 +229,13 @@ def merge_updates(path, updates, verbose):
             current['corr_matrix'][i, j] = current['corr_matrix'][j, i] = value
             current['computed_mask'][i, j] = current['computed_mask'][j, i] = True
         np.fill_diagonal(current['corr_matrix'], 1.0)
-        save_with_retry(path, current, verbose)
+        save_with_retry(path, current, logger)
         return current
-
-
-def pending_indices(mask):
-    size = mask.shape[0]
-    for i in range(size):
-        for j in range(i + 1, size):
-            if not mask[i, j]:
-                yield i, j
 
 
 def mark_pair(matrix, mask, i, j, value):
     matrix[i, j] = matrix[j, i] = value
     mask[i, j] = mask[j, i] = True
-
-
-def report_progress(idx, total, names, i, j, value, verbose):
-    if verbose:
-        print(f"{names[i]} vs {names[j]} -> {value:.4f}")
-    else:
-        print(f"{idx}/{total}", end="\r" if idx < total else "\n")
 
 
 def load_existing_dict(results_path):
@@ -271,24 +245,26 @@ def load_existing_dict(results_path):
         return pickle.load(f)
 
 
-def save_with_retry(path, payload, verbose):
-    log(f"Saving results to {path}...", verbose)
+def save_with_retry(path, payload, logger=None):
+    log(f"Saving results to {path}...", logger)
     while True:
         try:
             with open(path, 'wb') as f:
                 pickle.dump(payload, f)
-            log("Results saved successfully.", verbose)
+            log("Results saved successfully.", logger)
             return
         except OSError as e:
-            log("Save failed, retrying in 100ms...", verbose)
-            print(e)
+            log("Save failed, retrying in 100ms...", logger)
+            if logger:
+                logger.error(str(e))
+            else:
+                print(e)
             time.sleep(0.1)
 
 
-
-def save_heatmap(matrix, mapnames, figures_path, verbose):
+def save_heatmap(matrix, mapnames, figures_path, logger=None):
     output_dir = op.join(figures_path, "corrmats_withconstant")
-    log("Generating heatmap figure...", verbose)
+    log("Generating heatmap figure...", logger)
     fig, ax = plt.subplots(figsize=(15, 15))
     mask = np.triu(np.ones_like(matrix, dtype=bool))
     sbn.heatmap(matrix, xticklabels=mapnames, yticklabels=mapnames, ax=ax, cbar=False, mask=mask, annot=False)
@@ -296,46 +272,7 @@ def save_heatmap(matrix, mapnames, figures_path, verbose):
     destination = op.join(output_dir, "ses-level_corrmat.png")
     fig.savefig(destination, bbox_inches="tight")
     plt.close(fig)
-    log(f"Heatmap saved to {destination}", verbose)
-
-
-def main():
-    args = parse_args()
-    verbose = args.verbose
-    path_to_data = DATA_PATH
-    log("Preparing reference geometry...", verbose)
-    target_affine, target_shape = get_reference_geometry(path_to_data, SUBJECTS[0])
-    log("Fitting shared masker from subject masks...", verbose)
-    masker = build_masker(SUBJECTS, path_to_data, target_affine, target_shape)
-    processed_root = op.join(path_to_data, "processed", "beta_maps")
-    log(f"Collecting processed entries under {processed_root}...", verbose)
-    processed_records = collect_processed_records(processed_root, CONTRASTS, MODEL, path_to_data)
-    log(f"Discovered {len(processed_records)} processed maps.", verbose)
-    log("Collecting HCP entries...", verbose)
-    hcp_records = collect_hcp_records(path_to_data, SUBJECTS)
-    log(f"Discovered {len(hcp_records)} HCP maps.", verbose)
-    records = processed_records + hcp_records
-    if not records:
-        print("No maps found.")
-        return
-    log(f"Total available maps: {len(records)} ({summarize_sources(records)})", verbose)
-    existing = load_existing_dict(RESULTS_PATH)
-    data = ensure_output_file(RESULTS_PATH, records, existing, verbose)
-    total_maps = len(records)
-    chunk_indices = list(chunk_range(total_maps, args.chunk_size, args.chunk_start))
-    if not chunk_indices:
-        log("Chunk contains no map indices; exiting.", verbose)
-        save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, verbose)
-        return
-    log(f"Assigned map indices: {chunk_indices}", verbose)
-    pairs, latest = collect_pending_pairs_for_indices(RESULTS_PATH, chunk_indices)
-    if not pairs:
-        log("No pending correlations for this chunk.", verbose)
-        save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, verbose)
-        return
-    updates = compute_pairs_batch(pairs, records, masker, target_affine, target_shape, args.n_jobs, args.backend, verbose)
-    latest = merge_updates(RESULTS_PATH, updates, verbose)
-    save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, verbose)
+    log(f"Heatmap saved to {destination}", logger)
 
 
 def list_runfolders(sub_dir):
@@ -348,6 +285,64 @@ def list_nii_files(directory):
     if not op.isdir(directory):
         return []
     return sorted(f for f in os.listdir(directory) if f.endswith(".nii.gz"))
+
+
+def main():
+    args = parse_args()
+    
+    # Determine verbosity
+    if args.verbose == 0:
+        log_level = logging.WARNING
+    elif args.verbose == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.DEBUG
+
+    # Initialize logger
+    logger = ShinobiLogger(
+        log_name="Correlations",
+        log_dir=args.log_dir,
+        verbosity=log_level
+    )
+
+    try:
+        path_to_data = DATA_PATH
+        log("Preparing reference geometry...", logger)
+        target_affine, target_shape = get_reference_geometry(path_to_data, SUBJECTS[0])
+        log("Fitting shared masker from subject masks...", logger)
+        masker = build_masker(SUBJECTS, path_to_data, target_affine, target_shape)
+        processed_root = op.join(path_to_data, "processed", "beta_maps")
+        log(f"Collecting processed entries under {processed_root}...", logger)
+        processed_records = collect_processed_records(processed_root, CONTRASTS, MODEL, path_to_data)
+        log(f"Discovered {len(processed_records)} processed maps.", logger)
+        log("Collecting HCP entries...", logger)
+        hcp_records = collect_hcp_records(path_to_data, SUBJECTS)
+        log(f"Discovered {len(hcp_records)} HCP maps.", logger)
+        records = processed_records + hcp_records
+        if not records:
+            log("No maps found.", logger)
+            return
+        log(f"Total available maps: {len(records)} ({summarize_sources(records)})", logger)
+        existing = load_existing_dict(RESULTS_PATH)
+        data = ensure_output_file(RESULTS_PATH, records, existing, logger)
+        total_maps = len(records)
+        chunk_indices = list(chunk_range(total_maps, args.chunk_size, args.chunk_start))
+        if not chunk_indices:
+            log("Chunk contains no map indices; exiting.", logger)
+            save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, logger)
+            return
+        log(f"Assigned map indices: {chunk_indices}", logger)
+        pairs, latest = collect_pending_pairs_for_indices(RESULTS_PATH, chunk_indices)
+        if not pairs:
+            log("No pending correlations for this chunk.", logger)
+            save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
+            return
+        updates = compute_pairs_batch(pairs, records, masker, target_affine, target_shape, args.n_jobs, args.backend, logger)
+        latest = merge_updates(RESULTS_PATH, updates, logger)
+        save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
+        
+    finally:
+        logger.close()
 
 
 if __name__ == "__main__":

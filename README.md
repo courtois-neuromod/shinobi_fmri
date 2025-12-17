@@ -27,36 +27,118 @@ The pipeline uses environment variables for configuration. You can set them in y
 # .env file example
 SHINOBI_DATA_PATH=/path/to/data
 SHINOBI_PYTHON_BIN=/path/to/python
-SHINOBI_SLURM_PYTHON_BIN=/path/to/python_on_slurm_nodes
 ```
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SHINOBI_DATA_PATH` | Path to the root data directory containing `shinobi.fmriprep` | `/home/hyruuk/scratch/data` |
-| `SHINOBI_PYTHON_BIN` | Python interpreter for local execution | `python` |
-| `SHINOBI_SLURM_PYTHON_BIN` | Python interpreter for SLURM jobs | `python` |
+
+## Logging System
+
+All scripts come with a built-in logging system enabled by default.
+
+- **Log Location**: Logs are saved to `./logs/<module>/` by default. You can override this with `--log-dir`.
+- **Console Output**: Summaries and progress are shown in the console. 
+- **Verbosity**: Control detail level with `-v` flags.
+  - Default: Warnings and vital info.
+  - `-v` (INFO): Progress tracking, success/skip messages.
+  - `-vv` (DEBUG): Detailed steps, full tracebacks.
+
+**Example Log Output:**
+```
+============================================================
+Logging initialized for GLM_session
+Subject: sub-01
+Session: ses-001
+Log file: ./logs/GLM_session/sub-01_ses-001_20250127_143022.log
+============================================================
+...
+PROCESSING SUMMARY
+============================================================
+✓ Computed:  24
+⊘ Skipped:   12
+⚠ Warnings:  0
+✗ Errors:    4
+```
 
 ## Usage
 
-This project uses `invoke` to manage analysis tasks.
+You can run analysis tasks using `invoke` (recommended) or directly via python calls.
 
-List all available tasks:
+### Common Arguments for Invoke
+- `--verbose`: Enable verbose output (0=WARNING, 1=INFO, 2=DEBUG)
+- `--log-dir`: Custom directory for log files
+
+### 1. GLM Analysis
+
+**Run-level GLM:**
 ```bash
-invoke --list
+# Using invoke (recommended)
+invoke glm.run-level --subject sub-01 --session ses-001 --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.glm.compute_run_level -s sub-01 -ses ses-001 -v
 ```
 
-Run a GLM analysis locally for a specific subject and session:
+**Session-level GLM:**
 ```bash
-invoke glm.run-level --subject sub-01 --session ses-001
+# Using invoke
+invoke glm.session-level --subject sub-01 --session ses-001 --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.glm.compute_session_level -s sub-01 -ses ses-001 -v
 ```
 
-For more detailed usage instructions, including batch processing and visualization, see [TASKS_USAGE.md](TASKS_USAGE.md).
+**Subject-level GLM:**
+```bash
+# Using invoke
+invoke glm.subject-level --subject sub-01 --condition HIT --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.glm.compute_subject_level -s sub-01 -cond HIT -v
+```
+
+### 2. MVPA
+
+Run classification analysis (searchlight/decoding):
+
+```bash
+# Using invoke
+invoke mvpa.session-level --subject sub-01 --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.mvpa.compute_mvpa -s sub-01 --screening 20 -v
+```
+
+### 3. Correlations
+
+Compute correlation matrices (supports parallel chunking):
+
+```bash
+# Using invoke
+invoke corr.compute --n-jobs 20 --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.correlations.session_corrmat_with_hcp --n-jobs 20 -v
+```
+
+### 4. Visualization
+
+Generate visualization reports:
+
+```bash
+# Using invoke
+invoke viz.session-level --verbose 1
+
+# Direct execution
+python -m shinobi_fmri.visualization.viz_session-level -s sub-01 -c HIT -v
+```
 
 ## Project Structure
 
 - `shinobi_fmri/`: Main package source code
   - `glm/`: General Linear Model analysis scripts
   - `mvpa/`: Multi-Voxel Pattern Analysis scripts
+  - `correlations/`: Correlation analysis scripts
   - `visualization/`: Plotting and reporting tools
-- `slurm/`: SLURM batch submission scripts
-- `tasks.py`: Task definitions for `invoke` automation
+  - `utils/`: Shared utilities (logger, etc.)

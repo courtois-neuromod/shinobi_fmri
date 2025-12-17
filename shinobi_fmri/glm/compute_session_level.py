@@ -3,6 +3,7 @@ import os.path as op
 import pandas as pd
 from nilearn import image
 from shinobi_fmri.annotations.annotations import get_scrub_regressor
+from shinobi_fmri.utils.logger import ShinobiLogger
 import numpy as np
 import argparse
 import shinobi_behav
@@ -15,8 +16,11 @@ import pickle
 import nilearn
 import warnings
 
-warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+# Suppress informational warnings
+warnings.filterwarnings('ignore', message='.*imgs are being resampled to the mask_img resolution.*')
+warnings.filterwarnings('ignore', message='.*Mean values of 0 observed.*')
+warnings.filterwarnings('ignore', message='.*design matrices are supplied.*')
 warnings.filterwarnings("ignore", category=FutureWarning)
 from typing import Tuple
 
@@ -35,6 +39,27 @@ parser.add_argument(
     type=str,
     help="Session to process",
 )
+parser.add_argument(
+    "-v", "--verbose",
+    action="count",
+    default=0,
+    help="Increase verbosity level (e.g. -v for INFO, -vv for DEBUG)",
+)
+parser.add_argument(
+    "--log-dir",
+    default=None,
+    help="Directory for log files",
+)
+parser.add_argument(
+    "--save-glm",
+    action="store_true",
+    help="Save GLM objects to disk (default: False, only save z-maps)",
+)
+parser.add_argument(
+    "--low-level-confs",
+    action="store_true",
+    help="Include low-level confounds and button-press rate in design matrix (default: False)",
+)
 args = parser.parse_args()
 
 
@@ -50,14 +75,17 @@ def get_filenames(
     session : str
         Session id
     run : str
-        Run number
-    path_to_data : strrun: str
+        Run number (as extracted from fMRI filename, e.g., "1" or "01")
+    path_to_data : str
         Path to the data folder
     Returns
     -------
     tuple
         Tuple containing file names of fMRI, anatomy, and annotated events
     """
+    # Ensure run is zero-padded to 2 digits for event files
+    run_padded = f"{int(run):02d}"
+
     fmri_fname = op.join(
         path_to_data,
         "shinobi.fmriprep",
@@ -91,7 +119,7 @@ def get_filenames(
         sub,
         ses,
         "func",
-        f"{sub}_{ses}_task-shinobi_run-0{run}_desc-annotated_events.tsv",
+        f"{sub}_{ses}_task-shinobi_run-{run_padded}_desc-annotated_events.tsv",
     )
     assert op.isfile(
         events_fname
@@ -99,12 +127,12 @@ def get_filenames(
     return fmri_fname, anat_fname, events_fname, mask_fname
 
 
-def get_output_names(sub, ses, regressor_output_name, n_runs=None):
+def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level_confs=False):
     """
-    Constructs and returns the file paths for the GLM, z-map, and report files.
+    Constructs and returns the file paths for the GLM, z-map, beta-map, and report files in BIDS format.
 
     This function constructs the file paths for the GLM (general linear model),
-    z-map, and report files for a given subject, session, and regressor, using a predefined
+    z-map, beta-map, and report files for a given subject, session, and regressor, using BIDS-compliant
     directory structure and file naming convention.
 
     Parameters:
@@ -115,49 +143,51 @@ def get_output_names(sub, ses, regressor_output_name, n_runs=None):
     regressor_output_name : str
         The name of the regressor, used in the naming of the output files.
     n_runs : int, optional
-        Number of runs to include. If None, uses all runs (ses-level).
-        If specified, uses ses-level_Nrun directory.
+        Number of runs to include. If None, uses all runs (session-level, no desc).
+        If specified, adds desc-Nruns to filename (e.g., desc-3runs).
+    use_low_level_confs : bool
+        Whether to include low-level confounds (default: False).
+        If True, uses processed_low-level directory (directory name indicates low-level confounds).
 
     Returns:
     glm_fname : str
         The file path for the GLM file.
     z_map_fname : str
         The file path for the z-map file.
+    beta_map_fname : str
+        The file path for the beta-map file.
     report_fname : str
         The file path for the report file.
     """
+    # Determine output directory based on whether low-level confounds are used
+    output_dir = "processed_low-level" if use_low_level_confs else "processed"
+
+    # BIDS-compliant directory structure
+    func_dir = op.join(shinobi_behav.DATA_PATH, output_dir, sub, ses, "func")
+    os.makedirs(func_dir, exist_ok=True)
+
+    # Optional descriptor for incremental analysis (number of runs)
+    # Note: low-level confounds info is already in the directory name (processed vs processed_low-level)
+    desc_suffix = f"_desc-{n_runs}runs" if n_runs is not None else ""
+
+    # BIDS-compliant base filename
+    base_name = f"{sub}_{ses}_task-shinobi{desc_suffix}_contrast-{regressor_output_name}"
+
+    glm_fname = op.join(func_dir, f"{base_name}_glm.pkl")
+    z_map_fname = op.join(func_dir, f"{base_name}_stat-z.nii.gz")
+    beta_map_fname = op.join(func_dir, f"{base_name}_stat-beta.nii.gz")
+
+    # Report filename (keeping reports in figures_path)
     if n_runs is None:
         level_dir = "ses-level"
-        run_suffix = ""
     else:
         level_dir = f"ses-level_{n_runs}run"
-        run_suffix = f"_{n_runs}run"
-    
-    glm_fname = op.join(
-        shinobi_behav.DATA_PATH,
-        "processed",
-        "glm",
-        level_dir,
-        f"{sub}_{ses}_{regressor_output_name}_simplemodel{run_suffix}_fitted_glm.pkl",
-    )
 
-    z_map_fname = op.join(
-        shinobi_behav.DATA_PATH,
-        "processed",
-        "z_maps",
-        level_dir,
-        regressor_output_name,
-        f"{sub}_{ses}_simplemodel_{regressor_output_name}{run_suffix}.nii.gz",
-    )
+    report_dir = op.join(shinobi_behav.FIG_PATH, level_dir, regressor_output_name, "report")
+    os.makedirs(report_dir, exist_ok=True)
+    report_fname = op.join(report_dir, f"{base_name}_report.html")
 
-    report_fname = op.join(
-        shinobi_behav.FIG_PATH,
-        level_dir,
-        regressor_output_name,
-        "report",
-        f"{sub}_{ses}_simplemodel_{regressor_output_name}{run_suffix}_report.html",
-    )
-    return glm_fname, z_map_fname, report_fname
+    return glm_fname, z_map_fname, beta_map_fname, report_fname
 
 
 def load_image_and_mask(fmri_fname, mask_fname):
@@ -189,7 +219,12 @@ def load_image_and_mask(fmri_fname, mask_fname):
     target_affine = np.column_stack([np.eye(4, 3) * 4, aff_orig])
     target_shape = fmri_img.shape[:3]
     mask_resampled = image.resample_img(
-        mask_fname, target_affine=target_affine, target_shape=target_shape
+        mask_fname,
+        target_affine=target_affine,
+        target_shape=target_shape,
+        interpolation='nearest',
+        force_resample=True,
+        copy_header=True,
     )
     return fmri_img, mask_resampled
 
@@ -223,10 +258,10 @@ def add_button_press_confounds(confounds, run_events):
     frame_events = run_events[run_events['trial_type'] == 'frame'].copy().reset_index(drop=True)
     
     if len(frame_events) == 0:
-        print("Warning: No frame events found in run_events")
+        # print("Warning: No frame events found in run_events")
         return confounds
-    
-    print(f"Found {len(frame_events)} frame events")
+
+    # print(f"Found {len(frame_events)} frame events")
     
     # Initialize regressors
     any_press = np.zeros(n_volumes)  # 1 if any button pressed
@@ -249,7 +284,16 @@ def add_button_press_confounds(confounds, run_events):
         
         button_states = button_states.values
         onsets = frame_events['onset'].values
-        
+
+        # Filter out None/NaN onsets and log if any found
+        valid_mask = pd.notna(onsets)
+        n_invalid = (~valid_mask).sum()
+        if n_invalid > 0:
+            logging.warning(f"Found {n_invalid} frame events with NaN onsets (button {button})")
+
+        onsets = onsets[valid_mask]
+        button_states = button_states[valid_mask]
+
         # Detect transitions: False->True = press, True->False = release
         presses = np.zeros(len(button_states), dtype=bool)
         releases = np.zeros(len(button_states), dtype=bool)
@@ -306,13 +350,19 @@ def downsample_to_TR(signal, fs=60.0, TR=1.49):
 
 def add_psychophysics_confounds(confounds, run_events):
     """
-    Add psychophysics confounds to the confounds dataframe
+    Add low-level features confounds to the confounds dataframe
     """
     n_volumes = len(confounds[0])
     ppc_data = {}  # Dictionary to store accumulated data for each key
+    n_invalid_onsets = 0
 
     for idx, row in run_events.iterrows():
         if row["trial_type"] != "gym-retro_game":
+            continue
+
+        # Skip if onset is None or NaN and count occurrences
+        if pd.isna(row["onset"]):
+            n_invalid_onsets += 1
             continue
 
         ppc_fname = op.join(
@@ -322,7 +372,13 @@ def add_psychophysics_confounds(confounds, run_events):
         if not os.path.exists(ppc_fname):
             continue
 
-        ppc_rep = np.load(ppc_fname, allow_pickle=True).item()
+        # Try to load low-level features, skip if corrupted
+        try:
+            ppc_rep = np.load(ppc_fname, allow_pickle=True).item()
+        except Exception as e:
+            logging.warning(f"Failed to load low-level features from {ppc_fname}: {e}")
+            continue
+
         onset = float(row["onset"])
         onset_offset = int(round(onset / t_r))
 
@@ -346,9 +402,13 @@ def add_psychophysics_confounds(confounds, run_events):
     for key, data in ppc_data.items():
         confounds[0][key] = data
 
+    # Log if any invalid onsets were found
+    if n_invalid_onsets > 0:
+        logging.warning(f"Found {n_invalid_onsets} gym-retro_game events with NaN onsets (low-level features)")
+
     return confounds
 
-def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
+def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events, use_low_level_confs=False):
     """
     Load confounds, create design matrix and return a cleaned matrix
     Parameters
@@ -361,6 +421,8 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         Dataframe containing annotation events
     run_events : dataframe
         Dataframe containing run events
+    use_low_level_confs : bool
+        Whether to include low-level confounds and button-press rate (default: False)
     Returns
     -------
     matrix
@@ -374,8 +436,9 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events):
         wm_csf="basic",
         global_signal="full",
     )
-    confounds = add_psychophysics_confounds(confounds, run_events)
-    confounds = add_button_press_confounds(confounds, run_events)
+    if use_low_level_confs:
+        confounds = add_psychophysics_confounds(confounds, run_events)
+        confounds = add_button_press_confounds(confounds, run_events)
     
     # Generate design matrix
     bold_shape = fmri_img.shape
@@ -427,50 +490,49 @@ def make_and_fit_glm(fmri_imgs, design_matrices, mask_resampled):
     return fmri_glm
 
 
-def make_z_map(z_map_fname, report_fname, fmri_glm, regressor_name):
+def make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_name):
     """
-    Creates or loads a z-score map for a given GLM and regressor.
+    Creates z-score and beta maps for a given GLM and regressor.
 
-    This function creates the z-score map for a given GLM and regressor,
-    then saves the map to a file and generates a report. If the z-score
-    map file already exists, it skips the creation process.
+    This function creates the z-score and beta maps for a given GLM and regressor,
+    then saves the maps to files and generates a report.
 
     Parameters:
     z_map_fname : str
         The name of the file to save the z-score map.
+    beta_map_fname : str
+        The name of the file to save the beta map.
     report_fname : str
         The name of the file to save the report.
     fmri_glm : nistats.regression.FirstLevelModel
-        The GLM to use for creating the z-score map.
+        The GLM to use for creating the maps.
     regressor_name : str
-        The name of the regressor for which to create the z-score map.
+        The name of the regressor for which to create the maps.
 
     Returns:
     None
     """
-    if not (os.path.exists(z_map_fname)):
-        print(f"Z map not found, computing : {z_map_fname}")
+    # Check if regressor exists in the design matrix
+    design_matrix = fmri_glm.design_matrices_[0]
+    if regressor_name not in design_matrix.columns:
+        raise ValueError(f"Regressor '{regressor_name}' not found in design matrix (condition did not occur in this session)")
 
-        # Get betas
-        beta_map = fmri_glm.compute_contrast(regressor_name, output_type="effect_size")
-        beta_map_fname = z_map_fname.replace("z_maps", "beta_maps")
-        os.makedirs(os.path.dirname(beta_map_fname), exist_ok=True)
-        beta_map.to_filename(beta_map_fname)
-        
-        # Get Z_map
-        z_map = fmri_glm.compute_contrast(
-            regressor_name, output_type="z_score", stat_type="F"
-        )
-        os.makedirs(os.path.dirname(z_map_fname), exist_ok=True)
-        z_map.to_filename(z_map_fname)
+    # Get betas
+    beta_map = fmri_glm.compute_contrast(regressor_name, output_type="effect_size")
+    beta_map.to_filename(beta_map_fname)
 
-        # Get report
-        os.makedirs(os.path.dirname(report_fname), exist_ok=True)
-        report = fmri_glm.generate_report(contrasts=[regressor_name])
-        report.save_as_html(report_fname)
-    else:
-        print(f"Z map found, skipping : {z_map_fname}")
-    # return z_map
+    # Get Z_map
+    z_map = fmri_glm.compute_contrast(
+        regressor_name, output_type="z_score", stat_type="F"
+    )
+    z_map.to_filename(z_map_fname)
+
+    # Get report
+    report = fmri_glm.generate_report(
+        contrasts=[regressor_name],
+        height_control=None
+    )
+    report.save_as_html(report_fname)
 
 
 def select_events(run_events):
@@ -500,7 +562,7 @@ def select_events(run_events):
     return annotation_events
 
 
-def load_run(fmri_fname, mask_fname, events_fname):
+def load_run(fmri_fname, mask_fname, events_fname, use_low_level_confs=False):
     """
     Loads and prepares the data for a given run.
 
@@ -514,6 +576,8 @@ def load_run(fmri_fname, mask_fname, events_fname):
         The file name of the mask.
     events_fname : str
         The file name of the event data.
+    use_low_level_confs : bool
+        Whether to include low-level confounds and button-press rate (default: False)
 
     Returns:
     design_matrix_clean : pandas.DataFrame
@@ -524,7 +588,7 @@ def load_run(fmri_fname, mask_fname, events_fname):
         The loaded mask.
     """
     # Load events
-    run_events = pd.read_csv(events_fname, sep="\t", index_col=[0])
+    run_events = pd.read_csv(events_fname, sep="\t", index_col=[0], low_memory=False)
     annotation_events = select_events(run_events)
 
     # Load images
@@ -532,12 +596,12 @@ def load_run(fmri_fname, mask_fname, events_fname):
 
     # Make design matrix
     design_matrix_clean = get_clean_matrix(
-        fmri_fname, fmri_img, annotation_events, run_events
+        fmri_fname, fmri_img, annotation_events, run_events, use_low_level_confs=use_low_level_confs
     )
     return design_matrix_clean, fmri_img, mask_resampled
 
 
-def load_session(sub, ses, run_list, path_to_data):
+def load_session(sub, ses, run_list, path_to_data, use_low_level_confs=False):
     """
     Loads and prepares the data for a given session.
 
@@ -553,6 +617,8 @@ def load_session(sub, ses, run_list, path_to_data):
         The list of runs to load.
     path_to_data : str
         The path to the data.
+    use_low_level_confs : bool
+        Whether to include low-level confounds and button-press rate (default: False)
 
     Returns:
     fmri_imgs : list of nibabel.Nifti1Image
@@ -570,9 +636,9 @@ def load_session(sub, ses, run_list, path_to_data):
         fmri_fname, anat_fname, events_fname, mask_fname = get_filenames(
             sub, ses, run, path_to_data
         )
-        print(f"Loading : {fmri_fname}")
+        # print(f"Loading : {fmri_fname}")
         design_matrix_clean, fmri_img, mask_resampled = load_run(
-            fmri_fname, mask_fname, events_fname
+            fmri_fname, mask_fname, events_fname, use_low_level_confs=use_low_level_confs
         )
         design_matrices.append(design_matrix_clean)
         fmri_imgs.append(fmri_img)
@@ -644,14 +710,15 @@ def trim_design_matrices(design_matrices, regressor_name):
                 # Try to drop the current regressor from the design matrix
                 trimmed_design_matrix = trimmed_design_matrix.drop(columns=reg)
             except Exception as e:
-                print(e)
-                print(f"Regressor {reg} might be missing ?")
+                # print(e)
+                # print(f"Regressor {reg} might be missing ?")
+                pass
         # Append the trimmed design matrix to the list of trimmed design matrices
         trimmed_design_matrices.append(trimmed_design_matrix)
     return trimmed_design_matrices
 
 
-def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampled_global=None):
+def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampled_global=None, save_glm=False, use_low_level_confs=False):
     """
     Creates a General Linear Model (GLM) if it doesn't already exist, or loads it from disk if it does.
 
@@ -683,13 +750,21 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampl
     mask_resampled : nibabel.Nifti1Image
         The mask used for the GLM.
     """
-    if not (os.path.exists(glm_fname)):
+    if save_glm and os.path.exists(glm_fname):
+        # Load existing GLM
+        with open(glm_fname, "rb") as f:
+            # print(f"GLM found, loading : {glm_fname}")
+            fmri_glm = pickle.load(f)
+            # print("Loaded.")
+        mask_resampled = mask_resampled_global
+    else:
+        # Compute GLM fresh (either save_glm=False or GLM doesn't exist)
         fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(
-            sub, ses, run_list, path_to_data
+            sub, ses, run_list, path_to_data, use_low_level_confs=use_low_level_confs
         )
 
-        print(f"GLM not found, computing : {glm_fname}")
-        print(glm_regressors)
+        # print(f"Computing GLM : {glm_fname}")
+        # print(glm_regressors)
         trimmed_design_matrices = trim_design_matrices(
             design_matrices, glm_regressors[0]
         )
@@ -702,28 +777,23 @@ def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampl
                     f"{glm_regressors[0]}X{glm_regressors[1]} = {glm_regressors[0]} * {glm_regressors[1]}",
                     inplace=True,
                 )
-        
+
         # Use provided mask if available, otherwise use loaded one
         mask_to_use = mask_resampled_global if mask_resampled_global is not None else mask_resampled
-        
+
         fmri_glm = make_and_fit_glm(fmri_imgs, trimmed_design_matrices, mask_to_use)
-        
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(glm_fname), exist_ok=True)
-        
-        with open(glm_fname, "wb") as f:
-            pickle.dump(fmri_glm, f, protocol=4)
-    else:
-        with open(glm_fname, "rb") as f:
-            print(f"GLM found, loading : {glm_fname}")
-            fmri_glm = pickle.load(f)
-            print("Loaded.")
-        mask_resampled = mask_resampled_global
-    
+
+        if save_glm:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(glm_fname), exist_ok=True)
+
+            with open(glm_fname, "wb") as f:
+                pickle.dump(fmri_glm, f, protocol=4)
+
     return fmri_glm, mask_resampled
 
 
-def process_ses(sub, ses, path_to_data):
+def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None):
     """
     Process an fMRI session for a given subject and session.
     It runs General Linear Models (GLM) for different regressors, creating them if they don't already exist.
@@ -736,15 +806,21 @@ def process_ses(sub, ses, path_to_data):
         Session identifier.
     path_to_data : str
         Path to the data directory.
+    save_glm : bool
+        Whether to save GLM objects to disk (default: False)
+    use_low_level_confs : bool
+        Whether to include low-level confounds and button-press rate (default: False)
+    logger : GLMLogger, optional
+        Logger instance for tracking processing.
 
     Returns:
     None
     """
-    
+
     def process_regressor(regressor_name, run_list_subset, n_runs_label, lvl=None):
         """
         Process a single regressor with a specific subset of runs.
-        
+
         Parameters:
         regressor_name : str
             Name of the regressor to process
@@ -761,19 +837,39 @@ def process_ses(sub, ses, path_to_data):
         else:
             glm_regressors = [regressor_name] + [lvl]
             regressor_output_name = f"{regressor_name}X{lvl}"
-        
-        print(f"Simple model of : {regressor_output_name} with {len(run_list_subset)} runs")
-        glm_fname, z_map_fname, report_fname = get_output_names(
-            sub, ses, regressor_output_name, n_runs=n_runs_label
-        )
-        
-        if not (os.path.exists(z_map_fname)):
-            fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname)
-            make_z_map(z_map_fname, report_fname, fmri_glm, regressor_output_name)
+
+        if logger:
+            logger.debug(f"Processing regressor: {regressor_output_name} with {len(run_list_subset)} runs")
         else:
-            print(f"Z map found, skipping : {z_map_fname}")
+            print(f"Simple model of : {regressor_output_name} with {len(run_list_subset)} runs")
+
+        glm_fname, z_map_fname, beta_map_fname, report_fname = get_output_names(
+            sub, ses, regressor_output_name, n_runs=n_runs_label, use_low_level_confs=use_low_level_confs
+        )
+
+        if not (os.path.exists(z_map_fname)):
+            try:
+                if logger:
+                    logger.log_computation_start(f"{regressor_output_name}", z_map_fname)
+
+                fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, use_low_level_confs=use_low_level_confs)
+                make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_output_name)
+
+                if logger:
+                    logger.log_computation_success(f"{regressor_output_name}", z_map_fname)
+            except Exception as e:
+                if logger:
+                    logger.log_computation_error(f"{regressor_output_name}", e)
+                else:
+                    print(f"Error processing {regressor_output_name}: {e}")
+        else:
+            if logger:
+                logger.log_computation_skip(f"{regressor_output_name}", z_map_fname)
+            else:
+                print(f"Z map found, skipping : {z_map_fname}")
 
     # Get list of runs for this session
+    import re
     ses_fpath = op.join(path_to_data, "shinobi.fmriprep", sub, ses, "func")
     ses_files = os.listdir(ses_fpath)
     run_files = [
@@ -781,51 +877,67 @@ def process_ses(sub, ses, path_to_data):
         for x in ses_files
         if "space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz" in x
     ]
-    run_list = sorted([x[32] for x in run_files])
-    
-    print(f"Found {len(run_list)} runs for {sub} {ses}: {run_list}")
-    
+    # Extract run numbers from BIDS filenames using regex
+    run_list = []
+    for fname in run_files:
+        match = re.search(r'run-(\d+)', fname)
+        if match:
+            run_list.append(match.group(1))  # Keep as string for consistency
+    run_list = sorted(run_list)
+
+    if logger:
+        logger.log_run_list(run_list)
+    else:
+        print(f"Found {len(run_list)} runs for {sub} {ses}: {run_list}")
+
     # Process incrementally: 1 run, 2 runs, 3 runs, etc.
     for n_runs in range(1, len(run_list) + 1):
         run_list_subset = run_list[:n_runs]
-        
+
         # Determine the directory label
         # If using all runs, store in ses-level; otherwise in ses-level_Nrun
         n_runs_label = None if n_runs == len(run_list) else n_runs
-        
-        print(f"\n{'='*60}")
-        print(f"Processing {sub} {ses} with {n_runs} run(s): {run_list_subset}")
-        print(f"{'='*60}\n")
-        
+
+        if not logger:
+            print(f"\n{'='*60}")
+            print(f"Processing {sub} {ses} with {n_runs} run(s): {run_list_subset}")
+            print(f"{'='*60}\n")
+
         # Make a GLM with each regressor separately (simple models)
         for regressor_name in CONDS_LIST + LEVELS:
-            try:
-                process_regressor(regressor_name, run_list_subset, n_runs_label)
-            except Exception as e:
-                print(f"Error processing {regressor_name} with {n_runs} runs: {e}")
+            process_regressor(regressor_name, run_list_subset, n_runs_label)
 
         # Still simple models but split by level (interaction annotation X level)
         for lvl in LEVELS:
             for regressor_name in CONDS_LIST:
-                try:
-                    process_regressor(regressor_name, run_list_subset, n_runs_label, lvl)
-                except Exception as e:
-                    print(f"Error processing {regressor_name}X{lvl} with {n_runs} runs: {e}")
-    
+                process_regressor(regressor_name, run_list_subset, n_runs_label, lvl)
+
     return
 
 
 def main():
-    # Make folders if needed for all possible run counts
-    os.makedirs(op.join(path_to_data, "processed", "glm", "ses-level"), exist_ok=True)
-    os.makedirs(op.join(path_to_data, "processed", "z_maps", "ses-level"), exist_ok=True)
-    
-    # Create directories for incremental runs (1-5 runs)
-    for n in range(1, 6):
-        os.makedirs(op.join(path_to_data, "processed", "glm", f"ses-level_{n}run"), exist_ok=True)
-        os.makedirs(op.join(path_to_data, "processed", "z_maps", f"ses-level_{n}run"), exist_ok=True)
-    
-    fmri_glm = process_ses(sub, ses, path_to_data)
+    # Determine verbosity
+    if args.verbose == 0:
+        log_level = logging.WARNING
+    elif args.verbose == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.DEBUG
+
+    # Initialize logger
+    logger = ShinobiLogger(
+        log_name="GLM_session",
+        subject=sub,
+        session=ses,
+        log_dir=args.log_dir,
+        verbosity=log_level
+    )
+
+    try:
+        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger)
+    finally:
+        # Always close logger to print summary
+        logger.close()
 
 
 if __name__ == "__main__":

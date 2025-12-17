@@ -11,6 +11,8 @@ import nibabel as nb
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 from nilearn.glm import threshold_stats_img
 import argparse
+from shinobi_fmri.utils.logger import ShinobiLogger
+import logging
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -27,13 +29,28 @@ parser.add_argument(
     type=str,
     help="Contrast or conditions to compute",
 )
+parser.add_argument(
+    "-v", "--verbose",
+    action="count",
+    default=0,
+    help="Increase verbosity level (e.g. -v for INFO, -vv for DEBUG)",
+)
+parser.add_argument(
+    "--log-dir",
+    default=None,
+    help="Directory for log files",
+)
 args = parser.parse_args()
 
 
 def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, figpath=None):
     sub = zmap_fname.split("/")[-1].split("_")[0]
-    modeltype = zmap_fname.split("/")[-1].split("_")[1][:-5]
-    cond_name = zmap_fname.split("/")[-1].split("_")[2]
+    # Handle session/condition parsing safely
+    # Format: sub_ses_cond.nii.gz
+    # Example: sub-01_ses-001_HIT.nii.gz
+    parts = zmap_fname.split("/")[-1].split("_")
+    ses = parts[1]
+    cond_name = parts[-1].replace(".nii.gz", "")
     
     if zmap==None:
         zmap = zmap_fname
@@ -80,17 +97,25 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
         plt.tight_layout()
     if figpath is not None:
         plt.savefig(figpath)
+        plt.close(fig)
 
 
 def create_viz(sub, ses, cond_name, modeltype, 
                path_to_data=shinobi_behav.DATA_PATH, 
-               figures_path=shinobi_behav.FIG_PATH):
+               figures_path=shinobi_behav.FIG_PATH,
+               logger=None):
     
     output_path = op.join(figures_path, "ses-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
     folderpath = op.join(path_to_data, "processed", "z_maps", "ses-level")
     
     zmap_fname = op.join(folderpath, cond_name, f"{sub}_{ses}_{modeltype}model_{cond_name}.nii.gz")
+    
+    if not op.exists(zmap_fname):
+        if logger:
+            logger.warning(f"Z-map not found: {zmap_fname}")
+        return
+
     output_path = op.join(figures_path, "ses-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
 
@@ -105,6 +130,9 @@ def create_viz(sub, ses, cond_name, modeltype,
     )
     bg_img = nb.load(anat_fname)
     
+    if logger:
+        logger.info(f"Generating visualizations for {zmap_fname}")
+
     # compute thresholds
     uncorrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.001, height_control='fdr')
     cluster_corrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.05, height_control='fdr', cluster_threshold=10)
@@ -124,6 +152,10 @@ def create_viz(sub, ses, cond_name, modeltype,
     plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, 
                              title=f'{sub} {cond_name} raw map',
                              figpath=op.join(unthresholded_folder, f"inflatedsurf_{sub}_{ses}_{modeltype}model{cond_name}.png"))
+    
+    if logger:
+        logger.debug(f"Saved unthresholded maps to {unthresholded_folder}")
+
     # thresholded, uncorrected
     thresholded_folder = op.join(figures_path, "ses-level", cond_name, "zmap_thresholded")
     os.makedirs(thresholded_folder, exist_ok=True)
@@ -156,6 +188,8 @@ def create_viz(sub, ses, cond_name, modeltype,
                              title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox',
                              figpath=op.join(cluster_folder, f"inflatedsurf_{sub}_{ses}_{modeltype}model{cond_name}.png"))
 
+    if logger:
+        logger.log_computation_success("Viz_session-level", zmap_fname)
 
 
 if __name__ == "__main__":
@@ -171,16 +205,42 @@ if __name__ == "__main__":
     else:
         contrasts = COND_LIST
 
-    for sub in subjects:
-        for cond_name in contrasts:
-            for modeltype in ["simple"]:#, "intermediate"]:
-                filelist = os.listdir(op.join(shinobi_behav.DATA_PATH, "processed", "z_maps", "ses-level", cond_name))
-                ses_list = [file for file in filelist if sub in file and modeltype in file]
-                for ses in ses_list:
-                    ses = ses.split("_")[1]
-                    try:
-                        print(f"Creating viz for {sub} {ses} {cond_name} {modeltype}")
-                        create_viz(sub, ses, cond_name, modeltype)
-                    except Exception as e:
-                        print(e)
+    # Determine verbosity
+    if args.verbose == 0:
+        log_level = logging.WARNING
+    elif args.verbose == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.DEBUG
+
+    # Initialize logger
+    logger = ShinobiLogger(
+        log_name="Viz_session",
+        log_dir=args.log_dir,
+        verbosity=log_level
+    )
     
+    try:
+        for sub in subjects:
+            for cond_name in contrasts:
+                for modeltype in ["simple"]:#, "intermediate"]:
+                    search_dir = op.join(shinobi_behav.DATA_PATH, "processed", "z_maps", "ses-level", cond_name)
+                    if not op.exists(search_dir):
+                        logger.warning(f"Directory not found: {search_dir}")
+                        continue
+                        
+                    filelist = os.listdir(search_dir)
+                    ses_list = [file for file in filelist if sub in file and modeltype in file]
+                    
+                    if not ses_list:
+                        logger.debug(f"No z-maps found for {sub} {cond_name} {modeltype}")
+                    
+                    for ses_file in ses_list:
+                        ses = ses_file.split("_")[1]
+                        try:
+                            logger.info(f"Creating viz for {sub} {ses} {cond_name} {modeltype}")
+                            create_viz(sub, ses, cond_name, modeltype, logger=logger)
+                        except Exception as e:
+                            logger.log_computation_error(f"Viz_{sub}_{ses}_{cond_name}", e)
+    finally:
+        logger.close()
