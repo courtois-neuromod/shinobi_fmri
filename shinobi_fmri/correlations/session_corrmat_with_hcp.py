@@ -1,4 +1,4 @@
-from config import DATA_PATH, FIG_PATH
+from shinobi_fmri.config import DATA_PATH, FIG_PATH
 import argparse
 import os
 import os.path as op

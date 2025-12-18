@@ -3,7 +3,7 @@ import os.path as op
 from nilearn import datasets
 from nilearn import surface
 from nilearn import plotting
-import config
+import shinobi_fmri.config as config
 import matplotlib.pyplot as plt
 import itertools
 import matplotlib.image as mpimg

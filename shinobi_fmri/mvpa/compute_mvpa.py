@@ -6,7 +6,7 @@ import numpy as np
 import pickle
 import argparse
 from tqdm import tqdm
-import config
+import shinobi_fmri.config as config
 import nibabel as nib
 from nilearn import image
 from nilearn.input_data import NiftiMasker

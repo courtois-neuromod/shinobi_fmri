@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from nilearn import plotting
-import config
+import shinobi_fmri.config as config
 import nibabel as nib
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt

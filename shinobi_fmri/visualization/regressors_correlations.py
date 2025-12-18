@@ -1,4 +1,4 @@
-import config
+import shinobi_fmri.config as config
 import os.path as op
 import seaborn as sbn
 from shinobi_fmri.annotations.annotations import trim_events_df

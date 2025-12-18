@@ -6,7 +6,7 @@ from shinobi_fmri.annotations.annotations import get_scrub_regressor
 from shinobi_fmri.utils.logger import ShinobiLogger
 import numpy as np
 import argparse
-import config
+import shinobi_fmri.config as config
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
 from nilearn.image import clean_img
 from nilearn.signal import clean

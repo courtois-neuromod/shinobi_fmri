@@ -3,7 +3,7 @@ import numpy as np
 import os
 import glob
 import os.path as op
-from config import DATA_PATH
+from shinobi_fmri.config import DATA_PATH
 import nibabel as nib
 import json
 

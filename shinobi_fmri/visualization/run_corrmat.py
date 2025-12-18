@@ -1,4 +1,4 @@
-from config import DATA_PATH, FIG_PATH
+from shinobi_fmri.config import DATA_PATH, FIG_PATH
 import matplotlib.pyplot as plt
 from nilearn import plotting
 from nilearn import image

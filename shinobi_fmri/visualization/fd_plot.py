@@ -1,4 +1,4 @@
-import config
+import shinobi_fmri.config as config
 import seaborn as sbn
 import os
 import pandas as pd

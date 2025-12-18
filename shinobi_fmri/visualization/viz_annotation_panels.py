@@ -39,9 +39,7 @@ from shinobi_fmri.utils.logger import ShinobiLogger
 import logging
 
 try:
-    import config
-    DATA_PATH = config.DATA_PATH
-    SUBJECTS = config.SUBJECTS
+    from shinobi_fmri.config import DATA_PATH, SUBJECTS
 except ImportError:
     print("Warning: config not found. Using defaults.")
     DATA_PATH = "/home/hyruuk/scratch/data"

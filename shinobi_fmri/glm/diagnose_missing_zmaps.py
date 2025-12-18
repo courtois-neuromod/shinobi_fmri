@@ -20,9 +20,7 @@ import pandas as pd
 from typing import List, Dict, Tuple
 
 try:
-    import config
-    DATA_PATH = config.DATA_PATH
-    SUBJECTS = config.SUBJECTS
+    from shinobi_fmri.config import DATA_PATH, SUBJECTS
 except ImportError:
     DATA_PATH = "/home/hyruuk/scratch/data"
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']

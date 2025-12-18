@@ -1,7 +1,7 @@
 import os
 import os.path as op
 import glob
-from config import DATA_PATH
+from shinobi_fmri.config import DATA_PATH
 
 filelist = glob.glob(
     op.join(

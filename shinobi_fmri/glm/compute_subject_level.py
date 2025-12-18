@@ -10,7 +10,7 @@ import numpy as np
 import pdb
 import argparse
 import nilearn
-import config
+import shinobi_fmri.config as config
 
 # Suppress informational warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)

@@ -33,7 +33,7 @@ except ImportError:
 
 # Import configuration
 try:
-    from config import DATA_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
+    from shinobi_fmri.config import DATA_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
 except ImportError:
     # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
