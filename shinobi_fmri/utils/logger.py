@@ -218,6 +218,13 @@ class ShinobiLogger:
 
         self.summary.add_error(computation_type, error_msg)
 
+    def log_run_list(self, run_list: List[str]):
+        """Log list of runs found for processing."""
+        if self.subject and self.session:
+            self.info(f"Found {len(run_list)} runs for {self.subject} {self.session}: {run_list}")
+        else:
+            self.info(f"Found {len(run_list)} runs: {run_list}")
+
     def print_summary(self):
         """Print and log the processing summary."""
         summary_text = self.summary.get_summary_text()
