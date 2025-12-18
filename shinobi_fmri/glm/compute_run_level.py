@@ -10,7 +10,7 @@ import numpy as np
 import pdb
 import argparse
 import nilearn
-import shinobi_behav
+import config
 
 # Suppress informational warnings
 warnings.filterwarnings('ignore', message='.*imgs are being resampled to the mask_img resolution.*')
@@ -637,9 +637,9 @@ def main(logger=None):
 
 if __name__ == "__main__":
     figures_path = (
-        shinobi_behav.FIG_PATH
+        config.FIG_PATH
     )  #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-    path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
+    path_to_data = config.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     CONDS_LIST = [
         "HIT",
         "JUMP",

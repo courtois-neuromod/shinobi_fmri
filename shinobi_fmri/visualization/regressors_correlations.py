@@ -1,4 +1,4 @@
-import shinobi_behav
+import config
 import os.path as op
 import seaborn as sbn
 from shinobi_fmri.annotations.annotations import trim_events_df
@@ -13,9 +13,9 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-figures_path = shinobi_behav.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-path_to_data = shinobi_behav.path_to_data  #'/media/storage/neuromod/shinobi_data/'
-subjects = shinobi_behav.subjects
+figures_path = config.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+path_to_data = config.path_to_data  #'/media/storage/neuromod/shinobi_data/'
+subjects = config.subjects
 t_r=1.49
 hrf_model='spm'
 

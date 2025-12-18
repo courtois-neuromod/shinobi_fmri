@@ -31,11 +31,17 @@ except ImportError:
     AIROH_AVAILABLE = False
     print("Note: airoh not installed. Install with 'pip install airoh invoke' for additional utilities.")
 
-# Try to import shinobi_behav for DATA_PATH
+# Import configuration
 try:
-    from shinobi_behav import DATA_PATH
+    from config import DATA_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
 except ImportError:
+    # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
+    SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+    CONDITIONS = ['HIT', 'JUMP', 'DOWN', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+    PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")
+    SLURM_PYTHON_BIN = os.getenv("SHINOBI_SLURM_PYTHON_BIN", "python")
+
     if "SHINOBI_DATA_PATH" not in os.environ and not op.exists(DATA_PATH):
         print(f"Warning: Default DATA_PATH {DATA_PATH} does not exist. Set SHINOBI_DATA_PATH env var.")
     else:
@@ -46,21 +52,13 @@ except ImportError:
 # Configuration
 # =============================================================================
 
-# Python environment for local execution
-PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")  # Uses current environment or specified
-
-# Python environment for SLURM execution
-# Default to a placeholder or raise error if not set when needed
-SLURM_PYTHON_BIN = os.getenv("SHINOBI_SLURM_PYTHON_BIN", "python")
-
-# Project paths
+# Project paths (these are computed, not from config)
 PROJECT_ROOT = op.dirname(op.abspath(__file__))
 SHINOBI_FMRI_DIR = op.join(PROJECT_ROOT, "shinobi_fmri")
 SLURM_DIR = op.join(PROJECT_ROOT, "slurm")
 
-# Analysis subjects and conditions
-SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
-CONDITIONS = ['HIT', 'JUMP', 'DOWN', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+# Note: DATA_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, and SLURM_PYTHON_BIN
+# are now loaded from config.py above (or fall back to environment variables)
 
 
 # =============================================================================

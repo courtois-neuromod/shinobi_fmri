@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from nilearn import plotting
-import shinobi_behav
+import config
 import nibabel as nib
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
@@ -136,7 +136,7 @@ def create_all_images(subject, condition, fig_folder):
     # Create images
     ## Make subject level z_maps
     print(f"Create images for {subject} {condition}")
-    sublevel_zmap_path = os.path.join(shinobi_behav.DATA_PATH,
+    sublevel_zmap_path = os.path.join(config.DATA_PATH,
                                       "processed",
                                       "z_maps",
                                       "subject-level",
@@ -161,10 +161,10 @@ def create_all_images(subject, condition, fig_folder):
             missing_img.save(sublevel_save_path)
         
     ## Make ses level z_maps
-    ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
+    ses_list = sorted(os.listdir(os.path.join(config.DATA_PATH, "shinobi", subject)))
     for session in ses_list:
         
-        zmap_path = os.path.join(shinobi_behav.DATA_PATH,
+        zmap_path = os.path.join(config.DATA_PATH,
                                           "processed",
                                           "z_maps",
                                           "ses-level",
@@ -191,18 +191,18 @@ def make_annotation_plot(condition, save_path):
     '''Make a 8*4 plot for one annotation, with all the subjects on the same page
     '''
     images = []
-    for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
+    for idx_subj, subject in enumerate(config.SUBJECTS):
         print(f"Processing {subject}")
         fig_folder = os.path.join(".", 
                         "reports", "figures", "full_zmap_plot", subject, condition)
         # obtain top 4 sesmaps
-        ses_list = sorted(os.listdir(os.path.join(shinobi_behav.DATA_PATH, "shinobi", subject)))
+        ses_list = sorted(os.listdir(os.path.join(config.DATA_PATH, "shinobi", subject)))
         sesmap_vox_above_thresh = []
         sesmap_name = []
         for session in ses_list:
             try:
                 print(f"Loading {session}")
-                zmap_path = os.path.join(shinobi_behav.DATA_PATH, 
+                zmap_path = os.path.join(config.DATA_PATH, 
                                                 "processed",
                                                 "z_maps",
                                                 "ses-level",
@@ -242,7 +242,7 @@ def make_annotation_plot(condition, save_path):
     #ax_lines.axhline(y=0.5, color='grey')
     #ax_lines.axis('off')
 
-    for idx_subj, subject in enumerate(shinobi_behav.SUBJECTS):
+    for idx_subj, subject in enumerate(config.SUBJECTS):
         # Create a larger subplot for the first image
         if idx_subj == 0:
             ax1 = fig.add_subplot(gs[0:2, 0:2])
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:#, 'lvl1', 'lvl4', 'lvl5']:
-        for subject in shinobi_behav.SUBJECTS:
+        for subject in config.SUBJECTS:
             fig_folder = os.path.join(".", 
                                     "reports", "figures", "full_zmap_plot", subject, condition)
             os.makedirs(fig_folder, exist_ok=True)
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     for lvl in []:#'lvl1', 'lvl4', 'lvl5']:
         for condition in ['Kill', 'HealthLoss', 'JUMP', 'HIT', 'DOWN', 'LEFT', 'RIGHT', 'UP']:
             condition = f"{condition}X{lvl}"
-            for subject in shinobi_behav.SUBJECTS:
+            for subject in config.SUBJECTS:
                 fig_folder = os.path.join(".", 
                                         "reports", "figures", "full_zmap_plot", subject, condition)
                 os.makedirs(fig_folder, exist_ok=True)

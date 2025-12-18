@@ -1,4 +1,4 @@
-from shinobi_behav import DATA_PATH, FIG_PATH
+from config import DATA_PATH, FIG_PATH
 import matplotlib.pyplot as plt
 from nilearn import plotting
 from nilearn import image

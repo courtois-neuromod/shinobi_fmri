@@ -1,4 +1,4 @@
-import shinobi_behav
+import config
 import seaborn as sbn
 import os
 import pandas as pd
@@ -24,9 +24,9 @@ def raincloud_fd(mean_fds_dataframe):
     return f, ax
 
 
-figures_path = shinobi_behav.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-path_to_data = shinobi_behav.path_to_data  #'/media/storage/neuromod/shinobi_data/'
-subjects = shinobi_behav.subjects
+figures_path = config.figures_path #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+path_to_data = config.path_to_data  #'/media/storage/neuromod/shinobi_data/'
+subjects = config.subjects
 bounds_quantiles = [[0,0.01], [0.01,0.10], [0.10,0.50], [0.50,0.90], [0.90,0.99], [0,1]]
 fds_dict = {'FD':[],
             'subject':[],

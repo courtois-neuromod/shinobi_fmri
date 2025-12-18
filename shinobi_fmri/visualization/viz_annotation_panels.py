@@ -39,11 +39,11 @@ from shinobi_fmri.utils.logger import ShinobiLogger
 import logging
 
 try:
-    import shinobi_behav
-    DATA_PATH = shinobi_behav.DATA_PATH
-    SUBJECTS = shinobi_behav.SUBJECTS
+    import config
+    DATA_PATH = config.DATA_PATH
+    SUBJECTS = config.SUBJECTS
 except ImportError:
-    print("Warning: shinobi_behav not found. Using defaults.")
+    print("Warning: config not found. Using defaults.")
     DATA_PATH = "/home/hyruuk/scratch/data"
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 

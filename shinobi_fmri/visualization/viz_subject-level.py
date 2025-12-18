@@ -3,7 +3,7 @@ import os.path as op
 from nilearn import datasets
 from nilearn import surface
 from nilearn import plotting
-import shinobi_behav
+import config
 import matplotlib.pyplot as plt
 import itertools
 import matplotlib.image as mpimg
@@ -99,8 +99,8 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
 
 
 def create_viz(sub, cond_name, modeltype, 
-               path_to_data=shinobi_behav.DATA_PATH, 
-               figures_path=shinobi_behav.FIG_PATH,
+               path_to_data=config.DATA_PATH, 
+               figures_path=config.FIG_PATH,
                logger=None):
     
     output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub)
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     if args.subject is not None:
         subjects = [args.subject]
     else:
-        subjects = shinobi_behav.SUBJECTS
+        subjects = config.SUBJECTS
 
     if args.contrast is not None:
         contrasts = [args.contrast]
@@ -225,7 +225,7 @@ if __name__ == "__main__":
             for cond_name in contrasts:
                 for modeltype in ["full", "simple", "intermediate"]:
                     try:
-                        folderpath = op.join(shinobi_behav.DATA_PATH, "processed", "z_maps", "subject-level")
+                        folderpath = op.join(config.DATA_PATH, "processed", "z_maps", "subject-level")
                         zmap_fname = op.join(folderpath, cond_name, f"{sub}_{modeltype}model_{cond_name}.nii.gz")
                         if op.exists(zmap_fname):
                             logger.info(f"Creating viz for {sub} {cond_name} {modeltype}")

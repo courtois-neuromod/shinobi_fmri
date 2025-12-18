@@ -1,6 +1,6 @@
 import pandas as pd
 from shinobi_fmri.annotations.annotations import trim_events_df, plot_gameevents
-from shinobi_behav.params import path_to_data, figures_path
+from config import DATA_PATH as path_to_data, FIG_PATH as figures_path
 import os
 import matplotlib.pyplot as plt
 import logging

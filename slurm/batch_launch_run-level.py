@@ -1,7 +1,7 @@
 import os
 import os.path as op
 import glob
-from shinobi_behav import DATA_PATH
+from config import DATA_PATH
 
 filelist = glob.glob(
     op.join(

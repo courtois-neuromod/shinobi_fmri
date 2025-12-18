@@ -1,10 +1,9 @@
 import pandas as pd
 import numpy as np
 import os
-import shinobi_behav
 import glob
 import os.path as op
-from shinobi_behav import DATA_PATH
+from config import DATA_PATH
 import nibabel as nib
 import json
 

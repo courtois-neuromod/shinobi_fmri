@@ -10,7 +10,7 @@ import numpy as np
 import pdb
 import argparse
 import nilearn
-import shinobi_behav
+import config
 
 # Suppress informational warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -123,7 +123,7 @@ def process_subject(sub, condition, path_to_data, logger=None):
             logger.log_computation_success(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
 
         # Create report
-        report_path = op.join(shinobi_behav.FIG_PATH, "subject-level", condition, "report")
+        report_path = op.join(config.FIG_PATH, "subject-level", condition, "report")
         os.makedirs(report_path, exist_ok=True)
         report_fname = op.join(report_path, f"{sub}_{condition}_report.html")
         report = second_level_model.generate_report(
@@ -145,8 +145,8 @@ def main(logger=None):
     z_map = process_subject(sub, condition, path_to_data, logger=logger)
 
 if __name__ == "__main__":
-    figures_path = shinobi_behav.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-    path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
+    figures_path = config.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
+    path_to_data = config.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     sub = args.subject
     condition = args.condition
 

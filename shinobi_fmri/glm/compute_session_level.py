@@ -6,7 +6,7 @@ from shinobi_fmri.annotations.annotations import get_scrub_regressor
 from shinobi_fmri.utils.logger import ShinobiLogger
 import numpy as np
 import argparse
-import shinobi_behav
+import config
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
 from nilearn.image import clean_img
 from nilearn.signal import clean
@@ -163,7 +163,7 @@ def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level
     output_dir = "processed_low-level" if use_low_level_confs else "processed"
 
     # BIDS-compliant directory structure
-    func_dir = op.join(shinobi_behav.DATA_PATH, output_dir, sub, ses, "func")
+    func_dir = op.join(config.DATA_PATH, output_dir, sub, ses, "func")
     os.makedirs(func_dir, exist_ok=True)
 
     # Optional descriptor for incremental analysis (number of runs)
@@ -183,7 +183,7 @@ def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level
     else:
         level_dir = f"ses-level_{n_runs}run"
 
-    report_dir = op.join(shinobi_behav.FIG_PATH, level_dir, regressor_output_name, "report")
+    report_dir = op.join(config.FIG_PATH, level_dir, regressor_output_name, "report")
     os.makedirs(report_dir, exist_ok=True)
     report_fname = op.join(report_dir, f"{base_name}_report.html")
 
@@ -942,9 +942,9 @@ def main():
 
 if __name__ == "__main__":
     figures_path = (
-        shinobi_behav.FIG_PATH
+        config.FIG_PATH
     )  #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-    path_to_data = shinobi_behav.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
+    path_to_data = config.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
     CONDS_LIST = ["HIT", "JUMP", "DOWN", "LEFT", "RIGHT", "UP", "Kill", "HealthLoss"]
     LEVELS = []  # ["lvl1", "lvl4", "lvl5"]
     additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]

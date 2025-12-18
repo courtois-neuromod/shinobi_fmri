@@ -6,7 +6,7 @@ import numpy as np
 import pickle
 import argparse
 from tqdm import tqdm
-import shinobi_behav
+import config
 import nibabel as nib
 from nilearn import image
 from nilearn.input_data import NiftiMasker
@@ -160,13 +160,13 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
 def main(args, logger=None):
 
     np.random.seed(42)  # Global base seed for reproducibility
-    path_to_data = shinobi_behav.DATA_PATH
+    path_to_data = config.DATA_PATH
     model = "simple"
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']
     if args.subject is not None:
         subjects = [args.subject]
     else:
-        subjects = shinobi_behav.SUBJECTS
+        subjects = config.SUBJECTS
     screening_percentile = args.screening
     n_jobs = args.n_jobs
 

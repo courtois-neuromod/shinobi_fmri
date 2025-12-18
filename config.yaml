@@ -1,0 +1,53 @@
+# Shinobi fMRI Analysis Pipeline Configuration
+# This file centralizes all configuration for the analysis pipeline
+
+# Data paths
+paths:
+  data: /home/hyruuk/DATA/neuromod/shinobi_data
+  figures: reports/figures
+  tables: reports/tables
+
+# Python environment
+python:
+  local_bin: python  # Can be overridden by SHINOBI_PYTHON_BIN env var
+  slurm_bin: python  # Can be overridden by SHINOBI_SLURM_PYTHON_BIN env var
+
+# Analysis parameters
+analysis:
+  subjects:
+    - sub-01
+    - sub-02
+    - sub-04
+    - sub-06
+
+  conditions:
+    - HIT
+    - JUMP
+    - DOWN
+    - LEFT
+    - RIGHT
+    - UP
+    - Kill
+    - HealthLoss
+
+  # Behavioral analysis parameters (from shinobi_behav)
+  levels:
+    - '1'
+    - '4'
+    - '5'
+
+  actions:
+    - B
+    - A
+    - MODE
+    - START
+    - UP
+    - DOWN
+    - LEFT
+    - RIGHT
+    - C
+    - Y
+    - X
+    - Z
+
+  game_fs: 60  # Game framerate
