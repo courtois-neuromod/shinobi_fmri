@@ -95,18 +95,37 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
     contrast_label = []
     session_label = []
 
-    # 1) Load from main z_maps folder
-    for contrast in contrasts:
-        z_maps_fpath = op.join(path_to_data, "processed", "z_maps", "ses-level", contrast)
-        if not op.exists(z_maps_fpath):
-            continue
+    # 1) Load from main z_maps folder (new structure: processed/session-level/sub-XX/ses-YY/z_maps/)
+    # We need to search through the session-level directory for this subject
+    session_level_dir = op.join(path_to_data, "processed", "session-level", sub)
 
-        file_list = os.listdir(z_maps_fpath)
-        for z_map_fname in tqdm(file_list, desc=f"Shinobi z_maps ({sub} {contrast})", leave=False):
-            if model in z_map_fname and sub in z_map_fname:
+    if op.exists(session_level_dir):
+        # Iterate through all sessions for this subject
+        for ses_dir in os.listdir(session_level_dir):
+            ses_path = op.join(session_level_dir, ses_dir)
+            if not op.isdir(ses_path):
+                continue
+
+            z_maps_dir = op.join(ses_path, "z_maps")
+            if not op.exists(z_maps_dir):
+                continue
+
+            # Load z-maps for the requested contrasts
+            for z_map_fname in tqdm(os.listdir(z_maps_dir), desc=f"Shinobi z_maps ({sub} {ses_dir})", leave=False):
+                if not z_map_fname.endswith("stat-z.nii.gz"):
+                    continue
+
+                # Parse the contrast from the filename
+                # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-z.nii.gz
                 try:
-                    session = z_map_fname.split("_")[1]
-                    niimap = image.load_img(op.join(z_maps_fpath, z_map_fname))
+                    # Extract contrast name from filename
+                    contrast_part = [p for p in z_map_fname.split("_") if "contrast-" in p][0]
+                    contrast = contrast_part.replace("contrast-", "")
+
+                    if contrast not in contrasts:
+                        continue
+
+                    niimap = image.load_img(op.join(z_maps_dir, z_map_fname))
                     # Resample the image to the same shape+affine for your common mask
                     resampled_img = image.resample_img(
                         niimap,
@@ -115,7 +134,7 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
                     )
                     z_maps.append(resampled_img)
                     contrast_label.append(contrast)
-                    session_label.append(session)
+                    session_label.append(ses_dir)
                 except Exception as e:
                     if logger:
                         logger.warning(f"Failed to load/resample {z_map_fname}: {e}")

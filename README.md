@@ -116,10 +116,10 @@ Compute correlation matrices (supports parallel chunking):
 
 ```bash
 # Using invoke
-invoke corr.compute --n-jobs 20 --verbose 1
+invoke corr.beta --n-jobs 20 --verbose 1
 
 # Direct execution
-python -m shinobi_fmri.correlations.session_corrmat_with_hcp --n-jobs 20 -v
+python -m shinobi_fmri.correlations.compute_beta_correlations --n-jobs 20 -v
 ```
 
 ### 4. Visualization

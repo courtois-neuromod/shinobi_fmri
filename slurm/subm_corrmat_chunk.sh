@@ -10,7 +10,7 @@ CHUNK_START=${1:-0}
 CHUNK_SIZE=100
 
 /home/hyruuk/python_envs/shinobi/bin/python \
-    /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/correlations/session_corrmat_with_hcp.py \
+    /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/correlations/compute_beta_correlations.py \
     --chunk-size "${CHUNK_SIZE}" \
     --chunk-start "${CHUNK_START}" \
     --n-jobs 40

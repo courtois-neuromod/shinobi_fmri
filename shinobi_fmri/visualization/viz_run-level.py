@@ -100,16 +100,20 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
         plt.close(fig)
 
 
-def create_viz(sub, ses, run, cond_name, modeltype, 
-               path_to_data=config.DATA_PATH, 
+def create_viz(sub, ses, run, cond_name, modeltype,
+               path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
                logger=None):
-    
+
     output_path = op.join(figures_path, "run-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
-    folderpath = op.join(path_to_data, "processed", "z_maps", "run-level")
-    
-    zmap_fname = op.join(folderpath, cond_name, f"{sub}_{ses}_{run}_{modeltype}model_{cond_name}.nii.gz")
+
+    # New structure: processed/run-level/sub-XX/ses-YY/z_maps/
+    zmap_fname = op.join(
+        path_to_data, "processed", "run-level", sub, ses, "z_maps",
+        f"{sub}_{ses}_task-shinobi_{run}_contrast-{cond_name}_stat-z.nii.gz"
+    )
+
     if not op.exists(zmap_fname):
         if logger:
             logger.warning(f"Z-map not found: {zmap_fname}")
@@ -225,21 +229,35 @@ if __name__ == "__main__":
         for sub in subjects:
             for cond_name in contrasts:
                 for modeltype in ["full", "simple", "intermediate"]:
-                    search_dir = op.join(config.DATA_PATH, "processed", "z_maps", "run-level", cond_name)
-                    if not op.exists(search_dir):
-                        logger.warning(f"Directory not found: {search_dir}")
+                    # New structure: processed/run-level/sub-XX/
+                    subject_dir = op.join(config.DATA_PATH, "processed", "run-level", sub)
+                    if not op.exists(subject_dir):
+                        logger.warning(f"Subject directory not found: {subject_dir}")
                         continue
-                        
-                    filelist = os.listdir(search_dir)
-                    ses_list = [file.split("_")[1] for file in filelist if sub in file and modeltype in file]
-                    run_list = [file.split("_")[2] for file in filelist if sub in file and modeltype in file]
-                    
-                    for idx, ses in enumerate(ses_list):
-                        run = run_list[idx]
-                        try:
-                            logger.info(f"Creating viz for {sub} {ses} {run} {cond_name} {modeltype}")
-                            create_viz(sub, ses, run, cond_name, modeltype, logger=logger)
-                        except Exception as e:
-                            logger.log_computation_error(f"Viz_{sub}_{ses}_{run}_{cond_name}", e)
+
+                    # Iterate through all sessions for this subject
+                    for ses_dir in os.listdir(subject_dir):
+                        if not ses_dir.startswith("ses-"):
+                            continue
+
+                        # Check if z-maps directory exists
+                        z_maps_dir = op.join(subject_dir, ses_dir, "z_maps")
+                        if not op.exists(z_maps_dir):
+                            continue
+
+                        # Look for z-map files for this condition
+                        for fname in os.listdir(z_maps_dir):
+                            if f"contrast-{cond_name}" in fname and fname.endswith("stat-z.nii.gz"):
+                                # Parse run from filename
+                                # Format: sub-XX_ses-YY_task-shinobi_run-XX_contrast-COND_stat-z.nii.gz
+                                try:
+                                    run_part = [p for p in fname.split("_") if "run-" in p][0]
+                                    try:
+                                        logger.info(f"Creating viz for {sub} {ses_dir} {run_part} {cond_name} {modeltype}")
+                                        create_viz(sub, ses_dir, run_part, cond_name, modeltype, logger=logger)
+                                    except Exception as e:
+                                        logger.log_computation_error(f"Viz_{sub}_{ses_dir}_{run_part}_{cond_name}", e)
+                                except:
+                                    continue
     finally:
         logger.close()

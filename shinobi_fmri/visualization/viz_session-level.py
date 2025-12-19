@@ -100,17 +100,20 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
         plt.close(fig)
 
 
-def create_viz(sub, ses, cond_name, modeltype, 
-               path_to_data=config.DATA_PATH, 
+def create_viz(sub, ses, cond_name, modeltype,
+               path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
                logger=None):
-    
-    output_path = op.join(figures_path, "ses-level", cond_name, "z_maps", sub)
+
+    output_path = op.join(figures_path, "session-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
-    folderpath = op.join(path_to_data, "processed", "z_maps", "ses-level")
-    
-    zmap_fname = op.join(folderpath, cond_name, f"{sub}_{ses}_{modeltype}model_{cond_name}.nii.gz")
-    
+
+    # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
+    zmap_fname = op.join(
+        path_to_data, "processed", "session-level", sub, ses, "z_maps",
+        f"{sub}_{ses}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
+    )
+
     if not op.exists(zmap_fname):
         if logger:
             logger.warning(f"Z-map not found: {zmap_fname}")
@@ -138,7 +141,7 @@ def create_viz(sub, ses, cond_name, modeltype,
     cluster_corrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.05, height_control='fdr', cluster_threshold=10)
     
     # unthresholded
-    unthresholded_folder = op.join(figures_path, "ses-level", cond_name, "zmap_unthresholded")
+    unthresholded_folder = op.join(figures_path, "session-level", cond_name, "zmap_unthresholded")
     os.makedirs(unthresholded_folder, exist_ok=True)
     plot_img_on_surf(zmap_fname, vmax=6, 
                      title=f'{sub} {cond_name} raw map', 
@@ -157,7 +160,7 @@ def create_viz(sub, ses, cond_name, modeltype,
         logger.debug(f"Saved unthresholded maps to {unthresholded_folder}")
 
     # thresholded, uncorrected
-    thresholded_folder = op.join(figures_path, "ses-level", cond_name, "zmap_thresholded")
+    thresholded_folder = op.join(figures_path, "session-level", cond_name, "zmap_thresholded")
     os.makedirs(thresholded_folder, exist_ok=True)
     plot_img_on_surf(uncorrected_map, vmax=6, 
                      title=f'{sub} {cond_name} (FDR<0.001)', 
@@ -173,7 +176,7 @@ def create_viz(sub, ses, cond_name, modeltype,
                              figpath=op.join(thresholded_folder, f"inflatedsurf_{sub}_{ses}_{modeltype}model{cond_name}.png"))
     
     # thresholded, cluster-corrected
-    cluster_folder = op.join(figures_path, "ses-level", cond_name, "zmap_cluster")
+    cluster_folder = op.join(figures_path, "session-level", cond_name, "zmap_cluster")
     os.makedirs(cluster_folder, exist_ok=True)
     plot_img_on_surf(cluster_corrected_map, vmax=6, 
                      title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox', 
@@ -224,23 +227,29 @@ if __name__ == "__main__":
         for sub in subjects:
             for cond_name in contrasts:
                 for modeltype in ["simple"]:#, "intermediate"]:
-                    search_dir = op.join(config.DATA_PATH, "processed", "z_maps", "ses-level", cond_name)
-                    if not op.exists(search_dir):
-                        logger.warning(f"Directory not found: {search_dir}")
+                    # New structure: processed/session-level/sub-XX/
+                    subject_dir = op.join(config.DATA_PATH, "processed", "session-level", sub)
+                    if not op.exists(subject_dir):
+                        logger.warning(f"Subject directory not found: {subject_dir}")
                         continue
-                        
-                    filelist = os.listdir(search_dir)
-                    ses_list = [file for file in filelist if sub in file and modeltype in file]
-                    
-                    if not ses_list:
-                        logger.debug(f"No z-maps found for {sub} {cond_name} {modeltype}")
-                    
-                    for ses_file in ses_list:
-                        ses = ses_file.split("_")[1]
-                        try:
-                            logger.info(f"Creating viz for {sub} {ses} {cond_name} {modeltype}")
-                            create_viz(sub, ses, cond_name, modeltype, logger=logger)
-                        except Exception as e:
-                            logger.log_computation_error(f"Viz_{sub}_{ses}_{cond_name}", e)
+
+                    # Iterate through all sessions for this subject
+                    for ses_dir in os.listdir(subject_dir):
+                        if not ses_dir.startswith("ses-"):
+                            continue
+
+                        # Check if z-map exists for this condition
+                        z_maps_dir = op.join(subject_dir, ses_dir, "z_maps")
+                        if not op.exists(z_maps_dir):
+                            continue
+
+                        # Look for the z-map file for this condition
+                        expected_fname = f"{sub}_{ses_dir}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
+                        if op.exists(op.join(z_maps_dir, expected_fname)):
+                            try:
+                                logger.info(f"Creating viz for {sub} {ses_dir} {cond_name} {modeltype}")
+                                create_viz(sub, ses_dir, cond_name, modeltype, logger=logger)
+                            except Exception as e:
+                                logger.log_computation_error(f"Viz_{sub}_{ses_dir}_{cond_name}", e)
     finally:
         logger.close()

@@ -145,13 +145,14 @@ def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
         logger (ShinobiLogger): Logger instance
     """
     # Create subject-level z-map
+    # New structure: processed/subject-level/sub-XX/z_maps/
     sublevel_zmap_path = op.join(
         DATA_PATH,
         "processed",
-        "z_maps",
         "subject-level",
-        condition,
-        f"{subject}_{condition}.nii.gz"
+        subject,
+        "z_maps",
+        f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
     )
     sublevel_save_path = op.join(fig_folder, f"{subject}_{condition}.png")
 
@@ -180,13 +181,15 @@ def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
         ses_list = sorted(os.listdir(ses_dir))
 
         for session in ses_list:
+            # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
             zmap_path = op.join(
                 DATA_PATH,
                 "processed",
+                "session-level",
+                subject,
+                session,
                 "z_maps",
-                "ses-level",
-                condition,
-                f"{subject}_{session}_{condition}.nii.gz"
+                f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
             )
             save_path = op.join(fig_folder, f"{subject}_{session}_{condition}.png")
 
@@ -262,13 +265,15 @@ def make_annotation_plot(condition, save_path, pbar=None, logger=None):
 
         for session in ses_list:
             try:
+                # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
                 zmap_path = op.join(
                     DATA_PATH,
                     "processed",
+                    "session-level",
+                    subject,
+                    session,
                     "z_maps",
-                    "ses-level",
-                    condition,
-                    f"{subject}_{session}_{condition}.nii.gz"
+                    f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
                 )
 
                 if op.isfile(zmap_path):

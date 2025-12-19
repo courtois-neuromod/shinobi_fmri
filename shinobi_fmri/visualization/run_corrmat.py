@@ -47,35 +47,59 @@ for contrast in contrasts:
     else:
         model = "simple"
     try:
-        files = os.listdir(path_to_data + 'processed/z_maps/run-level/{}/'.format(contrast))
-        for file in files:
-            if model in file:
-                fpath = path_to_data + 'processed/z_maps/run-level/{}/'.format(contrast) + file
-                file_split = file.split('_')
-                sub = file_split[0]
-                ses = file_split[1]
-                run = file_split[2]
-                print('run : '+ file)
-                raw_dpath = op.join(
-                    path_to_data,
-                    "shinobi.fmriprep",
-                    sub,
-                    ses,
-                    "func",
-                    f"{sub}_{ses}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
-                )
-                niimap = image.load_img(fpath)
-                maps.append(niimap)
-                subj_arr.append(sub)
-                sess_arr.append(ses)
-                run_arr.append(run)
-                cond_arr.append(contrast)
-                #raw_data.append(image.concat_imgs(raw_dpath))
-                fnames.append(raw_dpath)
-                mapnames.append(fpath)
+        # New structure: processed/run-level/sub-XX/ses-YY/z_maps/
+        run_level_dir = op.join(path_to_data, 'processed', 'run-level')
+
+        if not op.exists(run_level_dir):
+            print(f'Run-level directory not found: {run_level_dir}')
+            continue
+
+        # Iterate through subjects
+        for sub in subjects:
+            sub_dir = op.join(run_level_dir, sub)
+            if not op.exists(sub_dir):
+                continue
+
+            # Iterate through sessions
+            for ses_name in os.listdir(sub_dir):
+                if not ses_name.startswith('ses-'):
+                    continue
+
+                z_maps_dir = op.join(sub_dir, ses_name, 'z_maps')
+                if not op.exists(z_maps_dir):
+                    continue
+
+                # Look for z-maps with this contrast
+                for file in os.listdir(z_maps_dir):
+                    if f'contrast-{contrast}' in file and file.endswith('stat-z.nii.gz'):
+                        # Parse filename: sub-XX_ses-YY_task-shinobi_run-XX_contrast-COND_stat-z.nii.gz
+                        file_parts = file.split('_')
+                        run_part = [p for p in file_parts if 'run-' in p]
+                        if run_part:
+                            run = run_part[0]  # e.g., 'run-01'
+
+                            fpath = op.join(z_maps_dir, file)
+                            print(f'Loading: {file}')
+
+                            raw_dpath = op.join(
+                                path_to_data,
+                                "shinobi.fmriprep",
+                                sub,
+                                ses_name,
+                                "func",
+                                f"{sub}_{ses_name}_task-shinobi_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
+                            )
+                            niimap = image.load_img(fpath)
+                            maps.append(niimap)
+                            subj_arr.append(sub)
+                            sess_arr.append(ses_name)
+                            run_arr.append(run)
+                            cond_arr.append(contrast)
+                            fnames.append(raw_dpath)
+                            mapnames.append(fpath)
     except Exception as e:
         print(e)
-        print('no file for contrast {}'.format(contrast))
+        print(f'Error processing contrast {contrast}')
         continue
 
 

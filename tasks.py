@@ -328,9 +328,9 @@ def mvpa_session_level(c, subject, task_name=None, perm_index=0, slurm=False, n_
 # =============================================================================
 
 @task
-def correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbose=0, log_dir=None):
+def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbose=0, log_dir=None):
     """
-    Compute correlation matrices with HCP data.
+    Compute beta map correlations with HCP data.
 
     Args:
         chunk_start: Starting index for chunked processing
@@ -340,7 +340,7 @@ def correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbo
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "correlations", "session_corrmat_with_hcp.py")
+    script = op.join(SHINOBI_FMRI_DIR, "correlations", "compute_beta_correlations.py")
 
     args = f"--chunk-start {chunk_start} --chunk-size {chunk_size} --n-jobs {n_jobs}"
     if isinstance(verbose, int) and verbose > 0:
@@ -580,45 +580,6 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
 
 
 # =============================================================================
-# Diagnostic Tasks
-# =============================================================================
-
-@task
-def diagnose_missing_zmaps(c, level='session', subject=None, session=None, condition=None, missing_only=False):
-    """
-    Diagnose why z-maps are missing for GLM analysis.
-
-    Checks for:
-    - Missing input files (fMRI, events, masks)
-    - Insufficient events for a condition
-    - Failed GLM computations
-
-    Args:
-        level: Analysis level to check ('session' or 'subject')
-        subject: Specific subject to check (default: all)
-        session: Specific session to check (requires subject)
-        condition: Specific condition to check (default: all)
-        missing_only: Only show missing z-maps
-    """
-    script = op.join(SHINOBI_FMRI_DIR, "glm", "diagnose_missing_zmaps.py")
-
-    cmd_parts = [PYTHON_BIN, script, '--level', level]
-
-    if subject:
-        cmd_parts.extend(['--subject', subject])
-    if session:
-        cmd_parts.extend(['--session', session])
-    if condition:
-        cmd_parts.extend(['--condition', condition])
-    if missing_only:
-        cmd_parts.append('--missing-only')
-
-    cmd = ' '.join(cmd_parts)
-    print(f"Diagnosing {level}-level z-maps...")
-    c.run(cmd)
-
-
-# =============================================================================
 # Full Pipeline Tasks
 # =============================================================================
 
@@ -746,7 +707,7 @@ namespace.add_collection(mvpa_collection)
 
 # Correlation tasks
 corr_collection = Collection('corr')
-corr_collection.add_task(correlations, name='compute')
+corr_collection.add_task(beta_correlations, name='beta')
 namespace.add_collection(corr_collection)
 
 # Visualization tasks
@@ -770,11 +731,6 @@ setup_collection = Collection('setup')
 setup_collection.add_task(setup_env, name='env')
 setup_collection.add_task(setup_airoh, name='airoh')
 namespace.add_collection(setup_collection)
-
-# Diagnostic tasks
-diagnostic_collection = Collection('diag')
-diagnostic_collection.add_task(diagnose_missing_zmaps, name='missing-zmaps')
-namespace.add_collection(diagnostic_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)

@@ -98,17 +98,20 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
         plt.close(fig)
 
 
-def create_viz(sub, cond_name, modeltype, 
-               path_to_data=config.DATA_PATH, 
+def create_viz(sub, cond_name, modeltype,
+               path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
                logger=None):
-    
+
     output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub)
     os.makedirs(output_path, exist_ok=True)
-    folderpath = op.join(path_to_data, "processed", "z_maps", "subject-level")
-    
-    zmap_fname = op.join(folderpath, cond_name, f"{sub}_{modeltype}model_{cond_name}.nii.gz")
-    
+
+    # New structure: processed/subject-level/sub-XX/z_maps/
+    zmap_fname = op.join(
+        path_to_data, "processed", "subject-level", sub, "z_maps",
+        f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
+    )
+
     if not op.exists(zmap_fname):
         if logger:
             logger.warning(f"Z-map not found: {zmap_fname}")
@@ -225,8 +228,11 @@ if __name__ == "__main__":
             for cond_name in contrasts:
                 for modeltype in ["full", "simple", "intermediate"]:
                     try:
-                        folderpath = op.join(config.DATA_PATH, "processed", "z_maps", "subject-level")
-                        zmap_fname = op.join(folderpath, cond_name, f"{sub}_{modeltype}model_{cond_name}.nii.gz")
+                        # New structure: processed/subject-level/sub-XX/z_maps/
+                        zmap_fname = op.join(
+                            config.DATA_PATH, "processed", "subject-level", sub, "z_maps",
+                            f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
+                        )
                         if op.exists(zmap_fname):
                             logger.info(f"Creating viz for {sub} {cond_name} {modeltype}")
                             create_viz(sub, cond_name, modeltype, logger=logger)
