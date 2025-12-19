@@ -524,13 +524,58 @@ def viz_beta_correlations(c, input_path, output_path, verbose=0, log_dir=None):
         log_dir: Custom log directory
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "beta_correlations_plot.py")
-    
+
     cmd = f"{PYTHON_BIN} {script} --input {input_path} --output {output_path}"
-    
+
     print(f"Generating beta correlations figure...")
     print(f"  Input: {input_path}")
     print(f"  Output: {output_path}")
-    
+
+    c.run(cmd)
+
+
+@task
+def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=False, verbose=0, log_dir=None):
+    """
+    Generate correlation matrices for design matrix regressors.
+
+    Creates correlation heatmaps and clustermaps showing relationships between
+    all regressors (annotations) in the GLM design matrices. Produces both
+    per-run and subject-averaged visualizations.
+
+    Args:
+        subject: Specific subject to process (default: all subjects)
+        skip_generation: Skip design matrix generation, only plot from existing pickle
+        low_level_confs: Include low-level confounds (psychophysics and button presses)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_regressor_correlations.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if subject:
+        cmd_parts.extend(['--subject', subject])
+    if skip_generation:
+        cmd_parts.append('--skip-generation')
+    if low_level_confs:
+        cmd_parts.append('--low-level-confs')
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print(f"Generating regressor correlation matrices...")
+    if subject:
+        print(f"  Subject: {subject}")
+    else:
+        print(f"  Processing all subjects")
+    if low_level_confs:
+        print(f"  Including low-level confounds")
+
     c.run(cmd)
 
 
@@ -711,6 +756,7 @@ viz_collection.add_task(viz_session_level, name='session-level')
 viz_collection.add_task(viz_subject_level, name='subject-level')
 viz_collection.add_task(viz_annotation_panels, name='annotation-panels')
 viz_collection.add_task(viz_beta_correlations, name='beta-correlations')
+viz_collection.add_task(viz_regressor_correlations, name='regressor-correlations')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks

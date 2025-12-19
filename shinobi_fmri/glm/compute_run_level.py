@@ -509,13 +509,15 @@ def process_run(sub, ses, run, path_to_data, save_glm=False, use_low_level_confs
     # Compute GLM for each condition separately
     for regressor_name in CONDS_LIST:
         try:
-            # BIDS-compliant directory structure: processed/sub-XX/ses-YY/func/
-            func_dir = op.join(path_to_data, output_dir, sub, ses, "func")
-            os.makedirs(func_dir, exist_ok=True)
+            # Directory structure: processed/run-level/sub-XX/ses-YY/z_maps/ and beta_maps/
+            z_maps_dir = op.join(path_to_data, output_dir, "run-level", sub, ses, "z_maps")
+            beta_maps_dir = op.join(path_to_data, output_dir, "run-level", sub, ses, "beta_maps")
+            os.makedirs(z_maps_dir, exist_ok=True)
+            os.makedirs(beta_maps_dir, exist_ok=True)
 
             # BIDS-compliant filename: sub-XX_ses-YY_task-shinobi_run-XX_contrast-CONDITION_stat-z.nii.gz
             base_name = f"{sub}_{ses}_task-shinobi_{run_formatted}_contrast-{regressor_name}"
-            z_map_fname = op.join(func_dir, f"{base_name}_stat-z.nii.gz")
+            z_map_fname = op.join(z_maps_dir, f"{base_name}_stat-z.nii.gz")
 
             if os.path.exists(z_map_fname):
                 if logger:
@@ -524,10 +526,12 @@ def process_run(sub, ses, run, path_to_data, save_glm=False, use_low_level_confs
                 #     print(f"Z map found, skipping : {z_map_fname}")
                 continue
 
-            # GLM file (if saving)
-            glm_fname = op.join(func_dir, f"{base_name}_glm.pkl")
+            # GLM file (if saving) - stored alongside z_maps
+            glm_dir = op.join(path_to_data, output_dir, "run-level", sub, ses, "glm")
+            os.makedirs(glm_dir, exist_ok=True)
+            glm_fname = op.join(glm_dir, f"{base_name}_glm.pkl")
             if save_glm:
-                os.makedirs(func_dir, exist_ok=True)
+                os.makedirs(glm_dir, exist_ok=True)
 
             if save_glm and os.path.exists(glm_fname):
                 # Load existing GLM
@@ -593,7 +597,7 @@ def process_run(sub, ses, run, path_to_data, save_glm=False, use_low_level_confs
             report_fname = op.join(report_dir, f"{base_name}_report.html")
 
             # Beta map filename
-            beta_map_fname = op.join(func_dir, f"{base_name}_stat-beta.nii.gz")
+            beta_map_fname = op.join(beta_maps_dir, f"{base_name}_stat-beta.nii.gz")
 
             z_map = make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_name)
             if logger:

@@ -63,37 +63,49 @@ t_r = 1.49
 hrf_model = "spm"
 
 def process_subject(sub, condition, path_to_data, logger=None):
-    z_maps_dir = op.join(path_to_data, "processed", "z_maps", "ses-level", condition)
-    
-    if not op.exists(z_maps_dir):
-        msg = f"Directory not found: {z_maps_dir}"
+    # Read session-level z-maps from the new structure
+    # We look for session-level (all runs) z-maps for this subject
+    session_level_dir = op.join(path_to_data, "processed", "session-level", sub)
+
+    if not op.exists(session_level_dir):
+        msg = f"Directory not found: {session_level_dir}"
         if logger:
             logger.error(msg)
         else:
             print(msg)
         return None
-        
-    file_list = os.listdir(z_maps_dir)
+
+    # Create output directories
+    z_maps_out_dir = op.join(path_to_data, "processed", "subject-level", sub, "z_maps")
+    beta_maps_out_dir = op.join(path_to_data, "processed", "subject-level", sub, "beta_maps")
+    os.makedirs(z_maps_out_dir, exist_ok=True)
+    os.makedirs(beta_maps_out_dir, exist_ok=True)
+
+    # Collect all z-maps for this subject and condition
     z_map = None
-
-    subjectlevel_z_map_fname = op.join(path_to_data, "processed", "z_maps", "subject-level", condition, f"{sub}_{condition}.nii.gz")
-    os.makedirs(op.join(path_to_data, "processed", "z_maps", "subject-level", condition), exist_ok=True)
-
-    if logger:
-        logger.log_computation_start(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
-    else:
-        print(f"Computing subject level for {condition}")
-
     z_maps = []
     ses_list = []
-    for file in sorted(file_list):
-        if sub in file:
-            if logger:
-                logger.info(f"Adding : {file}")
-            else:
-                print(f"Adding : {file}")
-            z_maps.append(op.join(z_maps_dir, file))
-            ses_list.append(file.split("_")[1])
+
+    # Iterate through all sessions for this subject
+    for ses_dir in sorted(os.listdir(session_level_dir)):
+        ses_path = op.join(session_level_dir, ses_dir)
+        if not op.isdir(ses_path):
+            continue
+
+        # Look for z-maps in the z_maps subdirectory
+        z_maps_dir = op.join(ses_path, "z_maps")
+        if not op.exists(z_maps_dir):
+            continue
+
+        # Find z-map files for this condition
+        for file in os.listdir(z_maps_dir):
+            if f"contrast-{condition}" in file and file.endswith("stat-z.nii.gz"):
+                if logger:
+                    logger.info(f"Adding : {file}")
+                else:
+                    print(f"Adding : {file}")
+                z_maps.append(op.join(z_maps_dir, file))
+                ses_list.append(ses_dir)
 
     if not z_maps:
         msg = f"No z-maps found for {sub} {condition}"
@@ -102,6 +114,15 @@ def process_subject(sub, condition, path_to_data, logger=None):
         else:
             print(msg)
         return None
+
+    # Output filename
+    subjectlevel_z_map_fname = op.join(z_maps_out_dir, f"{sub}_task-shinobi_contrast-{condition}_stat-z.nii.gz")
+    subjectlevel_beta_map_fname = op.join(beta_maps_out_dir, f"{sub}_task-shinobi_contrast-{condition}_stat-beta.nii.gz")
+
+    if logger:
+        logger.log_computation_start(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
+    else:
+        print(f"Computing subject level for {condition}")
 
     # Compute map
     try:
@@ -121,6 +142,11 @@ def process_subject(sub, condition, path_to_data, logger=None):
 
         if logger:
             logger.log_computation_success(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
+
+        # Compute beta map (using effect size instead of z-score)
+        beta_map = second_level_model.compute_contrast(second_level_contrast=[1],
+                                                       output_type='effect_size')
+        beta_map.to_filename(subjectlevel_beta_map_fname)
 
         # Create report
         report_path = op.join(config.FIG_PATH, "subject-level", condition, "report")

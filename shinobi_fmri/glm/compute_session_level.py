@@ -162,9 +162,19 @@ def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level
     # Determine output directory based on whether low-level confounds are used
     output_dir = "processed_low-level" if use_low_level_confs else "processed"
 
-    # BIDS-compliant directory structure
-    func_dir = op.join(config.DATA_PATH, output_dir, sub, ses, "func")
-    os.makedirs(func_dir, exist_ok=True)
+    # Determine level directory name
+    if n_runs is None:
+        level_dir = "session-level"
+    else:
+        level_dir = f"session-level_{n_runs}runs"
+
+    # Directory structure: processed/session-level/sub-XX/ses-YY/z_maps/ and beta_maps/
+    z_maps_dir = op.join(config.DATA_PATH, output_dir, level_dir, sub, ses, "z_maps")
+    beta_maps_dir = op.join(config.DATA_PATH, output_dir, level_dir, sub, ses, "beta_maps")
+    glm_dir = op.join(config.DATA_PATH, output_dir, level_dir, sub, ses, "glm")
+    os.makedirs(z_maps_dir, exist_ok=True)
+    os.makedirs(beta_maps_dir, exist_ok=True)
+    os.makedirs(glm_dir, exist_ok=True)
 
     # Optional descriptor for incremental analysis (number of runs)
     # Note: low-level confounds info is already in the directory name (processed vs processed_low-level)
@@ -173,16 +183,11 @@ def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level
     # BIDS-compliant base filename
     base_name = f"{sub}_{ses}_task-shinobi{desc_suffix}_contrast-{regressor_output_name}"
 
-    glm_fname = op.join(func_dir, f"{base_name}_glm.pkl")
-    z_map_fname = op.join(func_dir, f"{base_name}_stat-z.nii.gz")
-    beta_map_fname = op.join(func_dir, f"{base_name}_stat-beta.nii.gz")
+    glm_fname = op.join(glm_dir, f"{base_name}_glm.pkl")
+    z_map_fname = op.join(z_maps_dir, f"{base_name}_stat-z.nii.gz")
+    beta_map_fname = op.join(beta_maps_dir, f"{base_name}_stat-beta.nii.gz")
 
     # Report filename (keeping reports in figures_path)
-    if n_runs is None:
-        level_dir = "ses-level"
-    else:
-        level_dir = f"ses-level_{n_runs}run"
-
     report_dir = op.join(config.FIG_PATH, level_dir, regressor_output_name, "report")
     os.makedirs(report_dir, exist_ok=True)
     report_fname = op.join(report_dir, f"{base_name}_report.html")
