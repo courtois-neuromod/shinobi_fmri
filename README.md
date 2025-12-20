@@ -110,17 +110,29 @@ invoke mvpa.session-level --subject sub-01 --verbose 1
 python -m shinobi_fmri.mvpa.compute_mvpa -s sub-01 --screening 20 -v
 ```
 
-### 3. Correlations
+### 3. Correlation Analysis
 
-Compute correlation matrices (supports parallel chunking):
+Compute beta map correlation matrices:
 
 ```bash
-# Using invoke
-invoke corr.beta --n-jobs 20 --verbose 1
+# Submit all chunks to SLURM (recommended for large datasets)
+invoke corr.beta --slurm --chunk-size 100 --verbose 1
 
-# Direct execution
-python -m shinobi_fmri.correlations.compute_beta_correlations --n-jobs 20 -v
+# Run single chunk locally
+invoke corr.beta --chunk-start 0 --chunk-size 100 --n-jobs 20 --verbose 1
+
+# Direct execution with SLURM batch submission
+python -m shinobi_fmri.correlations.compute_beta_correlations --slurm -v
+
+# Direct execution for single chunk
+python -m shinobi_fmri.correlations.compute_beta_correlations --chunk-start 0 --chunk-size 100 --n-jobs 20 -v
 ```
+
+The `--slurm` flag automatically:
+- Discovers all available beta maps
+- Splits them into chunks (default: 100 maps per chunk)
+- Submits one SLURM job per chunk
+- Each job computes correlations only for missing pairs in that chunk
 
 ### 4. Visualization
 

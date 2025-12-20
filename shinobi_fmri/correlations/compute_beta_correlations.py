@@ -27,11 +27,12 @@ RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute cross-dataset correlation matrix.")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity level.")
-    parser.add_argument("--chunk-size", type=int, default=None, help="Number of map indices handled by this job.")
+    parser.add_argument("--chunk-size", type=int, default=100, help="Number of map indices handled by this job (default: 100).")
     parser.add_argument("--chunk-start", type=int, default=0, help="Explicit map index to start chunk from.")
     parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
     parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
     parser.add_argument("--log-dir", default=None, help="Directory for log files")
+    parser.add_argument("--slurm", action="store_true", help="Submit SLURM jobs in chunks instead of running locally")
     return parser.parse_args()
 
 
@@ -340,9 +341,51 @@ def list_nii_files(directory):
     return sorted(f for f in os.listdir(directory) if f.endswith(".nii.gz"))
 
 
+def submit_slurm_chunks(total_maps, chunk_size, logger=None):
+    """Submit SLURM jobs for each chunk of maps."""
+    import subprocess
+
+    # Get the project root directory (where slurm/ folder is)
+    script_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
+    slurm_script = op.join(script_dir, "slurm", "subm_corrmat_chunk.sh")
+
+    if not op.exists(slurm_script):
+        log(f"ERROR: SLURM script not found: {slurm_script}", logger)
+        return
+
+    num_chunks = (total_maps + chunk_size - 1) // chunk_size  # Ceiling division
+    log(f"Submitting {num_chunks} SLURM jobs for {total_maps} maps (chunk_size={chunk_size})", logger)
+
+    job_ids = []
+    for chunk_idx in range(num_chunks):
+        chunk_start = chunk_idx * chunk_size
+        log(f"Submitting chunk {chunk_idx + 1}/{num_chunks} (maps {chunk_start} to {min(chunk_start + chunk_size - 1, total_maps - 1)})", logger)
+
+        try:
+            result = subprocess.run(
+                ["sbatch", slurm_script, str(chunk_start)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            # Extract job ID from sbatch output (e.g., "Submitted batch job 12345")
+            job_id = result.stdout.strip().split()[-1]
+            job_ids.append(job_id)
+            log(f"  → Job ID: {job_id}", logger)
+        except subprocess.CalledProcessError as e:
+            log(f"ERROR submitting job for chunk {chunk_idx}: {e}", logger)
+            if logger:
+                logger.error(f"stdout: {e.stdout}")
+                logger.error(f"stderr: {e.stderr}")
+
+    log(f"\nSuccessfully submitted {len(job_ids)} jobs: {', '.join(job_ids)}", logger)
+    log(f"Monitor with: squeue -u $USER", logger)
+    log(f"Cancel all with: ./batch_cancel.sh -n shi_corr_chunk", logger)
+
+
 def main():
     args = parse_args()
-    
+
     # Determine verbosity
     if args.verbose == 0:
         log_level = logging.WARNING
@@ -375,8 +418,17 @@ def main():
             log("No maps found.", logger)
             return
         log(f"Total available maps: {len(records)} ({summarize_sources(records)})", logger)
+
+        # If --slurm flag is provided, submit batch jobs and exit
+        if args.slurm:
+            total_maps = len(records)
+            submit_slurm_chunks(total_maps, args.chunk_size, logger)
+            return
+        # Initialize output file if it doesn't exist
         existing = load_existing_dict(RESULTS_PATH)
         data = ensure_output_file(RESULTS_PATH, records, existing, logger)
+
+        # Process the assigned chunk
         total_maps = len(records)
         chunk_indices = list(chunk_range(total_maps, args.chunk_size, args.chunk_start))
         if not chunk_indices:

@@ -333,28 +333,31 @@ def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, 
     Compute beta map correlations with HCP data.
 
     Args:
-        chunk_start: Starting index for chunked processing
-        chunk_size: Number of maps per chunk
+        chunk_start: Starting index for chunked processing (only used if not in slurm batch mode)
+        chunk_size: Number of maps per chunk (default: 100)
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
-        slurm: If True, submit to SLURM cluster
+        slurm: If True, automatically submit all chunks as SLURM jobs
         verbose: Verbosity level
         log_dir: Custom log directory
     """
     script = op.join(SHINOBI_FMRI_DIR, "correlations", "compute_beta_correlations.py")
 
-    args = f"--chunk-start {chunk_start} --chunk-size {chunk_size} --n-jobs {n_jobs}"
+    args = f"--chunk-size {chunk_size} --n-jobs {n_jobs}"
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
 
     if slurm:
-        slurm_script = op.join(SLURM_DIR, "subm_corrmat_chunk.sh")
-        cmd = f"sbatch {slurm_script} {chunk_start}"
-        print(f"Submitting to SLURM: chunk_start={chunk_start}")
-    else:
+        # Use the script's built-in --slurm mode to batch submit all chunks
+        args += " --slurm"
         cmd = f"{PYTHON_BIN} {script} {args}"
-        print(f"Running locally: {cmd}")
+        print(f"Submitting all correlation chunks to SLURM...")
+    else:
+        # Run single chunk locally
+        args = f"--chunk-start {chunk_start} {args}"
+        cmd = f"{PYTHON_BIN} {script} {args}"
+        print(f"Running locally: chunk_start={chunk_start}, chunk_size={chunk_size}")
 
     c.run(cmd)
 
