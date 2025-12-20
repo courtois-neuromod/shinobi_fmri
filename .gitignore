@@ -94,3 +94,7 @@ data/shinobi_behav
 data/shinobi_behav
 data/shinobi_behav
 tmp/
+
+# SLURM log files
+logfiles/
+slurm-*.out

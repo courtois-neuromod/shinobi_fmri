@@ -2,9 +2,14 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=03:00:00
 #SBATCH --job-name=shi_corr_chunk
+#SBATCH --output=logfiles/%x/%x_%j.out
+#SBATCH --error=logfiles/%x/%x_%j.err
 #SBATCH --mem=64G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
+
+# Create log directory
+mkdir -p logfiles/shi_corr_chunk
 
 CHUNK_START=${1:-0}
 CHUNK_SIZE=100
