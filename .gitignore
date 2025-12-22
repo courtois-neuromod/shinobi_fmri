@@ -65,6 +65,9 @@ target/
 # DotEnv configuration
 .env
 
+# User-specific configuration (use config.yaml.template instead)
+shinobi_fmri/config.yaml
+
 # Database
 *.db
 *.rdb
