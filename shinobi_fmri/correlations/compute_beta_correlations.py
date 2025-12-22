@@ -75,65 +75,124 @@ def make_processed_record(base_dir, source, contrast, fname, path_to_data):
 
 def collect_processed_records(base_dir, contrasts, model, path_to_data):
     """
-    Collect beta maps from the new directory structure.
-    New structure: processed/session-level/sub-XX/ses-YY/beta_maps/
+    Collect beta maps from the processed directory structure.
+    Includes: processed/session-level*/sub-XX/ses-YY/beta_maps/
     """
     records = []
 
-    # Navigate through the session-level directory
-    session_level_dir = op.join(path_to_data, "processed", "session-level")
+    # Find all session-level directories (session-level, session-level_1runs, etc.)
+    processed_dir = op.join(path_to_data, "processed")
+    if not op.isdir(processed_dir):
+        return records
 
-    if not op.isdir(session_level_dir):
+    session_level_variants = [d for d in sorted(os.listdir(processed_dir))
+                             if op.isdir(op.join(processed_dir, d)) and d.startswith("session-level")]
+
+    # Iterate through each session-level variant
+    for variant in session_level_variants:
+        session_level_dir = op.join(processed_dir, variant)
+
+        # Iterate through subjects
+        for sub_dir in sorted(os.listdir(session_level_dir)):
+            sub_path = op.join(session_level_dir, sub_dir)
+            if not op.isdir(sub_path) or not sub_dir.startswith("sub-"):
+                continue
+
+            # Iterate through sessions
+            for ses_dir in sorted(os.listdir(sub_path)):
+                ses_path = op.join(sub_path, ses_dir)
+                if not op.isdir(ses_path) or not ses_dir.startswith("ses-"):
+                    continue
+
+                # Look for beta_maps directory
+                beta_maps_dir = op.join(ses_path, "beta_maps")
+                if not op.isdir(beta_maps_dir):
+                    continue
+
+                # Load beta maps
+                for fname in sorted(os.listdir(beta_maps_dir)):
+                    if not fname.endswith("stat-beta.nii.gz"):
+                        continue
+
+                    # Parse contrast from filename
+                    # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-beta.nii.gz
+                    try:
+                        contrast_part = [p for p in fname.split("_") if "contrast-" in p][0]
+                        contrast = contrast_part.replace("contrast-", "")
+
+                        if contrast not in contrasts:
+                            continue
+
+                        # Parse subject and session
+                        subj = sub_dir
+                        ses = ses_dir
+
+                        map_path = op.join(beta_maps_dir, fname)
+                        raw_path = build_raw_path(path_to_data, subj, ses)
+
+                        records.append({
+                            'map_path': map_path,
+                            'raw_path': raw_path,
+                            'subj': subj,
+                            'ses': ses,
+                            'cond': contrast,
+                            'source': variant  # Track which session-level variant this came from
+                        })
+                    except Exception as e:
+                        continue
+
+    return records
+
+
+def collect_subject_level_records(contrasts, path_to_data):
+    """
+    Collect subject-level beta maps (aggregated across sessions).
+    Structure: processed/subject-level/sub-XX/beta_maps/
+    """
+    records = []
+
+    subject_level_dir = op.join(path_to_data, "processed", "subject-level")
+    if not op.isdir(subject_level_dir):
         return records
 
     # Iterate through subjects
-    for sub_dir in sorted(os.listdir(session_level_dir)):
-        sub_path = op.join(session_level_dir, sub_dir)
+    for sub_dir in sorted(os.listdir(subject_level_dir)):
+        sub_path = op.join(subject_level_dir, sub_dir)
         if not op.isdir(sub_path) or not sub_dir.startswith("sub-"):
             continue
 
-        # Iterate through sessions
-        for ses_dir in sorted(os.listdir(sub_path)):
-            ses_path = op.join(sub_path, ses_dir)
-            if not op.isdir(ses_path) or not ses_dir.startswith("ses-"):
+        # Look for beta_maps directory
+        beta_maps_dir = op.join(sub_path, "beta_maps")
+        if not op.isdir(beta_maps_dir):
+            continue
+
+        # Load beta maps
+        for fname in sorted(os.listdir(beta_maps_dir)):
+            if not fname.endswith("stat-beta.nii.gz"):
                 continue
 
-            # Look for beta_maps directory
-            beta_maps_dir = op.join(ses_path, "beta_maps")
-            if not op.isdir(beta_maps_dir):
+            # Parse contrast from filename
+            # Format: sub-XX_task-shinobi_contrast-CONDITION_stat-beta.nii.gz
+            try:
+                contrast_part = [p for p in fname.split("_") if "contrast-" in p][0]
+                contrast = contrast_part.replace("contrast-", "")
+
+                if contrast not in contrasts:
+                    continue
+
+                subj = sub_dir
+                map_path = op.join(beta_maps_dir, fname)
+
+                records.append({
+                    'map_path': map_path,
+                    'raw_path': map_path,  # No specific raw path for subject-level
+                    'subj': subj,
+                    'ses': 'subject-level',  # Aggregate across all sessions
+                    'cond': contrast,
+                    'source': 'subject-level'
+                })
+            except Exception as e:
                 continue
-
-            # Load beta maps
-            for fname in sorted(os.listdir(beta_maps_dir)):
-                if not fname.endswith("stat-beta.nii.gz"):
-                    continue
-
-                # Parse contrast from filename
-                # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-beta.nii.gz
-                try:
-                    contrast_part = [p for p in fname.split("_") if "contrast-" in p][0]
-                    contrast = contrast_part.replace("contrast-", "")
-
-                    if contrast not in contrasts:
-                        continue
-
-                    # Parse subject and session
-                    subj = sub_dir
-                    ses = ses_dir
-
-                    map_path = op.join(beta_maps_dir, fname)
-                    raw_path = build_raw_path(path_to_data, subj, ses)
-
-                    records.append({
-                        'map_path': map_path,
-                        'raw_path': raw_path,
-                        'subj': subj,
-                        'ses': ses,
-                        'cond': contrast,
-                        'source': 'session-level'
-                    })
-                except Exception as e:
-                    continue
 
     return records
 
@@ -194,12 +253,15 @@ def collect_hcp_records(path_to_data, subjects):
 
 def make_hcp_record(sub, runfolder, cond, path):
     ses = "_".join(runfolder.split("_")[2:])
-    return {'map_path': path, 'raw_path': path, 'subj': sub, 'ses': ses, 'cond': cond, 'source': 'hcp_results'}
+    # Distinguish FFX (aggregated HCP tasks) from run-level
+    source = 'hcp_ffx' if '_ffx' in runfolder else 'hcp_run-level'
+    return {'map_path': path, 'raw_path': path, 'subj': sub, 'ses': ses, 'cond': cond, 'source': source}
 
 
 def load_vector(record, masker, target_affine, target_shape):
     img = image.load_img(record['map_path'])
-    if record['source'] == 'hcp_results':
+    # Resample HCP maps (both FFX and run-level) to match target geometry
+    if record['source'] in ['hcp_ffx', 'hcp_run-level']:
         img = image.resample_img(img, target_affine=target_affine, target_shape=target_shape, force_resample=True, copy_header=True)
     data = masker.transform(img).ravel()
     del img
@@ -332,7 +394,7 @@ def save_heatmap(matrix, mapnames, figures_path, logger=None):
 def list_runfolders(sub_dir):
     if not op.isdir(sub_dir):
         return []
-    return sorted(f for f in os.listdir(sub_dir) if "run-" in f)
+    return sorted(f for f in os.listdir(sub_dir) if ("run-" in f or "_ffx" in f))
 
 
 def list_nii_files(directory):
@@ -432,17 +494,21 @@ def main():
         target_affine, target_shape = get_reference_geometry(path_to_data, SUBJECTS[0])
         log("Fitting shared masker from subject masks...", logger)
         masker = build_masker(SUBJECTS, path_to_data, target_affine, target_shape)
-        log("Collecting processed session-level beta maps...", logger)
+        log("Collecting processed beta maps (session-level variants)...", logger)
         processed_records = collect_processed_records(None, CONTRASTS, MODEL, path_to_data)
-        log(f"Discovered {len(processed_records)} processed maps.", logger)
+        log(f"Discovered {len(processed_records)} session-level maps.", logger)
+        log("Collecting subject-level beta maps...", logger)
+        subject_records = collect_subject_level_records(CONTRASTS, path_to_data)
+        log(f"Discovered {len(subject_records)} subject-level maps.", logger)
         log("Collecting HCP entries...", logger)
         hcp_records = collect_hcp_records(path_to_data, SUBJECTS)
         log(f"Discovered {len(hcp_records)} HCP maps.", logger)
-        records = processed_records + hcp_records
+        records = processed_records + subject_records + hcp_records
         if not records:
             log("No maps found.", logger)
             return
-        log(f"Total available maps: {len(records)} ({summarize_sources(records)})", logger)
+        log(f"Total available maps: {len(records)}", logger)
+        log(f"Breakdown by source: {summarize_sources(records)}", logger)
 
         # If --slurm flag is provided, submit batch jobs and exit
         if args.slurm:
