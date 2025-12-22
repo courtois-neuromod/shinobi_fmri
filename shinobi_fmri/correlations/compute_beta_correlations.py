@@ -341,7 +341,7 @@ def list_nii_files(directory):
     return sorted(f for f in os.listdir(directory) if f.endswith(".nii.gz"))
 
 
-def submit_slurm_chunks(total_maps, chunk_size, logger=None):
+def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, logger=None):
     """Submit SLURM jobs for each chunk of maps."""
     import subprocess
 
@@ -350,20 +350,35 @@ def submit_slurm_chunks(total_maps, chunk_size, logger=None):
     slurm_script = op.join(script_dir, "slurm", "subm_corrmat_chunk.sh")
 
     if not op.exists(slurm_script):
-        log(f"ERROR: SLURM script not found: {slurm_script}", logger)
+        msg = f"ERROR: SLURM script not found: {slurm_script}"
+        print(msg)
+        log(msg, logger)
         return
 
     num_chunks = (total_maps + chunk_size - 1) // chunk_size  # Ceiling division
-    log(f"Submitting {num_chunks} SLURM jobs for {total_maps} maps (chunk_size={chunk_size})", logger)
+    msg = f"Submitting {num_chunks} SLURM jobs for {total_maps} maps (chunk_size={chunk_size})"
+    print(msg)
+    log(msg, logger)
+
+    # Determine verbosity flag for child jobs
+    if verbosity == logging.DEBUG:
+        verbose_flag = "-vv"
+    elif verbosity == logging.INFO:
+        verbose_flag = "-v"
+    else:
+        verbose_flag = ""
 
     job_ids = []
     for chunk_idx in range(num_chunks):
         chunk_start = chunk_idx * chunk_size
-        log(f"Submitting chunk {chunk_idx + 1}/{num_chunks} (maps {chunk_start} to {min(chunk_start + chunk_size - 1, total_maps - 1)})", logger)
+        msg = f"Submitting chunk {chunk_idx + 1}/{num_chunks} (maps {chunk_start} to {min(chunk_start + chunk_size - 1, total_maps - 1)})"
+        print(msg)
+        log(msg, logger)
 
         try:
+            # Pass log_dir and verbosity to the SLURM script
             result = subprocess.run(
-                ["sbatch", slurm_script, str(chunk_start)],
+                ["sbatch", slurm_script, str(chunk_start), log_dir or "", verbose_flag],
                 capture_output=True,
                 text=True,
                 check=True
@@ -371,16 +386,26 @@ def submit_slurm_chunks(total_maps, chunk_size, logger=None):
             # Extract job ID from sbatch output (e.g., "Submitted batch job 12345")
             job_id = result.stdout.strip().split()[-1]
             job_ids.append(job_id)
-            log(f"  → Job ID: {job_id}", logger)
+            msg = f"  → Job ID: {job_id}"
+            print(msg)
+            log(msg, logger)
         except subprocess.CalledProcessError as e:
-            log(f"ERROR submitting job for chunk {chunk_idx}: {e}", logger)
+            msg = f"ERROR submitting job for chunk {chunk_idx}: {e}"
+            print(msg)
+            log(msg, logger)
             if logger:
                 logger.error(f"stdout: {e.stdout}")
                 logger.error(f"stderr: {e.stderr}")
 
-    log(f"\nSuccessfully submitted {len(job_ids)} jobs: {', '.join(job_ids)}", logger)
-    log(f"Monitor with: squeue -u $USER", logger)
-    log(f"Cancel all with: ./batch_cancel.sh -n shi_corr_chunk", logger)
+    msg = f"\nSuccessfully submitted {len(job_ids)} jobs: {', '.join(job_ids)}"
+    print(msg)
+    log(msg, logger)
+    msg = f"Monitor with: squeue -u $USER"
+    print(msg)
+    log(msg, logger)
+    msg = f"Cancel all with: scancel {' '.join(job_ids)}"
+    print(msg)
+    log(msg, logger)
 
 
 def main():
@@ -422,7 +447,7 @@ def main():
         # If --slurm flag is provided, submit batch jobs and exit
         if args.slurm:
             total_maps = len(records)
-            submit_slurm_chunks(total_maps, args.chunk_size, logger)
+            submit_slurm_chunks(total_maps, args.chunk_size, args.log_dir, log_level, logger)
             return
         # Initialize output file if it doesn't exist
         existing = load_existing_dict(RESULTS_PATH)
