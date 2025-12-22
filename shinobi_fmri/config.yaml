@@ -8,14 +8,14 @@
 
 # Data paths
 paths:
-  data: <PATH_TO_YOUR_DATA>  # e.g., /home/user/DATA/neuromod/shinobi_data or /scratch/user/neuromod/shinobi2025
+  data: <PATH_TO_YOUR_DATA>  # e.g., /home/user/DATA/shinobi_data
   figures: reports/figures
   tables: reports/tables
 
 # Python environment
 python:
-  local_bin: <PATH_TO_PYTHON>      # e.g., python or /home/user/python_envs/shinobi/bin/python
-  slurm_bin: <PATH_TO_PYTHON>      # e.g., python or ~/python_envs/shinobi/bin/python
+  local_bin: <PATH_TO_PYTHON>      # e.g., python or env/bin/python
+  slurm_bin: <PATH_TO_PYTHON>
 
 # Analysis parameters
 analysis:
