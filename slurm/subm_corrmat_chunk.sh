@@ -2,29 +2,30 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=03:00:00
 #SBATCH --job-name=shi_corr_chunk
-#SBATCH --output=logfiles/%x/%x_%j.out
-#SBATCH --error=logfiles/%x/%x_%j.err
+#SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --mem=64G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
 
 # Create log directory
-mkdir -p logfiles/shi_corr_chunk
+mkdir -p logs/slurm
 
 CHUNK_START=${1:-0}
 LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 CHUNK_SIZE=100
 
-# Determine script location (relative to this SLURM script)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CORRELATION_SCRIPT="${SCRIPT_DIR}/../shinobi_fmri/correlations/compute_beta_correlations.py"
+# Find script location using SLURM_SUBMIT_DIR (where sbatch was called from)
+# Assuming sbatch is called from slurm/ directory
+REPO_ROOT="${SLURM_SUBMIT_DIR}/.."
+CORRELATION_SCRIPT="${REPO_ROOT}/shinobi_fmri/correlations/compute_beta_correlations.py"
 
 # Verify script exists
 if [ ! -f "$CORRELATION_SCRIPT" ]; then
     echo "ERROR: Script not found at: $CORRELATION_SCRIPT"
+    echo "SLURM_SUBMIT_DIR: ${SLURM_SUBMIT_DIR}"
+    echo "REPO_ROOT: ${REPO_ROOT}"
     echo "Current directory: $(pwd)"
-    echo "Script directory: $SCRIPT_DIR"
     exit 1
 fi
 

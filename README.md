@@ -21,17 +21,25 @@ pip install -e .
 
 ## Configuration
 
-The pipeline uses environment variables for configuration. You can set them in your shell or create a `.env` file in the project root:
+**First-time setup (required):**
 
-```bash
-# .env file example
-SHINOBI_DATA_PATH=/path/to/data
-SHINOBI_PYTHON_BIN=/path/to/python
-```
+1. Copy the configuration template:
+   ```bash
+   cp config.yaml.template config.yaml
+   ```
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SHINOBI_DATA_PATH` | Path to the root data directory containing `shinobi.fmriprep` | `/home/hyruuk/scratch/data` |
+2. Edit `config.yaml` and replace all `<PLACEHOLDER>` values with your actual paths:
+   ```yaml
+   paths:
+     data: /your/path/to/shinobi_data  # Replace <PATH_TO_YOUR_DATA>
+   python:
+     local_bin: python                  # Or /path/to/your/env/bin/python
+     slurm_bin: python                  # Or path to Python on HPC
+   ```
+
+3. The `config.yaml` file is gitignored - your paths stay private and local to your machine
+
+**Note:** Each user/machine needs their own `config.yaml`. The file is not tracked by git, so everyone sets up their own paths.
 
 ## Logging System
 
