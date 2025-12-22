@@ -1,16 +1,39 @@
 # Shinobi fMRI Analysis Pipeline Configuration
 # This file centralizes all configuration for the analysis pipeline
+#
+# Environment-specific overrides:
+#   Set SHINOBI_ENV=hpc to use HPC-specific settings
+#   Or override individual settings with environment variables:
+#     - SHINOBI_DATA_PATH: Override data directory
+#     - SHINOBI_PYTHON_BIN: Override local Python executable
+#     - SHINOBI_SLURM_PYTHON_BIN: Override SLURM Python executable
 
-# Data paths
+# Data paths (default: local)
 paths:
   data: /home/hyruuk/DATA/neuromod/shinobi_data
   figures: reports/figures
   tables: reports/tables
 
-# Python environment
+# Python environment (default: local)
 python:
-  local_bin: python  # Can be overridden by SHINOBI_PYTHON_BIN env var
-  slurm_bin: python  # Can be overridden by SHINOBI_SLURM_PYTHON_BIN env var
+  local_bin: python
+  slurm_bin: python
+
+# Environment-specific configurations
+environments:
+  hpc:
+    paths:
+      data: /scratch/hyruuk/neuromod/shinobi2025
+    python:
+      local_bin: ~/python_envs/shinobi/bin/python
+      slurm_bin: ~/python_envs/shinobi/bin/python
+
+  local:
+    paths:
+      data: /home/hyruuk/DATA/neuromod/shinobi_data
+    python:
+      local_bin: python
+      slurm_bin: python
 
 # Analysis parameters
 analysis:

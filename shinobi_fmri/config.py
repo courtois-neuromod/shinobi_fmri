@@ -3,6 +3,14 @@ Shinobi fMRI Configuration Module
 
 Loads configuration from config.yaml and exposes constants for backward compatibility.
 Environment variables can override certain config values.
+
+Usage:
+  Local: (default)
+    from shinobi_fmri.config import DATA_PATH
+
+  HPC: Set environment variable before importing
+    export SHINOBI_ENV=hpc
+    from shinobi_fmri.config import DATA_PATH
 """
 
 import os
@@ -17,7 +25,20 @@ _config_file = op.join(op.dirname(op.abspath(__file__)), 'config.yaml')
 with open(_config_file, 'r') as f:
     _config = yaml.safe_load(f)
 
-# Expose paths (with environment variable overrides)
+# Determine environment (local, hpc, etc.)
+SHINOBI_ENV = os.getenv('SHINOBI_ENV', 'local')
+
+# Apply environment-specific overrides
+if SHINOBI_ENV in _config.get('environments', {}):
+    env_config = _config['environments'][SHINOBI_ENV]
+    # Merge environment-specific paths
+    if 'paths' in env_config:
+        _config['paths'].update(env_config['paths'])
+    # Merge environment-specific python settings
+    if 'python' in env_config:
+        _config['python'].update(env_config['python'])
+
+# Expose paths (with environment variable overrides taking precedence)
 DATA_PATH = os.getenv('SHINOBI_DATA_PATH', _config['paths']['data'])
 FIG_PATH = _config['paths']['figures']
 TABLE_PATH = _config['paths']['tables']
@@ -32,7 +53,7 @@ LEVELS = _config['analysis']['levels']
 ACTIONS = _config['analysis']['actions']
 GAME_FS = _config['analysis']['game_fs']
 
-# Python environments (with environment variable overrides)
+# Python environments (with environment variable overrides taking precedence)
 PYTHON_BIN = os.getenv('SHINOBI_PYTHON_BIN', _config['python']['local_bin'])
 SLURM_PYTHON_BIN = os.getenv('SHINOBI_SLURM_PYTHON_BIN', _config['python']['slurm_bin'])
 
