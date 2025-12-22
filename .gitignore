@@ -8,8 +8,6 @@ __pycache__/
 # Input/Output folders
 data/
 reports/
-reports2023/
-data/processed/
 
 # Distribution / packaging
 .Python
@@ -30,8 +28,6 @@ var/
 *.egg
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -93,8 +89,6 @@ shinobi_fmri/config.yaml
 
 # Mypy cache
 .mypy_cache/
-data/shinobi_behav
-data/shinobi_behav
 data/shinobi_behav
 tmp/
 
