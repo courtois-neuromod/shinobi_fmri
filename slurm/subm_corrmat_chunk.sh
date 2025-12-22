@@ -28,9 +28,8 @@ if [ ! -f "$CORRELATION_SCRIPT" ]; then
     exit 1
 fi
 
-# Determine Python executable
-# Priority: SHINOBI_SLURM_PYTHON_BIN env var > 'python' from PATH
-# Set SHINOBI_ENV=hpc in your ~/.bashrc on HPC to use HPC-specific config
+# Determine Python executable from config.yaml (slurm_bin setting)
+# Falls back to 'python' from PATH if not configured
 PYTHON_BIN=${SHINOBI_SLURM_PYTHON_BIN:-python}
 
 # Build command with optional arguments
