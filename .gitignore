@@ -92,6 +92,6 @@ shinobi_fmri/config.yaml
 data/shinobi_behav
 tmp/
 
-# SLURM log files
-logfiles/
+# Log files (Python scripts and SLURM jobs)
+logs/
 slurm-*.out
