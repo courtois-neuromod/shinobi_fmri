@@ -15,9 +15,15 @@ LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 CHUNK_SIZE=100
 
-# Find script location using SLURM_SUBMIT_DIR (where sbatch was called from)
-# Assuming sbatch is called from slurm/ directory
-REPO_ROOT="${SLURM_SUBMIT_DIR}/.."
+# Find repo root using SLURM_SUBMIT_DIR (where sbatch was called from)
+# Try SLURM_SUBMIT_DIR first (in case called from repo root)
+if [ -d "${SLURM_SUBMIT_DIR}/shinobi_fmri" ]; then
+    REPO_ROOT="${SLURM_SUBMIT_DIR}"
+else
+    # Otherwise assume called from slurm/ subdirectory
+    REPO_ROOT="${SLURM_SUBMIT_DIR}/.."
+fi
+
 CORRELATION_SCRIPT="${REPO_ROOT}/shinobi_fmri/correlations/compute_beta_correlations.py"
 
 # Verify script exists
@@ -25,7 +31,7 @@ if [ ! -f "$CORRELATION_SCRIPT" ]; then
     echo "ERROR: Script not found at: $CORRELATION_SCRIPT"
     echo "SLURM_SUBMIT_DIR: ${SLURM_SUBMIT_DIR}"
     echo "REPO_ROOT: ${REPO_ROOT}"
-    echo "Current directory: $(pwd)"
+    echo "Checked for shinobi_fmri/ directory in: ${SLURM_SUBMIT_DIR}"
     exit 1
 fi
 
