@@ -62,7 +62,7 @@ target/
 .env
 
 # User-specific configuration (use config.yaml.template instead)
-shinobi_fmri/config.yaml
+config.yaml
 
 # Database
 *.db

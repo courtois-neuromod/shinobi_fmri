@@ -14,8 +14,10 @@ import os.path as op
 import yaml
 from pathlib import Path
 
-# Find config file
-_config_file = op.join(op.dirname(op.abspath(__file__)), 'config.yaml')
+# Find config file at repo root (one level up from shinobi_fmri/)
+_repo_root = op.dirname(op.dirname(op.abspath(__file__)))
+_config_file = op.join(_repo_root, 'config.yaml')
+_config_template = op.join(_repo_root, 'config.yaml.template')
 
 # Load config (with helpful error if not found)
 try:
@@ -23,9 +25,30 @@ try:
         _config = yaml.safe_load(f)
 except FileNotFoundError:
     raise FileNotFoundError(
-        f"Config file not found: {_config_file}\n"
-        f"Please copy config.yaml.template to config.yaml and fill in your paths:\n"
-        f"  cp {op.join(op.dirname(_config_file), 'config.yaml.template')} {_config_file}"
+        "\n" + "="*60 + "\n"
+        "CONFIG FILE NOT FOUND\n"
+        "="*60 + "\n"
+        f"Expected: {_config_file}\n\n"
+        "SETUP REQUIRED:\n"
+        "  1. Copy the template:\n"
+        f"     cp config.yaml.template config.yaml\n\n"
+        "  2. Edit config.yaml and replace <PLACEHOLDER> values with your paths\n\n"
+        "See README.md for detailed setup instructions.\n"
+        "="*60
+    )
+
+# Check for placeholders still present
+_config_str = str(_config)
+if '<PATH' in _config_str or '<PLACEHOLDER>' in _config_str:
+    raise ValueError(
+        "\n" + "="*60 + "\n"
+        "CONFIG NOT SETUP PROPERLY\n"
+        "="*60 + "\n"
+        "Your config.yaml still contains placeholder values like:\n"
+        "  <PATH_TO_YOUR_DATA> or <PATH_TO_PYTHON>\n\n"
+        "Please edit config.yaml and replace ALL placeholders\n"
+        "with your actual paths.\n"
+        "="*60
     )
 
 # Expose paths
