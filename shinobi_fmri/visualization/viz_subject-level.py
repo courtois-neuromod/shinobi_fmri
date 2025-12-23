@@ -30,6 +30,18 @@ parser.add_argument(
     help="Contrast or conditions to compute",
 )
 parser.add_argument(
+    "--data-path",
+    default=config.DATA_PATH,
+    type=str,
+    help=f"Path to data directory (default: {config.DATA_PATH})",
+)
+parser.add_argument(
+    "--figures-path",
+    default=config.FIG_PATH,
+    type=str,
+    help=f"Path to figures output directory (default: {config.FIG_PATH})",
+)
+parser.add_argument(
     "-v", "--verbose",
     action="count",
     default=0,
@@ -230,12 +242,15 @@ if __name__ == "__main__":
                     try:
                         # New structure: processed/subject-level/sub-XX/z_maps/
                         zmap_fname = op.join(
-                            config.DATA_PATH, "processed", "subject-level", sub, "z_maps",
+                            args.data_path, "processed", "subject-level", sub, "z_maps",
                             f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
                         )
                         if op.exists(zmap_fname):
                             logger.info(f"Creating viz for {sub} {cond_name} {modeltype}")
-                            create_viz(sub, cond_name, modeltype, logger=logger)
+                            create_viz(sub, cond_name, modeltype,
+                                     path_to_data=args.data_path,
+                                     figures_path=args.figures_path,
+                                     logger=logger)
                     except Exception as e:
                         logger.log_computation_error(f"Viz_{sub}_{cond_name}", e)
     finally:

@@ -102,14 +102,31 @@ def process_beta_correlations_data(pickle_path):
 
     # --- Part 2: Consistency Analysis (Intra-subject reliability of Xrun maps) ---
     print("Processing Consistency Analysis (Intra-subject reliability)...")
-    
+
+    # Extract 'source' field if available (newer format)
+    sources = datadict.get('source', [None] * n_runs)
+
     map_meta = []
-    
+
     for i in range(n_runs):
-        fname = file_list[i]
-        match = re.search(r'_(\d+)run\.nii\.gz', fname)
-        if match:
-            n_run = int(match.group(1))
+        source = sources[i]
+        n_run = None
+
+        # Try to extract run count from 'source' field (e.g., 'session-level_2runs')
+        if source and '_' in source:
+            match = re.search(r'_(\d+)runs?', source)
+            if match:
+                n_run = int(match.group(1))
+
+        # Fallback: try to extract from filename (legacy format)
+        if n_run is None:
+            fname = file_list[i]
+            match = re.search(r'_(\d+)runs?\.nii\.gz', fname)
+            if match:
+                n_run = int(match.group(1))
+
+        # Only include maps with a valid run count (partial session maps)
+        if n_run is not None:
             map_meta.append({
                 'idx': i,
                 'subj': subjs[i],
@@ -382,9 +399,22 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
     return fig
 
 if __name__ == "__main__":
+    # Import config for default paths
+    try:
+        from shinobi_fmri.config import DATA_PATH, FIG_PATH
+        default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
+        default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
+    except ImportError:
+        default_input = None
+        default_output = None
+
     parser = argparse.ArgumentParser(description="Generate beta correlations figure.")
-    parser.add_argument("--input", required=True, help="Path to the input pickle file")
-    parser.add_argument("--output", required=True, help="Path to save the output figure")
+    parser.add_argument("--input",
+                       default=default_input,
+                       help=f"Path to the input pickle file (default: {default_input})")
+    parser.add_argument("--output",
+                       default=default_output,
+                       help=f"Path to save the output figure (default: {default_output})")
 
     args = parser.parse_args()
 

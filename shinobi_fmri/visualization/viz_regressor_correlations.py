@@ -51,6 +51,18 @@ def setup_argparse():
         help="Specific subject to process (default: all subjects)",
     )
     parser.add_argument(
+        "--data-path",
+        default=config.path_to_data,
+        type=str,
+        help=f"Path to data directory (default: {config.path_to_data})",
+    )
+    parser.add_argument(
+        "--figures-path",
+        default=config.figures_path,
+        type=str,
+        help=f"Path to figures output directory (default: {config.figures_path})",
+    )
+    parser.add_argument(
         "--skip-generation",
         action="store_true",
         help="Skip design matrix generation, only plot from existing pickle file",
@@ -423,8 +435,8 @@ def main():
     )
 
     # Configuration
-    figures_path = config.figures_path
-    path_to_data = config.path_to_data
+    figures_path = args.figures_path
+    path_to_data = args.data_path
     subjects = [args.subject] if args.subject else config.subjects
 
     logger.info(f"Processing subjects: {subjects}")

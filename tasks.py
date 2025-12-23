@@ -33,10 +33,11 @@ except ImportError:
 
 # Import configuration
 try:
-    from shinobi_fmri.config import DATA_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
+    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
 except ImportError:
     # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
+    FIG_PATH = os.getenv("SHINOBI_FIG_PATH", "reports/figures")
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
     CONDITIONS = ['HIT', 'JUMP', 'DOWN', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
     PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")
@@ -516,23 +517,41 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
 
 
 @task
-def viz_beta_correlations(c, input_path, output_path, verbose=0, log_dir=None):
+def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_dir=None):
     """
     Generate beta correlations figure.
 
     Args:
-        input_path: Path to input .pkl file (e.g. ses-level_beta_maps_ICC.pkl)
-        output_path: Path to save the output figure
+        input_path: Path to input .pkl file (default: {DATA_PATH}/processed/beta_correlations.pkl)
+        output_path: Path to save the output figure (default: {FIG_PATH}/beta_correlations_plot.png)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "beta_correlations_plot.py")
 
-    cmd = f"{PYTHON_BIN} {script} --input {input_path} --output {output_path}"
+    cmd_parts = [PYTHON_BIN, script]
+
+    if input_path:
+        cmd_parts.extend(['--input', input_path])
+    if output_path:
+        cmd_parts.extend(['--output', output_path])
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
 
     print(f"Generating beta correlations figure...")
-    print(f"  Input: {input_path}")
-    print(f"  Output: {output_path}")
+    if input_path:
+        print(f"  Input: {input_path}")
+    else:
+        print(f"  Input: Using default from config")
+    if output_path:
+        print(f"  Output: {output_path}")
+    else:
+        print(f"  Output: Using default from config")
 
     c.run(cmd)
 

@@ -130,7 +130,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
+def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, pbar=None, logger=None):
     """Create all individual brain map images for a subject and condition.
 
     This includes:
@@ -141,13 +141,14 @@ def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
         subject (str): Subject ID (e.g., 'sub-01')
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
+        data_path (str): Path to data directory
         pbar (tqdm): Optional progress bar to update
         logger (ShinobiLogger): Logger instance
     """
     # Create subject-level z-map
     # New structure: processed/subject-level/sub-XX/z_maps/
     sublevel_zmap_path = op.join(
-        DATA_PATH,
+        data_path,
         "processed",
         "subject-level",
         subject,
@@ -176,14 +177,14 @@ def create_all_images(subject, condition, fig_folder, pbar=None, logger=None):
         pbar.update(1)
 
     # Create session-level z-maps
-    ses_dir = op.join(DATA_PATH, "shinobi", subject)
+    ses_dir = op.join(data_path, "shinobi", subject)
     if op.exists(ses_dir):
         ses_list = sorted(os.listdir(ses_dir))
 
         for session in ses_list:
             # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
             zmap_path = op.join(
-                DATA_PATH,
+                data_path,
                 "processed",
                 "session-level",
                 subject,
@@ -233,7 +234,7 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path, pbar=None, logger=None):
+def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, logger=None):
     """Create a combined panel showing all subjects for one annotation.
 
     Creates a 4x9 grid showing:
@@ -244,6 +245,7 @@ def make_annotation_plot(condition, save_path, pbar=None, logger=None):
     Args:
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
+        data_path (str): Path to data directory
         pbar (tqdm): Optional progress bar to update
         logger (ShinobiLogger): Logger instance
     """
@@ -253,7 +255,7 @@ def make_annotation_plot(condition, save_path, pbar=None, logger=None):
         fig_folder = op.join(".", "reports", "figures", "full_zmap_plot", subject, condition)
 
         # Find top 4 session maps based on number of voxels above threshold
-        ses_dir = op.join(DATA_PATH, "shinobi", subject)
+        ses_dir = op.join(data_path, "shinobi", subject)
         if not op.exists(ses_dir):
             if logger:
                 logger.warning(f"Session directory not found for {subject}")
@@ -267,7 +269,7 @@ def make_annotation_plot(condition, save_path, pbar=None, logger=None):
             try:
                 # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
                 zmap_path = op.join(
-                    DATA_PATH,
+                    data_path,
                     "processed",
                     "session-level",
                     subject,
@@ -429,6 +431,12 @@ def main():
         help='Comma-separated list of conditions (e.g., HIT,JUMP,Kill)'
     )
     parser.add_argument(
+        '--data-path',
+        type=str,
+        default=DATA_PATH,
+        help=f'Path to data directory (default: {DATA_PATH})'
+    )
+    parser.add_argument(
         '-o', '--output-dir',
         type=str,
         default=op.join(".", "reports", "figures", "full_zmap_plot", "annotations"),
@@ -500,7 +508,7 @@ def main():
             for condition in conditions:
                 for subject in SUBJECTS:
                     # Count: 1 subject-level + N session-level images
-                    ses_dir = op.join(DATA_PATH, "shinobi", subject)
+                    ses_dir = op.join(args.data_path, "shinobi", subject)
                     if op.exists(ses_dir):
                         n_sessions = len(os.listdir(ses_dir))
                         total_individual_images += 1 + n_sessions  # subject + sessions
@@ -522,13 +530,15 @@ def main():
                             subject, condition
                         )
                         os.makedirs(fig_folder, exist_ok=True)
-                        create_all_images(subject, condition, fig_folder, pbar=pbar, logger=logger)
+                        create_all_images(subject, condition, fig_folder,
+                                        data_path=args.data_path, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
                 save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
-                    make_annotation_plot(condition, save_path, pbar=pbar, logger=logger)
+                    make_annotation_plot(condition, save_path,
+                                       data_path=args.data_path, pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:
