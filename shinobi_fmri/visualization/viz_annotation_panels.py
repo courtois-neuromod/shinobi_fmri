@@ -107,14 +107,8 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
 
     plt.rcParams['figure.dpi'] = dpi
 
-    # Create custom colormap with grey zone for threshold range
+    # Use standard cold_hot colormap without grey zone
     cmap = nilearn_cmaps['cold_hot']
-    colors = cmap(np.linspace(0, 1, cmap.N))
-    # Set middle range (corresponding to -3 to 3) to grey
-    lower_bound = int(64)  # -3 corresponds to this index
-    upper_bound = int(192)  # 3 corresponds to this index
-    colors[lower_bound:upper_bound, :] = [0.5, 0.5, 0.5, 1]  # RGBA for grey
-    custom_cmap = mcolors.LinearSegmentedColormap.from_list('custom_cold_hot', colors)
 
     # Plot on inflated surface with lighter background
     plotting.plot_img_on_surf(
@@ -126,7 +120,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         threshold=threshold,
         vmax=vmax,
         symmetric_cbar=False,
-        cmap=custom_cmap,
+        cmap=cmap,
         darkness=0.7  # Lighter surface (closer to 1 = lighter, 0 = darker)
     )
 
