@@ -107,7 +107,16 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
 
     plt.rcParams['figure.dpi'] = dpi
 
-    # Plot on inflated surface
+    # Create custom colormap with grey zone for threshold range
+    cmap = nilearn_cmaps['cold_hot']
+    colors = cmap(np.linspace(0, 1, cmap.N))
+    # Set middle range (corresponding to -3 to 3) to grey
+    lower_bound = int(64)  # -3 corresponds to this index
+    upper_bound = int(192)  # 3 corresponds to this index
+    colors[lower_bound:upper_bound, :] = [0.5, 0.5, 0.5, 1]  # RGBA for grey
+    custom_cmap = mcolors.LinearSegmentedColormap.from_list('custom_cold_hot', colors)
+
+    # Plot on inflated surface with lighter background
     plotting.plot_img_on_surf(
         img,
         views=["lateral", "medial"],
@@ -117,7 +126,8 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
         threshold=threshold,
         vmax=vmax,
         symmetric_cbar=False,
-        darkness=None  # Suppress deprecation warning
+        cmap=custom_cmap,
+        darkness=0.7  # Lighter surface (closer to 1 = lighter, 0 = darker)
     )
 
     # Get current figure and add title
@@ -292,14 +302,25 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
                 if logger:
                     logger.error(f"Error loading {session}: {e}")
 
+        # Log all available sessions and their voxel counts
+        if logger:
+            logger.debug(f"{subject} {condition}: All sessions - {list(zip(sesmap_name, sesmap_vox_above_thresh))}")
+
         # Get top 4 sessions
         if len(sesmap_vox_above_thresh) >= 4:
             top4_idx = np.argsort(sesmap_vox_above_thresh)[-4:]
             top4_names = np.sort(np.array(sesmap_name)[top4_idx])
+            top4_voxcounts = np.array(sesmap_vox_above_thresh)[top4_idx]
+            if logger:
+                logger.info(f"{subject} {condition}: Using top 4 sessions - {list(zip(top4_names, top4_voxcounts))}")
+            else:
+                print(f"{subject} {condition}: Top 4 sessions - {list(zip(top4_names, top4_voxcounts))}")
         else:
             top4_names = np.array(sesmap_name)
             if logger:
-                logger.debug(f"Only {len(top4_names)} sessions found for {subject}")
+                logger.warning(f"Only {len(top4_names)} sessions found for {subject}")
+            else:
+                print(f"WARNING: Only {len(top4_names)} sessions found for {subject}")
 
         # Load subject-level image
         subj_img_path = op.join(fig_folder, f"{subject}_{condition}.png")
