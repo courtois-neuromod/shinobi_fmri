@@ -393,7 +393,7 @@ def plot_single_surface_view(overlay_img, hemisphere, view, cmap, threshold, dpi
     # Plot single view
     plotting.plot_img_on_surf(
         overlay_img,
-        surf_mesh='fsaverage',
+        surf_mesh='fsaverage5',
         views=[view],
         hemispheres=[hemisphere],
         inflate=True,
@@ -419,7 +419,53 @@ def plot_single_surface_view(overlay_img, hemisphere, view, cmap, threshold, dpi
     return img_array
 
 
-def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1, color2, threshold=0.5, dpi=300, logger=None):
+def apply_surface_mask(overlay_img, img1, img2, z_threshold, logger=None):
+    """Apply surface-based masking to overlay to match annotation panel behavior.
+
+    Creates a volume mask based on which voxels would be shown in annotation panels
+    when projected to surface, then applies this mask to the overlay.
+
+    Args:
+        overlay_img (Nifti1Image): Encoded overlay image
+        img1 (Nifti1Image): Raw z-map for condition 1
+        img2 (Nifti1Image): Raw z-map for condition 2
+        z_threshold (float): Z-score threshold (e.g., 3.0)
+        logger (ShinobiLogger): Logger instance
+
+    Returns:
+        Nifti1Image: Masked overlay image
+    """
+    if logger:
+        logger.debug("Applying volume-based masking for consistency with annotation panels...")
+
+    # Create volume masks based on threshold (like annotation panels do)
+    # Annotation panels use symmetric_cbar=False with threshold, which shows z > threshold
+    data1 = img1.get_fdata()
+    data2 = img2.get_fdata()
+
+    # Create masks: voxels that would be shown in annotation panels
+    mask1 = data1 > z_threshold
+    mask2 = data2 > z_threshold
+
+    # Combined mask: show overlay where either condition passes threshold
+    combined_mask = mask1 | mask2
+
+    # Apply mask to overlay
+    overlay_data = overlay_img.get_fdata()
+    overlay_data_masked = np.where(combined_mask, overlay_data, 0)
+
+    # Create new image
+    masked_overlay_img = nib.Nifti1Image(overlay_data_masked, overlay_img.affine, overlay_img.header)
+
+    if logger:
+        voxels_before = np.sum(overlay_data > 0)
+        voxels_after = np.sum(overlay_data_masked > 0)
+        logger.debug(f"Volume masking applied: {voxels_before} → {voxels_after} voxels")
+
+    return masked_overlay_img
+
+
+def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1, color2, img1=None, img2=None, z_threshold=3.0, threshold=2.5, dpi=300, logger=None):
     """Plot overlay map on inflated brain surface with custom legend.
 
     Args:
@@ -429,12 +475,19 @@ def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1,
         legend_img_path (str): Path to legend image
         color1 (str): Hex color for condition 1
         color2 (str): Hex color for condition 2
-        threshold (float): Threshold for display (default: 0.5)
+        img1 (Nifti1Image): Raw z-map for condition 1 (for masking)
+        img2 (Nifti1Image): Raw z-map for condition 2 (for masking)
+        z_threshold (float): Z-score threshold for raw maps (default: 3.0)
+        threshold (float): Threshold for display (default: 1.0)
         dpi (int): DPI of output image
         logger (ShinobiLogger): Logger instance
     """
     if logger:
         logger.debug("Rendering individual surface views...")
+
+    # Apply surface-based masking if raw z-maps are provided
+    if img1 is not None and img2 is not None:
+        overlay_img = apply_surface_mask(overlay_img, img1, img2, z_threshold, logger)
 
     # Create custom three-color colormap (Blue/Red/Purple)
     cmap = create_three_color_colormap()
@@ -778,7 +831,9 @@ def main():
             # Plot overlay on surface with task-specific colors
             save_path = op.join(output_dir, f"{subject}_comparison.png")
             title = f"{subject}"  # Simplified title
-            plot_overlay_surface(overlay_img, save_path, title, legend_path, color1, color2, threshold=0.5, logger=logger)
+            plot_overlay_surface(overlay_img, save_path, title, legend_path, color1, color2,
+                               img1=img1, img2=img2, z_threshold=args.threshold,
+                               threshold=2.5, logger=logger)
 
             logger.info(f"Saved: {save_path}")
 
