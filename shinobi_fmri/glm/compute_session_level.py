@@ -459,7 +459,6 @@ def get_clean_matrix(fmri_fname, fmri_img, annotation_events, run_events, use_lo
     )
 
     design_matrix_clean = get_scrub_regressor(run_events, design_matrix_raw)
-    # design_matrix_clean = design_matrix_clean.drop(labels="constant", axis=1) ## REMOVE ?
     return design_matrix_clean
 
 
@@ -559,11 +558,6 @@ def select_events(run_events):
     annotation_events = run_events[run_events["trial_type"].isin(CONDS_LIST)]
     annotation_events = annotation_events[["trial_type", "onset", "duration"]]
 
-    # replevel_events = run_events[run_events["trial_type"]=="gym-retro_game"] --- REMOVE ? MAKE FUNCTION ?
-    # replevel_events["trial_type"] = replevel_events["level"]
-    # replevel_events = replevel_events.replace({"trial_type": {"level-1": "lvl1", "level-4": "lvl4", "level-5": "lvl5"}})
-    # replevel_events = replevel_events[["trial_type", "onset", "duration"]]
-    # annotation_events = pd.concat((annotation_events, replevel_events), axis=0)
     return annotation_events
 
 

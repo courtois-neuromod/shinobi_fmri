@@ -506,15 +506,13 @@ def create_subject_label(subject_id, width, height, dpi=300):
     return label_img
 
 
-def create_four_subject_panel(subject_images, save_path, legend_data, source1, cond1, source2, cond2, dpi=300, logger=None):
+def create_four_subject_panel(subject_images, save_path, legend_data, dpi=300, logger=None):
     """Create a 2x2 panel with all 4 subjects and legend on the right.
 
     Args:
         subject_images (dict): Dict mapping subject IDs to image arrays
         save_path (str): Path to save panel
         legend_data (Image): PIL Image of the legend
-        source1, cond1 (str): First condition info (unused, kept for compatibility)
-        source2, cond2 (str): Second condition info (unused, kept for compatibility)
         dpi (int): Output DPI
         logger: Logger instance
     """
@@ -607,16 +605,12 @@ def create_four_subject_panel(subject_images, save_path, legend_data, source1, c
         logger.info(f"Saved panel: {save_path}")
 
 
-def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1, color2, img1=None, img2=None, z_threshold=3.0, threshold=2.5, dpi=300, logger=None):
+def plot_overlay_surface(overlay_img, save_path, img1=None, img2=None, z_threshold=3.0, threshold=2.5, dpi=300, logger=None):
     """Plot overlay map on inflated brain surface.
 
     Args:
         overlay_img (Nifti1Image): Overlay map with three-color coding
         save_path (str): Path to save the image
-        title (str): Title for the plot (unused, kept for compatibility)
-        legend_img_path (str): Path to legend image (unused, kept for compatibility)
-        color1 (str): Hex color for condition 1 (unused, kept for compatibility)
-        color2 (str): Hex color for condition 2 (unused, kept for compatibility)
         img1 (Nifti1Image): Raw z-map for condition 1 (for masking)
         img2 (Nifti1Image): Raw z-map for condition 2 (for masking)
         z_threshold (float): Z-score threshold for raw maps (default: 3.0)
@@ -1005,7 +999,7 @@ def main():
                 overlay_img = create_overlay_map(img1, img2, args.threshold, logger)
 
                 # Plot overlay and get image array (don't save individual files)
-                img_array = plot_overlay_surface(overlay_img, None, subject, None, color1, color2,
+                img_array = plot_overlay_surface(overlay_img, None,
                                    img1=img1, img2=img2, z_threshold=args.threshold,
                                    threshold=2.5, logger=logger)
 
@@ -1014,7 +1008,7 @@ def main():
             # Create 4-subject panel
             panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_panel.png")
             create_four_subject_panel(subject_images, panel_path, legend_img,
-                                    source1, cond1, source2, cond2, logger=logger)
+                                    logger=logger)
 
         # Print summary
         logger.info("\nAll done!")
