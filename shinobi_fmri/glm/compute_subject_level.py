@@ -16,7 +16,7 @@ import shinobi_fmri.config as config
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
-from nilearn.glm import threshold_stats_img
+from nilearn.glm import threshold_stats_img, cluster_level_inference
 from nilearn import plotting
 from nilearn.image import clean_img
 from nilearn.reporting import get_clusters_table
@@ -142,6 +142,15 @@ def process_subject(sub, condition, path_to_data, logger=None):
 
         if logger:
             logger.log_computation_success(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
+
+        # Compute and save cluster-corrected Z-map (Conservative threshold)
+        try:
+            corrected_map = cluster_level_inference(z_map, threshold=3.1, alpha=0.05)
+            # BIDS-compliant naming: insert 'desc-corrected'
+            corrected_fname = subjectlevel_z_map_fname.replace('_stat-z.nii.gz', '_desc-corrected_stat-z.nii.gz')
+            corrected_map.to_filename(corrected_fname)
+        except Exception as e:
+            print(f"Warning: Failed to compute cluster correction for {condition}: {e}")
 
         # Compute beta map (using effect size instead of z-score)
         beta_map = second_level_model.compute_contrast(second_level_contrast=[1],
