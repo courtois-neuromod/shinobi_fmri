@@ -85,52 +85,157 @@ def create_colormap():
     return fig, ax, mappable
 
 
+def crop_whitespace(img):
+    """Crop whitespace from PIL Image."""
+    # Convert to grayscale to find non-white pixels
+    gray = img.convert('L')
+    # Find bounding box of non-white content
+    bbox = gray.point(lambda x: 0 if x > 250 else 255).getbbox()
+    if bbox:
+        return img.crop(bbox)
+    return img
+
+
 def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, threshold=3, dpi=300):
     """Plot inflated brain surface map and save the image.
+
+    Creates a composite of 4 views (Lateral/Medial x Left/Right) with minimal spacing.
 
     Args:
         img (str or Nifti1Image): Path to image or nibabel image object
         save_path (str): Path to save the image
         title (str): Title of the image
-        colorbar (bool): Whether to include a colorbar
+        colorbar (bool): Whether to include a colorbar (ignored in this version, always False)
         vmax (float): Maximum value for the colormap
         threshold (float): Threshold value for displaying voxels
         dpi (int): DPI of the output image
     """
-    # Set font size based on title
-    if 'sub' in title:
-        fontsize = 24
-    elif 'ses' in title:
-        fontsize = 32
-    else:
-        fontsize = 20
-
     plt.rcParams['figure.dpi'] = dpi
 
     # Use standard cold_hot colormap without grey zone
     cmap = nilearn_cmaps['cold_hot']
 
-    # Plot on inflated surface with lighter background
-    plotting.plot_img_on_surf(
-        img,
-        views=["lateral", "medial"],
-        hemispheres=["left", "right"],
-        inflate=True,
-        colorbar=colorbar,
-        threshold=threshold,
-        vmax=vmax,
-        symmetric_cbar=False,
-        cmap=cmap,
-        darkness=0.7  # Lighter surface (closer to 1 = lighter, 0 = darker)
-    )
+    # 1. Render 4 views independently
+    views = [
+        ('left', 'lateral'),
+        ('right', 'lateral'),
+        ('left', 'medial'),
+        ('right', 'medial')
+    ]
+    
+    rendered_imgs = []
+    
+    for hemi, view in views:
+        # Plot single view
+        plotting.plot_img_on_surf(
+            img,
+            surf_mesh='fsaverage5',
+            views=[view],
+            hemispheres=[hemi],
+            inflate=True,
+            colorbar=False,
+            threshold=threshold,
+            vmax=vmax,
+            vmin=-vmax,
+            symmetric_cbar=False,
+            cmap=cmap,
+            darkness=0.7
+        )
+        
+        # Capture the figure
+        fig = plt.gcf()
+        fig.canvas.draw()
+        
+        # Convert to PIL Image
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        w, h = fig.canvas.get_width_height()
+        im = Image.fromarray(data.reshape((h, w, 3)))
+        
+        plt.close(fig)
+        
+        # Crop whitespace immediately
+        rendered_imgs.append(crop_whitespace(im))
 
-    # Get current figure and add title
-    fig = plt.gcf()
-    fig.canvas.draw()
-    fig.suptitle(title, fontsize=fontsize, y=1.05)
+    # 2. Resize all to the same height (based on max height)
+    max_height = max(im.height for im in rendered_imgs)
+    
+    resized_imgs = []
+    for im in rendered_imgs:
+        if im.height != max_height:
+            ratio = max_height / im.height
+            new_width = int(im.width * ratio)
+            im = im.resize((new_width, max_height), Image.LANCZOS)
+        else:
+            im = im.copy() # Just to be safe
+        resized_imgs.append(im)
+    
+    ll, rl, lm, rm = resized_imgs
+    
+    # 3. Stitch in 2x2 grid with minimal spacing
+    spacing = 5
+    
+    # Calculate dimensions
+    row1_w = ll.width + spacing + rl.width
+    row2_w = lm.width + spacing + rm.width
+    total_w = max(row1_w, row2_w)
+    total_h = max_height * 2 + spacing
+    
+    # Create composite image
+    final_img = Image.new('RGB', (total_w, total_h), 'white')
+    
+    # Paste Row 1: Left Lateral | Right Lateral (Centered)
+    r1_x = (total_w - row1_w) // 2
+    final_img.paste(ll, (r1_x, 0))
+    final_img.paste(rl, (r1_x + ll.width + spacing, 0))
+    
+    # Paste Row 2: Left Medial | Right Medial (Centered)
+    r2_x = (total_w - row2_w) // 2
+    final_img.paste(lm, (r2_x, max_height + spacing))
+    final_img.paste(rm, (r2_x + lm.width + spacing, max_height + spacing))
 
-    # Save with tight layout
-    plt.savefig(save_path, bbox_inches="tight", pad_inches=0.1)
+    # 4. Add Title using Matplotlib (to match previous font styling)
+    # Calculate new figure size in inches
+    # Add extra space at top for title
+    title_height_fraction = 0.25 if title else 0.0
+    
+    # We want the image part to have the correct aspect ratio
+    img_aspect = total_w / total_h
+    
+    # Base width in inches (arbitrary, affects resolution combined with DPI)
+    fig_width = 8 
+    fig_height = fig_width / img_aspect
+    
+    # Adjust for title space
+    total_fig_height = fig_height * (1 + title_height_fraction)
+    
+    fig = plt.figure(figsize=(fig_width, total_fig_height), dpi=dpi)
+    
+    # Add axes for the image, leaving space at top
+    ax_h = 1.0 / (1 + title_height_fraction)
+    ax = fig.add_axes([0, 0, 1, ax_h])
+    ax.imshow(final_img)
+    ax.axis('off')
+    
+    if title:
+        # Determine fontsize
+        if 'sub' in title:
+            fontsize = 48
+        elif 'ses' in title:
+            fontsize = 64
+        else:
+            fontsize = 40
+        
+        # Add title in the top margin area
+        # 1.0 is top of image axes. We want to go higher.
+        # Figure coordinates: 0,0 is bottom-left, 1,1 is top-right.
+        # Top of image is at y = ax_h.
+        title_y = ax_h + (1 - ax_h) * 0.5 # Center in the top margin
+        fig.text(0.5, title_y, title, ha='center', va='center', fontsize=fontsize)
+
+    # Save
+    if save_path:
+        fig.savefig(save_path, dpi=dpi, bbox_inches="tight", pad_inches=0.1)
+    
     plt.close(fig)
 
 
@@ -376,7 +481,7 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
             ax.axis('off')
 
     # Add title
-    fig.suptitle(f"{condition}", fontsize=18, fontweight='bold', x=0.4444)
+    fig.suptitle(f"{condition}", fontsize=32, fontweight='bold', x=0.4444)
 
     # Add colorbar
     _, _, cmap = create_colormap()
