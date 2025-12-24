@@ -465,16 +465,158 @@ def apply_surface_mask(overlay_img, img1, img2, z_threshold, logger=None):
     return masked_overlay_img
 
 
+def create_subject_label(subject_id, width, height, dpi=300):
+    """Create a subject ID label using matplotlib for proper font scaling.
+
+    Args:
+        subject_id (str): Subject ID (e.g., 'sub-01')
+        width (int): Width of the label area in pixels
+        height (int): Height of the label area in pixels
+        dpi (int): DPI for rendering
+
+    Returns:
+        PIL.Image: Label as PIL Image
+    """
+    from PIL import Image
+    import io
+
+    # Convert pixels to inches
+    fig_width = width / dpi
+    fig_height = height / dpi
+
+    # Create figure
+    fig = plt.figure(figsize=(fig_width, fig_height), dpi=dpi)
+    ax = fig.add_subplot(111)
+    ax.axis('off')
+
+    # Add text centered
+    ax.text(0.5, 0.5, subject_id, ha='center', va='center',
+            fontsize=24, fontweight='normal',
+            transform=ax.transAxes)
+
+    # Convert to PIL Image
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=dpi)
+    buf.seek(0)
+    label_img = Image.open(buf)
+    label_img = label_img.copy()
+    buf.close()
+    plt.close(fig)
+
+    return label_img
+
+
+def create_four_subject_panel(subject_images, save_path, legend_data, source1, cond1, source2, cond2, dpi=300, logger=None):
+    """Create a 2x2 panel with all 4 subjects and legend on the right.
+
+    Args:
+        subject_images (dict): Dict mapping subject IDs to image arrays
+        save_path (str): Path to save panel
+        legend_data (Image): PIL Image of the legend
+        source1, cond1 (str): First condition info (unused, kept for compatibility)
+        source2, cond2 (str): Second condition info (unused, kept for compatibility)
+        dpi (int): Output DPI
+        logger: Logger instance
+    """
+    from PIL import Image
+
+    if logger:
+        logger.debug("Creating 4-subject panel...")
+
+    # Expected subject order for 2x2 grid
+    subjects_order = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+
+    # Load images
+    imgs = []
+    for subj in subjects_order:
+        if subj in subject_images:
+            imgs.append(Image.fromarray(subject_images[subj]))
+        else:
+            # Create blank if missing
+            imgs.append(Image.new('RGB', (600, 300), 'white'))
+
+    # Get dimensions
+    img_width = imgs[0].width
+    img_height = imgs[0].height
+
+    # Legend dimensions
+    legend_width = legend_data.width
+    legend_height = legend_data.height
+
+    # Calculate panel dimensions
+    inter_subject_spacing = 80  # Space between different subjects (sub-01 vs sub-02)
+    intra_subject_spacing = 5   # Space within each subject's 4 views
+    edge_spacing = 20
+    label_height = 80  # Space for subject ID labels
+
+    # 2x2 grid of subjects
+    grid_width = (img_width * 2) + inter_subject_spacing
+    grid_height = (img_height * 2) + inter_subject_spacing + (2 * label_height)  # Add space for 2 labels
+
+    # Total dimensions
+    total_width = grid_width + edge_spacing * 2 + legend_width + edge_spacing
+    total_height = grid_height + edge_spacing * 2
+
+    # Create panel
+    panel = Image.new('RGB', (total_width, total_height), 'white')
+
+    # Place images in 2x2 grid with centered labels above each subject
+    # Layout:
+    # [sub-01 label centered]    [sub-02 label centered]
+    # [sub-01 images]            [sub-02 images]
+    # [sub-04 label centered]    [sub-06 label centered]
+    # [sub-04 images]            [sub-06 images]
+
+    positions = [
+        (edge_spacing, edge_spacing + label_height),  # sub-01: top-left
+        (edge_spacing + img_width + inter_subject_spacing, edge_spacing + label_height),  # sub-02: top-right
+        (edge_spacing, edge_spacing + img_height + inter_subject_spacing + 2 * label_height),  # sub-04: bottom-left
+        (edge_spacing + img_width + inter_subject_spacing, edge_spacing + img_height + inter_subject_spacing + 2 * label_height)  # sub-06: bottom-right
+    ]
+
+    for idx, (img, pos) in enumerate(zip(imgs, positions)):
+        # Paste image
+        panel.paste(img, pos)
+
+        # Create and paste subject label using matplotlib (for proper font scaling at high DPI)
+        subj_label = subjects_order[idx]
+        label_img = create_subject_label(subj_label, img_width, label_height, dpi)
+
+        # Center the label above the images
+        label_x = pos[0]
+        label_y = pos[1] - label_height
+
+        # Resize label if needed to fit exactly in the label area
+        if label_img.width != img_width or label_img.height != label_height:
+            # Paste at center of label area
+            label_offset_x = pos[0] + (img_width - label_img.width) // 2
+            label_offset_y = pos[1] - label_height + (label_height - label_img.height) // 2
+            panel.paste(label_img, (label_offset_x, label_offset_y), label_img if label_img.mode == 'RGBA' else None)
+        else:
+            panel.paste(label_img, (label_x, label_y), label_img if label_img.mode == 'RGBA' else None)
+
+    # Place legend on the right, centered vertically
+    legend_y = (total_height - legend_height) // 2
+    legend_x = grid_width + edge_spacing * 2
+    panel.paste(legend_data, (legend_x, legend_y))
+
+    # Save
+    panel.save(save_path, dpi=(dpi, dpi))
+
+    if logger:
+        logger.info(f"Saved panel: {save_path}")
+
+
 def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1, color2, img1=None, img2=None, z_threshold=3.0, threshold=2.5, dpi=300, logger=None):
-    """Plot overlay map on inflated brain surface with custom legend.
+    """Plot overlay map on inflated brain surface.
 
     Args:
         overlay_img (Nifti1Image): Overlay map with three-color coding
         save_path (str): Path to save the image
-        title (str): Title for the plot
-        legend_img_path (str): Path to legend image
-        color1 (str): Hex color for condition 1
-        color2 (str): Hex color for condition 2
+        title (str): Title for the plot (unused, kept for compatibility)
+        legend_img_path (str): Path to legend image (unused, kept for compatibility)
+        color1 (str): Hex color for condition 1 (unused, kept for compatibility)
+        color2 (str): Hex color for condition 2 (unused, kept for compatibility)
         img1 (Nifti1Image): Raw z-map for condition 1 (for masking)
         img2 (Nifti1Image): Raw z-map for condition 2 (for masking)
         z_threshold (float): Z-score threshold for raw maps (default: 3.0)
@@ -492,16 +634,17 @@ def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1,
     # Create custom three-color colormap (Blue/Red/Purple)
     cmap = create_three_color_colormap()
 
-    # Render each view separately at high DPI for quality
-    render_dpi = 150
+    # Render each view separately at high DPI for quality (matching annotation panels)
+    render_dpi = 300
 
+    # Render surfaces in order: left lateral, right lateral, left medial, right medial
     left_lateral = plot_single_surface_view(overlay_img, 'left', 'lateral', cmap, threshold, render_dpi)
-    left_medial = plot_single_surface_view(overlay_img, 'left', 'medial', cmap, threshold, render_dpi)
     right_lateral = plot_single_surface_view(overlay_img, 'right', 'lateral', cmap, threshold, render_dpi)
+    left_medial = plot_single_surface_view(overlay_img, 'left', 'medial', cmap, threshold, render_dpi)
     right_medial = plot_single_surface_view(overlay_img, 'right', 'medial', cmap, threshold, render_dpi)
 
     # Convert arrays to PIL Images and crop whitespace
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
 
     def crop_whitespace(img_array):
         """Crop whitespace from image array."""
@@ -515,20 +658,17 @@ def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1,
         return img
 
     ll_img = crop_whitespace(left_lateral)
-    lm_img = crop_whitespace(left_medial)
     rl_img = crop_whitespace(right_lateral)
+    lm_img = crop_whitespace(left_medial)
     rm_img = crop_whitespace(right_medial)
 
-    # Load legend
-    legend_img = Image.open(legend_img_path)
-
     # Create compact 2x2 grid layout
-    # Layout: [Left Lateral | Left Medial]   [Legend]
-    #         [Right Lateral | Right Medial] [Legend]
+    # Layout: [Left Lateral | Right Lateral]
+    #         [Left Medial | Right Medial]
     spacing = 5  # Minimal spacing in pixels
 
     # Make all brain images the same height
-    max_height = max(ll_img.height, lm_img.height, rl_img.height, rm_img.height)
+    max_height = max(ll_img.height, rl_img.height, lm_img.height, rm_img.height)
 
     def resize_to_height(img, target_height):
         ratio = target_height / img.height
@@ -536,66 +676,46 @@ def plot_overlay_surface(overlay_img, save_path, title, legend_img_path, color1,
         return img.resize((new_width, target_height), Image.LANCZOS)
 
     ll_img = resize_to_height(ll_img, max_height)
-    lm_img = resize_to_height(lm_img, max_height)
     rl_img = resize_to_height(rl_img, max_height)
+    lm_img = resize_to_height(lm_img, max_height)
     rm_img = resize_to_height(rm_img, max_height)
 
     # Calculate dimensions for 2x2 grid
     # Two rows of brain images
-    row_width = max(ll_img.width + lm_img.width, rl_img.width + rm_img.width) + spacing
+    row_width = max(ll_img.width + rl_img.width, lm_img.width + rm_img.width) + spacing
     grid_height = 2 * max_height + spacing
 
-    # Resize legend to match grid height
-    legend_img = resize_to_height(legend_img, grid_height)
-
     # Calculate total dimensions
-    total_width = row_width + legend_img.width + 3 * spacing
-    title_height = 40
-    total_height = grid_height + title_height + spacing
+    total_width = row_width + spacing
+    total_height = grid_height + spacing
 
     # Create final composite image
     final_img = Image.new('RGB', (total_width, total_height), 'white')
 
     # Paste images in 2x2 grid with minimal spacing
-    y_offset = title_height
+    y_offset = spacing
 
-    # Top row: Left Lateral | Left Medial
+    # Top row: Left Lateral | Right Lateral
     x_offset = spacing
     final_img.paste(ll_img, (x_offset, y_offset))
     x_offset += ll_img.width + spacing
-    final_img.paste(lm_img, (x_offset, y_offset))
+    final_img.paste(rl_img, (x_offset, y_offset))
 
-    # Bottom row: Right Lateral | Right Medial
+    # Bottom row: Left Medial | Right Medial
     y_offset += max_height + spacing
     x_offset = spacing
-    final_img.paste(rl_img, (x_offset, y_offset))
-    x_offset += rl_img.width + spacing
+    final_img.paste(lm_img, (x_offset, y_offset))
+    x_offset += lm_img.width + spacing
     final_img.paste(rm_img, (x_offset, y_offset))
 
-    # Paste legend on the right side (spanning both rows)
-    legend_x = row_width + 2 * spacing
-    legend_y = title_height
-    final_img.paste(legend_img, (legend_x, legend_y))
-
-    # Add title using PIL
-    draw = ImageDraw.Draw(final_img)
-    # Use default font
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
-    except:
-        font = ImageFont.load_default()
-
-    # Center title
-    title_bbox = draw.textbbox((0, 0), title, font=font)
-    title_width = title_bbox[2] - title_bbox[0]
-    title_x = (total_width - title_width) // 2
-    draw.text((title_x, 10), title, fill='black', font=font)
-
     # Save final image
-    final_img.save(save_path, dpi=(dpi, dpi))
+    if save_path:
+        final_img.save(save_path, dpi=(dpi, dpi))
+        if logger:
+            logger.debug(f"Saved compact overlay surface plot: {save_path}")
 
-    if logger:
-        logger.debug(f"Saved compact overlay surface plot: {save_path}")
+    # Return as numpy array for panel creation
+    return np.array(final_img)
 
 
 def get_condition_color(source, condition):
@@ -641,65 +761,94 @@ def get_condition_color(source, condition):
         return mcolors.rgb2hex(hcp_colors[task])
 
 
-def create_legend_image(save_path, source1, cond1, source2, cond2, dpi=150):
+def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     """Create a vertical legend with Blue/Red/Purple gradients and task-colored labels.
 
     Args:
-        save_path (str): Path to save legend image
         source1 (str): Source for condition 1 ('shinobi' or 'hcp')
         cond1 (str): Condition 1 name
         source2 (str): Source for condition 2 ('shinobi' or 'hcp')
         cond2 (str): Condition 2 name
         dpi (int): DPI of output image
+
+    Returns:
+        PIL.Image: Legend as PIL Image
     """
+    from PIL import Image
+    import io
+
     # Get colors for condition labels (task-specific)
     color1 = get_condition_color(source1, cond1)
     color2 = get_condition_color(source2, cond2)
 
-    # Vertical layout with thinner bars
-    fig, ax = plt.subplots(figsize=(1.5, 6), dpi=dpi)
+    # Vertical layout - much larger to accommodate bigger text
+    fig, ax = plt.subplots(figsize=(8, 18), dpi=dpi)
     ax.axis('off')
 
-    # Create gradient colorbars - THINNER bars (vertical orientation)
-    # Darker at top, lighter at bottom
-    gradient = np.linspace(1, 0, 256).reshape(-1, 1)  # Top to bottom: 1 to 0
+    # Create gradient colorbars - inverted so dark is at top, light at bottom
+    # Gradient values: 0 (dark) at top → 1 (light) at bottom
+    gradient = np.linspace(0, 1, 256).reshape(-1, 1)
+
+    # Bar width (half of previous)
+    bar_width = 0.075
+    bar_x = 0.05
 
     # Blue gradient for condition 1
-    ax_cond1 = fig.add_axes([0.15, 0.68, 0.25, 0.25])
+    ax_cond1 = fig.add_axes([bar_x, 0.68, bar_width, 0.25])
     cmap1 = mcolors.LinearSegmentedColormap.from_list('cond1', ['#00008B', '#6666FF'])
-    ax_cond1.imshow(gradient, aspect='auto', cmap=cmap1)
+    ax_cond1.imshow(gradient, aspect='auto', cmap=cmap1, extent=[0, 1, 0, 1])
     ax_cond1.set_xticks([])
-    ax_cond1.set_yticks([])
+    # Add ticks for z-values (bottom=3 light, middle=4.5, top=6 dark)
+    ax_cond1.set_yticks([0, 0.5, 1])
+    ax_cond1.set_yticklabels(['3', '4.5', '6'], fontsize=28)
+    ax_cond1.tick_params(axis='y', length=8, width=2, pad=5)
     for spine in ax_cond1.spines.values():
         spine.set_visible(True)
+        spine.set_linewidth(3)
+    # Add label directly on this axes, centered vertically at 0.5
+    ax_cond1.text(1.3, 0.5, cond1, ha='left', va='center', fontsize=45,
+                  fontweight='bold', color=color1, transform=ax_cond1.transAxes)
 
     # Red gradient for condition 2
-    ax_cond2 = fig.add_axes([0.15, 0.39, 0.25, 0.25])
+    ax_cond2 = fig.add_axes([bar_x, 0.39, bar_width, 0.25])
     cmap2 = mcolors.LinearSegmentedColormap.from_list('cond2', ['#8B0000', '#FF6666'])
-    ax_cond2.imshow(gradient, aspect='auto', cmap=cmap2)
+    ax_cond2.imshow(gradient, aspect='auto', cmap=cmap2, extent=[0, 1, 0, 1])
     ax_cond2.set_xticks([])
-    ax_cond2.set_yticks([])
+    ax_cond2.set_yticks([0, 0.5, 1])
+    ax_cond2.set_yticklabels(['3', '4.5', '6'], fontsize=28)
+    ax_cond2.tick_params(axis='y', length=8, width=2, pad=5)
     for spine in ax_cond2.spines.values():
         spine.set_visible(True)
+        spine.set_linewidth(3)
+    # Add label directly on this axes, centered vertically at 0.5
+    ax_cond2.text(1.3, 0.5, cond2, ha='left', va='center', fontsize=45,
+                  fontweight='bold', color=color2, transform=ax_cond2.transAxes)
 
     # Purple gradient for both conditions
-    ax_both = fig.add_axes([0.15, 0.10, 0.25, 0.25])
-    ax_both.imshow(gradient, aspect='auto', cmap=mcolors.LinearSegmentedColormap.from_list('both', ['#6600CC', '#CC66FF']))
+    ax_both = fig.add_axes([bar_x, 0.10, bar_width, 0.25])
+    cmap_both = mcolors.LinearSegmentedColormap.from_list('both', ['#6600CC', '#CC66FF'])
+    ax_both.imshow(gradient, aspect='auto', cmap=cmap_both, extent=[0, 1, 0, 1])
     ax_both.set_xticks([])
-    ax_both.set_yticks([])
+    ax_both.set_yticks([0, 0.5, 1])
+    ax_both.set_yticklabels(['3', '4.5', '6'], fontsize=28)
+    ax_both.tick_params(axis='y', length=8, width=2, pad=5)
     for spine in ax_both.spines.values():
         spine.set_visible(True)
+        spine.set_linewidth(3)
+    # Add label directly on this axes, centered vertically at 0.5
+    ax_both.text(1.3, 0.5, 'Both', ha='left', va='center', fontsize=45,
+                 fontweight='bold', color='black', transform=ax_both.transAxes)
 
-    # Add labels to the right of each bar - condition names colored by task
-    ax.text(0.50, 0.805, cond1, ha='left', va='center', fontsize=11,
-            fontweight='bold', color=color1, transform=ax.transAxes)
-    ax.text(0.50, 0.515, cond2, ha='left', va='center', fontsize=11,
-            fontweight='bold', color=color2, transform=ax.transAxes)
-    ax.text(0.50, 0.225, 'Both', ha='left', va='center', fontsize=11,
-            fontweight='bold', color='black', transform=ax.transAxes)  # Black for "Both"
-
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+    # Convert to PIL Image
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
+    buf.seek(0)
+    legend_img = Image.open(buf)
+    legend_img = legend_img.copy()  # Make a copy before closing buffer
+    buf.close()
     plt.close(fig)
+
+    return legend_img
 
 
 def main():
@@ -711,14 +860,19 @@ def main():
     parser.add_argument(
         '--cond1',
         type=str,
-        required=True,
+        default=None,
         help='First condition in format "source:condition" (e.g., "shinobi:Kill" or "hcp:reward")'
     )
     parser.add_argument(
         '--cond2',
         type=str,
-        required=True,
+        default=None,
         help='Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")'
+    )
+    parser.add_argument(
+        '--run-all',
+        action='store_true',
+        help='Run all predefined comparisons (Kill vs reward, HealthLoss vs punishment, etc.)'
     )
     parser.add_argument(
         '--hcp-task',
@@ -758,6 +912,12 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate arguments
+    if args.run_all and (args.cond1 or args.cond2):
+        parser.error("Cannot specify both --run-all and individual conditions")
+    if not args.run_all and (not args.cond1 or not args.cond2):
+        parser.error("Must specify either --run-all or both --cond1 and --cond2")
+
     # Determine verbosity
     if args.verbose == 0:
         log_level = logging.WARNING
@@ -774,73 +934,91 @@ def main():
     )
 
     try:
-        # Parse condition specifications
-        source1, cond1 = parse_condition_spec(args.cond1)
-        source2, cond2 = parse_condition_spec(args.cond2)
+        # Define comparison pairs
+        if args.run_all:
+            comparisons = [
+                ('shinobi:Kill', 'hcp:reward'),
+                ('shinobi:HealthLoss', 'hcp:punishment'),
+                ('shinobi:RIGHT', 'shinobi:JUMP'),
+                ('shinobi:LEFT', 'shinobi:HIT'),
+            ]
+        else:
+            comparisons = [(args.cond1, args.cond2)]
 
-        logger.info(f"Comparing {source1}:{cond1} vs {source2}:{cond2}")
+        logger.info(f"Processing {len(comparisons)} comparison(s)")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
         logger.info(f"Threshold: |z| > {args.threshold}\n")
 
-        # Determine HCP task if needed
-        hcp_task1 = None
-        hcp_task2 = None
-        if source1 == 'hcp':
-            hcp_task1 = find_hcp_task(cond1, args.hcp_task)
-            logger.info(f"Using HCP task '{hcp_task1}' for condition 1")
-        if source2 == 'hcp':
-            hcp_task2 = find_hcp_task(cond2, args.hcp_task)
-            logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
+        # Process each comparison
+        for cond_spec1, cond_spec2 in comparisons:
+            # Parse condition specifications
+            source1, cond1 = parse_condition_spec(cond_spec1)
+            source2, cond2 = parse_condition_spec(cond_spec2)
 
-        # Create output directory
-        if args.output_dir:
-            output_dir = args.output_dir
-        else:
-            output_dir = op.join(
-                ".", "reports", "figures", "condition_comparison",
-                f"{source1}_{cond1}_vs_{source2}_{cond2}"
-            )
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Output directory: {output_dir}\n")
+            logger.info(f"\n{'='*70}")
+            logger.info(f"Comparing {source1}:{cond1} vs {source2}:{cond2}")
+            logger.info(f"{'='*70}\n")
 
-        # Get task colors for conditions
-        color1 = get_condition_color(source1, cond1)
-        color2 = get_condition_color(source2, cond2)
-        logger.info(f"Using colors: {cond1}={color1}, {cond2}={color2}")
+            # Determine HCP task if needed
+            hcp_task1 = None
+            hcp_task2 = None
+            if source1 == 'hcp':
+                hcp_task1 = find_hcp_task(cond1, args.hcp_task)
+                logger.info(f"Using HCP task '{hcp_task1}' for condition 1")
+            if source2 == 'hcp':
+                hcp_task2 = find_hcp_task(cond2, args.hcp_task)
+                logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
 
-        # Create legend
-        legend_path = op.join(output_dir, "legend.png")
-        create_legend_image(legend_path, source1, cond1, source2, cond2)
-        logger.info(f"Created legend: {legend_path}")
+            # Use single output directory for all panels
+            if args.output_dir:
+                output_dir = args.output_dir
+            else:
+                output_dir = op.join(".", "reports", "figures", "condition_comparison")
+            os.makedirs(output_dir, exist_ok=True)
 
-        # Process each subject
-        for subject in tqdm(SUBJECTS, desc="Processing subjects"):
-            logger.info(f"\nProcessing {subject}")
+            if len(comparisons) == 1:
+                logger.info(f"Output directory: {output_dir}\n")
 
-            # Load z-maps
-            img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, logger)
-            img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, logger)
+            # Get task colors for conditions
+            color1 = get_condition_color(source1, cond1)
+            color2 = get_condition_color(source2, cond2)
+            logger.info(f"Using colors: {cond1}={color1}, {cond2}={color2}")
 
-            if img1 is None or img2 is None:
-                logger.warning(f"Skipping {subject} due to missing data")
-                continue
+            # Create legend as PIL Image
+            legend_img = create_legend_image(source1, cond1, source2, cond2)
+            logger.debug("Created legend image")
 
-            # Create overlay
-            overlay_img = create_overlay_map(img1, img2, args.threshold, logger)
+            # Collect all subjects
+            subject_images = {}
+            for subject in tqdm(SUBJECTS, desc=f"Processing {cond1} vs {cond2}"):
+                logger.debug(f"Processing {subject}")
 
-            # Plot overlay on surface with task-specific colors
-            save_path = op.join(output_dir, f"{subject}_comparison.png")
-            title = f"{subject}"  # Simplified title
-            plot_overlay_surface(overlay_img, save_path, title, legend_path, color1, color2,
-                               img1=img1, img2=img2, z_threshold=args.threshold,
-                               threshold=2.5, logger=logger)
+                # Load z-maps
+                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, logger)
+                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, logger)
 
-            logger.info(f"Saved: {save_path}")
+                if img1 is None or img2 is None:
+                    logger.warning(f"Skipping {subject} due to missing data")
+                    continue
+
+                # Create overlay
+                overlay_img = create_overlay_map(img1, img2, args.threshold, logger)
+
+                # Plot overlay and get image array (don't save individual files)
+                img_array = plot_overlay_surface(overlay_img, None, subject, None, color1, color2,
+                                   img1=img1, img2=img2, z_threshold=args.threshold,
+                                   threshold=2.5, logger=logger)
+
+                subject_images[subject] = img_array
+
+            # Create 4-subject panel
+            panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_panel.png")
+            create_four_subject_panel(subject_images, panel_path, legend_img,
+                                    source1, cond1, source2, cond2, logger=logger)
 
         # Print summary
         logger.info("\nAll done!")
-        logger.info(f"Comparison plots saved to {op.abspath(output_dir)}/")
-        logger.info(f"Legend: {op.abspath(legend_path)}")
+        logger.info(f"Created {len(comparisons)} comparison panel(s)")
 
     finally:
         logger.close()

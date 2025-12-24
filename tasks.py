@@ -601,6 +601,72 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
     c.run(cmd)
 
 
+@task
+def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, verbose=0, log_dir=None, output_dir=None):
+    """
+    Generate condition comparison surface plots.
+
+    Creates surface plots comparing two conditions with three-color overlay:
+    - Blue: Significant only for condition 1
+    - Red: Significant only for condition 2
+    - Purple: Significant for both conditions
+
+    By default (--run-all), generates all predefined comparisons:
+    - Kill vs reward (shinobi vs HCP gambling)
+    - HealthLoss vs punishment (shinobi vs HCP gambling)
+    - RIGHT vs JUMP (shinobi vs shinobi)
+    - LEFT vs HIT (shinobi vs shinobi)
+
+    Args:
+        cond1: First condition in format "source:condition" (e.g., "shinobi:Kill" or "hcp:reward")
+        cond2: Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")
+        run_all: Generate all predefined comparisons (default if no conditions specified)
+        threshold: Significance threshold for z-maps (default: 3.0)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+        output_dir: Custom output directory (default: reports/figures/condition_comparison/)
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_condition_comparison.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    # If no conditions specified, default to run-all
+    if not cond1 and not cond2 and not run_all:
+        run_all = True
+
+    if run_all:
+        cmd_parts.append('--run-all')
+    else:
+        if cond1:
+            cmd_parts.extend(['--cond1', cond1])
+        if cond2:
+            cmd_parts.extend(['--cond2', cond2])
+
+    if threshold != 3.0:
+        cmd_parts.extend(['--threshold', str(threshold)])
+
+    if output_dir:
+        cmd_parts.extend(['--output-dir', output_dir])
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print(f"Generating condition comparison plots...")
+    if run_all:
+        print(f"  Generating all predefined comparisons")
+    else:
+        if cond1:
+            print(f"  Condition 1: {cond1}")
+        if cond2:
+            print(f"  Condition 2: {cond2}")
+
+    c.run(cmd)
+
+
 # =============================================================================
 # Full Pipeline Tasks
 # =============================================================================
@@ -740,6 +806,7 @@ viz_collection.add_task(viz_subject_level, name='subject-level')
 viz_collection.add_task(viz_annotation_panels, name='annotation-panels')
 viz_collection.add_task(viz_beta_correlations, name='beta-correlations')
 viz_collection.add_task(viz_regressor_correlations, name='regressor-correlations')
+viz_collection.add_task(viz_condition_comparison, name='condition-comparison')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
