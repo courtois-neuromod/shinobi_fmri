@@ -150,13 +150,13 @@ def plot_subject_heatmap(corr_matrix, subject, output_path):
             prev_task = task
 
         # Add labels for sections
-        ax.text(n_shinobi/2, -0.5, 'Shinobi', ha='center', va='bottom',
+        ax.text(n_shinobi/2, -0.2, 'Shinobi', ha='center', va='bottom',
                 fontsize=14, fontweight='bold', color='#FF6B6B')
-        ax.text(n_shinobi + len(hcp_conds)/2, -0.5, 'HCP', ha='center', va='bottom',
+        ax.text(n_shinobi + len(hcp_conds)/2, -0.2, 'HCP', ha='center', va='bottom',
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
     ax.set_title(f'{subject}: Within-Subject Condition Correlations\n(How different conditions relate to each other)',
-                 fontsize=16, fontweight='bold', pad=20)
+                 fontsize=16, pad=20)
 
     plt.tight_layout()
     plt.savefig(output_path / f'{subject}_condition_correlations.png', dpi=300, bbox_inches='tight')
@@ -283,7 +283,7 @@ def plot_same_vs_different_comparison(subject_results, output_path):
     ax.set_xlabel('Subject', fontsize=12, fontweight='bold')
     ax.set_ylabel('Correlation (Pearson r)', fontsize=12, fontweight='bold')
     ax.set_title('Same vs Different Condition Correlations by Subject',
-                 fontsize=13, fontweight='bold')
+                 fontsize=16)
     ax.legend(title='Comparison Type', fontsize=10)
     ax.grid(alpha=0.3, axis='y', linestyle='--')
 
@@ -313,7 +313,7 @@ def plot_same_vs_different_comparison(subject_results, output_path):
     ax.set_xlabel('Comparison Type', fontsize=12, fontweight='bold')
     ax.set_ylabel('Correlation (Pearson r)', fontsize=12, fontweight='bold')
     ax.set_title('Overall Distribution: Same vs Different Conditions',
-                 fontsize=13, fontweight='bold')
+                 fontsize=16)
     ax.grid(alpha=0.3, axis='y', linestyle='--')
 
     plt.tight_layout()
@@ -425,7 +425,7 @@ def plot_condition_specificity_matrix(subject_results, output_path):
     ax.set_xlabel('Subject', fontsize=12, fontweight='bold')
     ax.set_ylabel('Condition', fontsize=12, fontweight='bold')
     ax.set_title('Condition Specificity by Subject\n(Same-condition correlation minus mean different-condition correlation)',
-                 fontsize=13, fontweight='bold', pad=20)
+                 fontsize=16, pad=20)
 
     plt.tight_layout()
     plt.savefig(output_path / 'condition_specificity_matrix.png', dpi=300, bbox_inches='tight')
