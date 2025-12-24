@@ -667,6 +667,40 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
     c.run(cmd)
 
 
+@task
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', overwrite=False):
+    """
+    Generate atlas tables for z-maps.
+
+    Args:
+        input_dir: Directory containing z-maps (default: {DATA_PATH}/processed/z_maps/subject-level)
+        output_dir: Directory to save output tables (default: reports/tables)
+        cluster_extent: Minimum cluster size in voxels (default: 5)
+        voxel_thresh: Voxel threshold for significance (default: 3.0)
+        direction: Direction of the contrast (both, pos, neg)
+        overwrite: Overwrite existing cluster files
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "generate_atlas_tables.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if input_dir:
+        cmd_parts.extend(['--input-dir', input_dir])
+    if output_dir:
+        cmd_parts.extend(['--output-dir', output_dir])
+
+    cmd_parts.extend(['--cluster-extent', str(cluster_extent)])
+    cmd_parts.extend(['--voxel-thresh', str(voxel_thresh)])
+    cmd_parts.extend(['--direction', direction])
+
+    if overwrite:
+        cmd_parts.append('--overwrite')
+
+    cmd = ' '.join(cmd_parts)
+    print(f"Generating atlas tables...")
+    c.run(cmd)
+
+
 # =============================================================================
 # Full Pipeline Tasks
 # =============================================================================
@@ -807,6 +841,7 @@ viz_collection.add_task(viz_annotation_panels, name='annotation-panels')
 viz_collection.add_task(viz_beta_correlations, name='beta-correlations')
 viz_collection.add_task(viz_regressor_correlations, name='regressor-correlations')
 viz_collection.add_task(viz_condition_comparison, name='condition-comparison')
+viz_collection.add_task(viz_atlas_tables, name='atlas-tables')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
