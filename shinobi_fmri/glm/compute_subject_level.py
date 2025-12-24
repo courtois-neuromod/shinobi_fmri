@@ -2,34 +2,16 @@ import os
 import os.path as op
 import pandas as pd
 import warnings
-from nilearn import image, signal
-from load_confounds import Confounds
-from shinobi_fmri.annotations.annotations import get_scrub_regressor
-from shinobi_fmri.utils.logger import ShinobiLogger
-import numpy as np
-import pdb
 import argparse
-import nilearn
+import logging
 import shinobi_fmri.config as config
+from shinobi_fmri.utils.logger import ShinobiLogger
+from nilearn.glm import cluster_level_inference
+from nilearn.glm.second_level import SecondLevelModel
 
 # Suppress informational warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
-from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
-from nilearn.glm import threshold_stats_img, cluster_level_inference
-from nilearn import plotting
-from nilearn.image import clean_img
-from nilearn.reporting import get_clusters_table
-from nilearn import input_data
-from nilearn import plotting
-import matplotlib.pyplot as plt
-from nilearn.signal import clean
-import nibabel as nib
-import logging
-import pickle
-from nilearn.plotting import plot_img_on_surf, plot_stat_map
-import glob
-from nilearn.glm.second_level import SecondLevelModel
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -58,9 +40,6 @@ parser.add_argument(
     help="Directory for log files",
 )
 args = parser.parse_args()
-
-t_r = 1.49
-hrf_model = "spm"
 
 def process_subject(sub, condition, path_to_data, logger=None):
     # Read session-level z-maps from the new structure
@@ -127,7 +106,6 @@ def process_subject(sub, condition, path_to_data, logger=None):
     # Compute map
     try:
         second_level_input = z_maps
-        column_names = [f"{ses}" for ses in ses_list]
         second_design_matrix = pd.DataFrame([1] * len(second_level_input),
                                      columns=['intercept'])
 
@@ -177,11 +155,11 @@ def process_subject(sub, condition, path_to_data, logger=None):
 
 
 def main(logger=None):
-    z_map = process_subject(sub, condition, path_to_data, logger=logger)
+    process_subject(sub, condition, path_to_data, logger=logger)
 
 if __name__ == "__main__":
-    figures_path = config.FIG_PATH #'/home/hyruuk/GitHub/neuromod/shinobi_fmri/reports/figures/'
-    path_to_data = config.DATA_PATH  #'/media/storage/neuromod/shinobi_data/'
+    figures_path = config.FIG_PATH
+    path_to_data = config.DATA_PATH
     sub = args.subject
     condition = args.condition
 
