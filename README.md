@@ -73,86 +73,70 @@ PROCESSING SUMMARY
 
 You can run analysis tasks using `invoke` (recommended) or directly via python calls.
 
-### Common Arguments for Invoke
-- `--verbose`: Enable verbose output (0=WARNING, 1=INFO, 2=DEBUG)
-- `--log-dir`: Custom directory for log files
+**For detailed documentation of all tasks, see [TASKS.md](TASKS.md).**
 
-### 1. GLM Analysis
+### Quick Start
 
-**Run-level GLM:**
+List all available tasks:
 ```bash
-# Using invoke (recommended)
+invoke --list
+```
+
+Display configuration and environment info:
+```bash
+invoke info
+```
+
+### Available Tasks
+
+The pipeline provides the following task categories:
+
+**GLM Analysis:**
+- `glm.run-level` - Run-level (first-level) GLM analysis
+- `glm.session-level` - Session-level (second-level) GLM analysis
+- `glm.subject-level` - Subject-level (third-level) GLM analysis
+
+**MVPA:**
+- `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding)
+
+**Correlation Analysis:**
+- `corr.beta` - Compute beta map correlations with HCP data
+
+**Visualization:**
+- `viz.run-level` - Run-level visualizations
+- `viz.session-level` - Session-level visualizations
+- `viz.subject-level` - Subject-level visualizations
+- `viz.annotation-panels` - Generate annotation panels and PDFs
+- `viz.beta-correlations` - Generate beta correlations figure
+- `viz.regressor-correlations` - Design matrix regressor correlation matrices
+- `viz.condition-comparison` - Condition comparison surface plots
+- `viz.atlas-tables` - Generate atlas tables for z-maps
+
+**Pipelines:**
+- `pipeline.full` - Complete pipeline for a subject/session
+- `pipeline.subject` - Complete subject-level pipeline
+
+**Setup:**
+- `setup.env` - Install Python dependencies
+- `setup.airoh` - Install airoh and invoke
+
+### Example Usage
+
+```bash
+# Run GLM analysis for a subject/session
 invoke glm.run-level --subject sub-01 --session ses-001 --verbose 1
 
-# Direct execution
-python -m shinobi_fmri.glm.compute_run_level -s sub-01 -ses ses-001 -v
-```
-
-**Session-level GLM:**
-```bash
-# Using invoke
-invoke glm.session-level --subject sub-01 --session ses-001 --verbose 1
-
-# Direct execution
-python -m shinobi_fmri.glm.compute_session_level -s sub-01 -ses ses-001 -v
-```
-
-**Subject-level GLM:**
-```bash
-# Using invoke
-invoke glm.subject-level --subject sub-01 --condition HIT --verbose 1
-
-# Direct execution
-python -m shinobi_fmri.glm.compute_subject_level -s sub-01 -cond HIT -v
-```
-
-### 2. MVPA
-
-Run classification analysis (searchlight/decoding):
-
-```bash
-# Using invoke
-invoke mvpa.session-level --subject sub-01 --verbose 1
-
-# Direct execution
-python -m shinobi_fmri.mvpa.compute_mvpa -s sub-01 --screening 20 -v
-```
-
-### 3. Correlation Analysis
-
-Compute beta map correlation matrices:
-
-```bash
-# Submit all chunks to SLURM (recommended for large datasets)
+# Submit all correlation chunks to SLURM
 invoke corr.beta --slurm --chunk-size 100 --verbose 1
 
-# Run single chunk locally
-invoke corr.beta --chunk-start 0 --chunk-size 100 --n-jobs 20 --verbose 1
+# Generate visualizations for all subjects
+invoke viz.session-level
 
-# Direct execution with SLURM batch submission
-python -m shinobi_fmri.correlations.compute_beta_correlations --slurm -v
-
-# Direct execution for single chunk
-python -m shinobi_fmri.correlations.compute_beta_correlations --chunk-start 0 --chunk-size 100 --n-jobs 20 -v
+# Run complete pipeline
+invoke pipeline.full --subject sub-01 --session ses-001
 ```
 
-The `--slurm` flag automatically:
-- Discovers all available beta maps
-- Splits them into chunks (default: 100 maps per chunk)
-- Submits one SLURM job per chunk
-- Each job computes correlations only for missing pairs in that chunk
-
-### 4. Visualization
-
-Generate visualization reports:
-
-```bash
-# Using invoke
-invoke viz.session-level --verbose 1
-
-# Direct execution
-python -m shinobi_fmri.visualization.viz_session-level -s sub-01 -c HIT -v
-```
+**For more examples and detailed argument documentation, see [TASKS.md](TASKS.md).**
 
 ## Project Structure
 
