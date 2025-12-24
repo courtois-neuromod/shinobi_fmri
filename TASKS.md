@@ -209,6 +209,78 @@ invoke corr.beta --chunk-start 200 --chunk-size 200 --n-jobs 32
 
 ---
 
+### `corr.fingerprinting`
+
+Run fingerprinting analysis on beta maps to assess participant-specificity.
+
+**Description:**
+
+Assesses whether brain maps are participant-specific by checking if each map's most similar map (nearest neighbor) comes from the same subject. This provides a quantitative measure of individual differences in brain activation patterns.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Outputs:**
+- `processed/fingerprinting/fingerprinting_detailed.tsv` - Per-map results
+- `processed/fingerprinting/fingerprinting_aggregated.tsv` - Summary statistics
+
+**Common Use Cases:**
+
+```bash
+# Run fingerprinting analysis
+invoke corr.fingerprinting --verbose 1
+
+# With custom log directory
+invoke corr.fingerprinting --log-dir ./logs/fingerprinting
+```
+
+**What it computes:**
+- For each map: finds nearest neighbor (highest correlation) and checks if from same subject
+- Fingerprinting score = proportion of maps where nearest neighbor is from same subject
+- Aggregates by subject, condition, and analysis level
+
+---
+
+### `corr.within-subject-conditions`
+
+Compute within-subject condition correlations to assess condition specificity.
+
+**Description:**
+
+For each subject, computes how maps from different conditions correlate with each other. This reveals how distinct different experimental conditions are within each individual.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Outputs:**
+- `processed/within_subject_condition_correlations/{subject}_condition_correlations.tsv` - Per-subject condition correlation matrices
+- `processed/within_subject_condition_correlations/average_condition_correlations.tsv` - Average across subjects
+
+**Common Use Cases:**
+
+```bash
+# Compute within-subject condition correlations
+invoke corr.within-subject-conditions --verbose 1
+
+# With custom log directory
+invoke corr.within-subject-conditions --log-dir ./logs/condition_corr
+```
+
+**What it computes:**
+- Condition × condition correlation matrix for each subject
+- Average correlation matrices across all subjects
+- Same-condition vs different-condition correlation statistics
+
+---
+
 ## Visualization Tasks
 
 ### `viz.run-level`
@@ -469,6 +541,85 @@ invoke viz.atlas-tables --input-dir /path/to/zmaps --output-dir /path/to/tables
 # Force overwrite existing files
 invoke viz.atlas-tables --overwrite
 ```
+
+---
+
+### `viz.fingerprinting`
+
+Generate fingerprinting analysis visualizations.
+
+**Description:**
+
+Creates comprehensive visualizations showing subject identification from brain map similarity, including confusion matrices, correlation distributions, and fingerprinting scores by different groupings.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Outputs:**
+- `reports/figures/fingerprinting/fingerprinting_confusion_matrix.png` - Subject identification confusion matrix
+- `reports/figures/fingerprinting/fingerprinting_correlation_distributions.png` - Within vs between subject correlations
+- `reports/figures/fingerprinting/fingerprinting_by_source.png` - Scores by analysis level
+- `reports/figures/fingerprinting/fingerprinting_by_condition.png` - Scores by condition
+- `reports/figures/fingerprinting/fingerprinting_nearest_neighbor_correlations.png` - Distribution of nearest neighbor similarities
+
+**Common Use Cases:**
+
+```bash
+# Generate fingerprinting visualizations
+invoke viz.fingerprinting --verbose 1
+
+# With custom log directory
+invoke viz.fingerprinting --log-dir ./logs/viz_fingerprinting
+```
+
+**What it generates:**
+- Confusion matrix showing perfect diagonal (subject identification accuracy)
+- Histograms and violin plots comparing within-subject vs between-subject correlations
+- Bar plots showing fingerprinting performance across conditions and analysis levels
+- Statistical summaries including Cohen's d and t-test results
+
+---
+
+### `viz.within-subject-conditions`
+
+Generate within-subject condition correlation visualizations.
+
+**Description:**
+
+Creates heatmaps and plots showing how different experimental conditions correlate with each other within each subject, demonstrating condition specificity and distinctiveness.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Outputs:**
+- `reports/figures/within_subject_condition_correlations/{subject}_condition_correlations.png` - Per-subject condition correlation heatmaps
+- `reports/figures/within_subject_condition_correlations/average_condition_correlations.png` - Average heatmap across subjects
+- `reports/figures/within_subject_condition_correlations/same_vs_different_conditions.png` - Same vs different condition comparison
+- `reports/figures/within_subject_condition_correlations/condition_specificity_matrix.png` - Specificity scores by condition and subject
+
+**Common Use Cases:**
+
+```bash
+# Generate within-subject condition visualizations
+invoke viz.within-subject-conditions --verbose 1
+
+# With custom log directory
+invoke viz.within-subject-conditions --log-dir ./logs/viz_conditions
+```
+
+**What it generates:**
+- Condition × condition correlation heatmaps for each subject (separated by Shinobi/HCP)
+- Violin and box plots comparing same-condition vs different-condition correlations
+- Condition specificity matrix showing which conditions are most distinctive
+- Statistical comparisons including Cohen's d and significance tests
 
 ---
 

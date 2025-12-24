@@ -10,6 +10,15 @@ import os
 import argparse
 import re
 from matplotlib.collections import LineCollection
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from visualization.hcp_tasks import (
+    TASK_ICONS, TASK_COLORS, SHINOBI_COLOR,
+    get_event_to_task_mapping, get_task_label
+)
 
 def process_beta_correlations_data(pickle_path):
     """
@@ -183,28 +192,12 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
 
     # --- Setup Colors and Logic ---
     highlight_events = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'Inter']
-    palette = sns.color_palette("Set2")
-    palette_dark = sns.color_palette("Dark2")
-    highlight_color = palette[1]
-    
-    colors_dict = {
-        'Gambling': palette_dark[2],
-        'Motor': palette_dark[3],
-        'Language': palette_dark[4],
-        'Social': palette_dark[5],
-        'Relational': palette_dark[6],
-        'Emotion': palette_dark[7]
-    }
-    
-    events_task_dict = {
-        'Gambling': ['reward', 'punishment', 'reward-punishment', 'punishment-reward', 'effects_interest'],
-        'Motor': ['left_hand', 'right_hand', 'left_foot', 'right_foot', 'tongue', 'cue', 'left_hand-avg', 'right_hand-avg', 'left_foot-avg', 'right_foot-avg', 'tongue-avg'],
-        'Language': ['story', 'math', 'story-math', 'math-story'],
-        'Social': ['mental', 'random', 'mental-random'],
-        'Relational': ['relational', 'match', 'relational-match'],
-        'Emotion': ['face', 'shape', 'face-shape', 'shape-face']
-    }
-    event_to_task = {event: task for task, events in events_task_dict.items() for event in events}
+
+    # Use centralized HCP task configuration
+    highlight_color = SHINOBI_COLOR
+    colors_dict = TASK_COLORS
+    task_icons = TASK_ICONS
+    event_to_task = get_event_to_task_mapping()
 
     plot_df = plot_df[~plot_df['event'].str.contains('-') | (plot_df['event'] == 'Inter')]
 
@@ -244,13 +237,33 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
     ax_intra.set_title('Within-participant Correlations') # Unbold
     ax_intra.set_xlabel('')
     ax_intra.set_ylabel('Mean Pearson r')
-    ax_intra.set_xticklabels(ax_intra.get_xticklabels(), rotation=90)
     ax_intra.set_ylim(-0.2, 1.05)
-    
+
     def set_xtick_labels(ax, events):
+        """Set tick labels with icons and colors."""
+        # Get current labels and extract event names
         labels = ax.get_xticklabels()
-        for label in labels:
-            event = label.get_text()
+        event_names = [label.get_text() for label in labels]
+
+        new_labels = []
+        for event in event_names:
+            if event in highlight_events:
+                # Shinobi events - no icon
+                new_labels.append(event)
+            else:
+                task = event_to_task.get(event)
+                if task and task in task_icons:
+                    # HCP events - add icon
+                    icon = task_icons[task]
+                    new_labels.append(f'{icon} {event}')
+                else:
+                    new_labels.append(event)
+
+        # Set new labels
+        ax.set_xticklabels(new_labels, rotation=90)
+
+        # Color the labels based on original event names
+        for label, event in zip(ax.get_xticklabels(), event_names):
             if event in highlight_events:
                 label.set_color(highlight_color)
                 label.set_fontweight('bold')
@@ -260,7 +273,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
                     label.set_color(colors_dict[task])
                 else:
                     label.set_color('black')
-    
+
     set_xtick_labels(ax_intra, intra_events)
     ax_intra.grid(axis='y', linestyle='-', alpha=0.7)
     for spine in ax_intra.spines.values():
@@ -271,7 +284,6 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
     ax_inter.set_title('Between-participant Correlations') # Unbold
     ax_inter.set_xlabel('')
     ax_inter.set_ylabel('Mean Pearson r')
-    ax_inter.set_xticklabels(ax_inter.get_xticklabels(), rotation=90)
     ax_inter.set_ylim(-0.2, 1.05)
     set_xtick_labels(ax_inter, inter_events)
     ax_inter.grid(False)
@@ -371,7 +383,8 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
     fig.text(0.82, legend_top - 0.03, 'Shinobi', fontsize=10, fontweight='bold', color=highlight_color, ha='left')
     y_pos = legend_top - 0.06
     for task, color in colors_dict.items():
-        fig.text(0.82, y_pos, task, fontsize=10, color=color, ha='left')
+        task_label = get_task_label(task)
+        fig.text(0.82, y_pos, task_label, fontsize=10, color=color, ha='left')
         y_pos -= 0.03
 
     # New Legend for Number of Runs (positioned at the level of C-F row)

@@ -363,6 +363,60 @@ def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, 
     c.run(cmd)
 
 
+@task
+def fingerprinting(c, verbose=0, log_dir=None):
+    """
+    Run fingerprinting analysis on beta maps.
+
+    Assesses whether brain maps are participant-specific by checking if each map's
+    most similar map (nearest neighbor) comes from the same subject.
+
+    Args:
+        verbose: Verbosity level
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "correlations", "fingerprinting_analysis.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print("Running fingerprinting analysis...")
+    c.run(cmd)
+
+
+@task
+def within_subject_conditions(c, verbose=0, log_dir=None):
+    """
+    Compute within-subject condition correlations.
+
+    For each subject, computes how maps from different conditions correlate
+    with each other, showing condition specificity within individuals.
+
+    Args:
+        verbose: Verbosity level
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "correlations", "within_subject_condition_correlations.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print("Computing within-subject condition correlations...")
+    c.run(cmd)
+
+
 # =============================================================================
 # Visualization Tasks
 # =============================================================================
@@ -701,6 +755,61 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
     c.run(cmd)
 
 
+@task
+def viz_fingerprinting(c, verbose=0, log_dir=None):
+    """
+    Generate fingerprinting analysis visualizations.
+
+    Creates plots showing subject identification from nearest neighbors,
+    within vs between subject correlation distributions, and fingerprinting
+    scores by different groupings.
+
+    Args:
+        verbose: Verbosity level
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "fingerprinting_plot.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print("Generating fingerprinting visualizations...")
+    c.run(cmd)
+
+
+@task
+def viz_within_subject_conditions(c, verbose=0, log_dir=None):
+    """
+    Generate within-subject condition correlation visualizations.
+
+    Creates heatmaps and plots showing how different conditions correlate
+    with each other within each subject, demonstrating condition specificity.
+
+    Args:
+        verbose: Verbosity level
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "within_subject_condition_plot.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print("Generating within-subject condition correlation visualizations...")
+    c.run(cmd)
+
+
 # =============================================================================
 # Full Pipeline Tasks
 # =============================================================================
@@ -830,6 +939,8 @@ namespace.add_collection(mvpa_collection)
 # Correlation tasks
 corr_collection = Collection('corr')
 corr_collection.add_task(beta_correlations, name='beta')
+corr_collection.add_task(fingerprinting, name='fingerprinting')
+corr_collection.add_task(within_subject_conditions, name='within-subject-conditions')
 namespace.add_collection(corr_collection)
 
 # Visualization tasks
@@ -842,6 +953,8 @@ viz_collection.add_task(viz_beta_correlations, name='beta-correlations')
 viz_collection.add_task(viz_regressor_correlations, name='regressor-correlations')
 viz_collection.add_task(viz_condition_comparison, name='condition-comparison')
 viz_collection.add_task(viz_atlas_tables, name='atlas-tables')
+viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
+viz_collection.add_task(viz_within_subject_conditions, name='within-subject-conditions')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
