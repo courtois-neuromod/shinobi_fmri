@@ -155,7 +155,7 @@ def plot_subject_heatmap(corr_matrix, subject, output_path):
         ax.text(n_shinobi + len(hcp_conds)/2, -0.2, 'HCP', ha='center', va='bottom',
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
-    ax.set_title(f'{subject}: Within-Subject Condition Correlations\n(How different conditions relate to each other)',
+    ax.set_title(f'{subject}: Within-Subject Condition Correlations\n',
                  fontsize=16, pad=20)
 
     plt.tight_layout()

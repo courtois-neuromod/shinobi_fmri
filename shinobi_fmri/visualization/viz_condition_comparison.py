@@ -770,10 +770,19 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     """
     from PIL import Image
     import io
+    from shinobi_fmri.visualization.hcp_tasks import get_condition_label
 
     # Get colors for condition labels (task-specific)
     color1 = get_condition_color(source1, cond1)
     color2 = get_condition_color(source2, cond2)
+
+    # Format labels with icons if HCP
+    label1 = get_condition_label(cond1) if source1 == 'hcp' else cond1
+    label2 = get_condition_label(cond2) if source2 == 'hcp' else cond2
+
+    # Font weights: Shinobi is bold, HCP is normal
+    weight1 = 'bold' if source1 == 'shinobi' else 'normal'
+    weight2 = 'bold' if source2 == 'shinobi' else 'normal'
 
     # Vertical layout - much larger to accommodate bigger text
     fig, ax = plt.subplots(figsize=(8, 18), dpi=dpi)
@@ -800,8 +809,8 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
         spine.set_visible(True)
         spine.set_linewidth(3)
     # Add label directly on this axes, centered vertically at 0.5
-    ax_cond1.text(1.3, 0.5, cond1, ha='left', va='center', fontsize=45,
-                  fontweight='bold', color=color1, transform=ax_cond1.transAxes)
+    ax_cond1.text(1.3, 0.5, label1, ha='left', va='center', fontsize=45,
+                  fontweight=weight1, color=color1, transform=ax_cond1.transAxes)
 
     # Red gradient for condition 2
     ax_cond2 = fig.add_axes([bar_x, 0.39, bar_width, 0.25])
@@ -815,8 +824,8 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
         spine.set_visible(True)
         spine.set_linewidth(3)
     # Add label directly on this axes, centered vertically at 0.5
-    ax_cond2.text(1.3, 0.5, cond2, ha='left', va='center', fontsize=45,
-                  fontweight='bold', color=color2, transform=ax_cond2.transAxes)
+    ax_cond2.text(1.3, 0.5, label2, ha='left', va='center', fontsize=45,
+                  fontweight=weight2, color=color2, transform=ax_cond2.transAxes)
 
     # Purple gradient for both conditions
     ax_both = fig.add_axes([bar_x, 0.10, bar_width, 0.25])
@@ -831,7 +840,7 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
         spine.set_linewidth(3)
     # Add label directly on this axes, centered vertically at 0.5
     ax_both.text(1.3, 0.5, 'Both', ha='left', va='center', fontsize=45,
-                 fontweight='bold', color='black', transform=ax_both.transAxes)
+                 fontweight='normal', color='black', transform=ax_both.transAxes)
 
     # Convert to PIL Image
     buf = io.BytesIO()
