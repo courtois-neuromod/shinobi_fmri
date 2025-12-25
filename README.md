@@ -122,7 +122,6 @@ The pipeline provides the following task categories:
 
 **Setup:**
 - `setup.env` - Install Python dependencies
-- `setup.airoh` - Install airoh and invoke
 
 ### Example Usage
 

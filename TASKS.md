@@ -708,21 +708,6 @@ invoke setup.env
 
 ---
 
-### `setup.airoh`
-
-Install airoh and invoke for task automation.
-
-**Arguments:** None
-
-**Common Use Cases:**
-
-```bash
-# Install airoh and invoke
-invoke setup.airoh
-```
-
----
-
 ### `info`
 
 Display configuration and environment information.

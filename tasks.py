@@ -23,14 +23,6 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Try to import airoh utilities (optional)
-try:
-    from airoh import utils, containers
-    AIROH_AVAILABLE = True
-except ImportError:
-    AIROH_AVAILABLE = False
-    print("Note: airoh not installed. Install with 'pip install airoh invoke' for additional utilities.")
-
 # Import configuration
 try:
     from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
@@ -885,13 +877,6 @@ def setup_env(c):
 
 
 @task
-def setup_airoh(c):
-    """Install airoh and invoke for task automation."""
-    print("Installing airoh and invoke...")
-    c.run("pip install airoh invoke")
-
-
-@task
 def info(c):
     """Display configuration and environment information."""
     print("\n" + "="*60)
@@ -903,7 +888,6 @@ def info(c):
     print(f"Python (SLURM):   {SLURM_PYTHON_BIN}")
     print(f"\nSubjects:         {', '.join(SUBJECTS)}")
     print(f"Conditions:       {', '.join(CONDITIONS)}")
-    print(f"\nAiroh Available:  {AIROH_AVAILABLE}")
 
     # Count available data
     try:
@@ -966,12 +950,7 @@ namespace.add_collection(pipeline_collection)
 # Setup and utility tasks
 setup_collection = Collection('setup')
 setup_collection.add_task(setup_env, name='env')
-setup_collection.add_task(setup_airoh, name='airoh')
 namespace.add_collection(setup_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)
-
-# Add airoh utilities if available
-if AIROH_AVAILABLE:
-    namespace.add_collection(utils, name="airoh-utils")
