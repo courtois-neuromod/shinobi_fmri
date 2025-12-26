@@ -12,6 +12,7 @@ Usage:
 Options:
     -r START END        Cancel jobs in range (e.g., -r 12345 12350)
     -n PATTERN          Cancel jobs matching name pattern (e.g., -n shinobi)
+    -c                  Cancel currently RUNNING jobs only
     -a                  Cancel ALL your pending/running jobs
     -s STATE            Cancel jobs in specific state (e.g., -s PENDING)
     -l                  List your jobs (no cancellation)
@@ -21,6 +22,7 @@ Examples:
     ./batch_cancel.sh -r 34343744 34343768    # Cancel job range
     ./batch_cancel.sh -n shinobi              # Cancel all jobs with "shinobi" in name
     ./batch_cancel.sh -n run-level            # Cancel all run-level jobs
+    ./batch_cancel.sh -c                      # Cancel currently running jobs
     ./batch_cancel.sh -s PENDING              # Cancel all pending jobs
     ./batch_cancel.sh -a                      # Cancel ALL your jobs
     ./batch_cancel.sh -l                      # Just list your jobs
@@ -36,7 +38,7 @@ PATTERN=""
 STATE=""
 
 # Parse arguments
-while getopts "r:n:s:alh" opt; do
+while getopts "r:n:s:calh" opt; do
     case $opt in
         r)
             MODE="range"
@@ -51,6 +53,9 @@ while getopts "r:n:s:alh" opt; do
         s)
             MODE="state"
             STATE=$OPTARG
+            ;;
+        c)
+            MODE="active"
             ;;
         a)
             MODE="all"
@@ -135,6 +140,29 @@ case $MODE in
         squeue -u $USER --format="%.10i %.40j %.8T" --state=$STATE
         echo ""
         read -p "Cancel these jobs? (y/N): " confirm
+
+        if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+            for ID in $JOB_IDS; do
+                scancel $ID && echo "Cancelled: $ID"
+            done
+        else
+            echo "Cancelled. No jobs were terminated."
+        fi
+        ;;
+
+    active)
+        echo "Canceling currently RUNNING jobs..."
+        JOB_IDS=$(squeue -u $USER --format="%i %T" | grep "RUNNING" | awk '{print $1}')
+
+        if [[ -z "$JOB_IDS" ]]; then
+            echo "No currently running jobs found."
+            exit 0
+        fi
+
+        echo "Found running jobs:"
+        squeue -u $USER --format="%.10i %.40j %.8T %.10M %.6D" --state=RUNNING
+        echo ""
+        read -p "Cancel these running jobs? (y/N): " confirm
 
         if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
             for ID in $JOB_IDS; do
