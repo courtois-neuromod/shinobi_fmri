@@ -280,14 +280,13 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
 # =============================================================================
 
 @task
-def mvpa_session_level(c, subject, task_name=None, perm_index=0, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
+def mvpa_session_level(c, subject=None, screening=20, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
     """
-    Run session-level MVPA analysis.
+    Run session-level MVPA analysis (actual decoder, not permutations).
 
     Args:
-        subject: Subject ID (e.g., sub-01)
-        task_name: Task name (kept for compatibility, though compute_mvpa might not strictly need it if it processes all conditions)
-        perm_index: Permutation index for significance testing
+        subject: Subject ID (e.g., sub-01). If None, processes all subjects.
+        screening: Feature screening percentile (default: 20)
         slurm: If True, submit to SLURM cluster
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
         verbose: Verbosity level
@@ -295,10 +294,9 @@ def mvpa_session_level(c, subject, task_name=None, perm_index=0, slurm=False, n_
     """
     script = op.join(SHINOBI_FMRI_DIR, "mvpa", "compute_mvpa.py")
 
-    # Note: compute_mvpa.py args might differ slightly (screening, etc)
-    # We'll map what we have. If 'task' arg used to be essential, we preserve it if the script uses it.
-    # Looking at compute_mvpa.py, it takes --subject.
-    args = f"--subject {subject} --n_jobs {n_jobs}"
+    args = f"--screening {screening} --n-jobs {n_jobs}"
+    if subject:
+        args += f" --subject {subject}"
 
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
@@ -307,13 +305,64 @@ def mvpa_session_level(c, subject, task_name=None, perm_index=0, slurm=False, n_
 
     if slurm:
         slurm_script = op.join(SLURM_DIR, "subm_mvpa_ses-level.sh")
-        cmd = f"sbatch {slurm_script} {subject} {task_name} {perm_index}"
-        print(f"Submitting to SLURM: {subject} {task_name} perm={perm_index}")
+        cmd = f"sbatch {slurm_script}"
+        print(f"Submitting MVPA to SLURM")
     else:
         cmd = f"{PYTHON_BIN} {script} {args}"
         print(f"Running locally: {cmd}")
 
     c.run(cmd)
+
+
+@task
+def mvpa_permutations(c, subjects=None, n_permutations=1000, perms_per_job=50, screening=20, n_jobs=40, dry_run=False):
+    """
+    Submit SLURM jobs for MVPA permutation testing.
+
+    Args:
+        subjects: Comma-separated subject IDs (e.g., 'sub-01,sub-02'). If None, uses all subjects.
+        n_permutations: Total number of permutations (default: 1000)
+        perms_per_job: Number of permutations per SLURM job (default: 50)
+        screening: Feature screening percentile (default: 20)
+        n_jobs: CPUs per decoder fit (default: 40)
+        dry_run: If True, print commands without submitting
+    """
+    batch_launcher = op.join(SLURM_DIR, "batch_launch_mvpa_permutations.py")
+
+    cmd = f"{PYTHON_BIN} {batch_launcher}"
+    cmd += f" --n-permutations {n_permutations}"
+    cmd += f" --perms-per-job {perms_per_job}"
+    cmd += f" --screening {screening}"
+    cmd += f" --n-jobs {n_jobs}"
+
+    if subjects:
+        subject_list = subjects.split(',')
+        cmd += f" --subjects {' '.join(subject_list)}"
+
+    if dry_run:
+        cmd += " --dry-run"
+
+    print(f"Launching permutation jobs: {cmd}")
+    c.run(cmd)
+
+
+@task
+def mvpa_aggregate_permutations(c, subject, n_permutations=1000, screening=20):
+    """
+    Aggregate permutation results and compute p-values.
+
+    Args:
+        subject: Subject ID (e.g., sub-01)
+        n_permutations: Expected number of permutations (default: 1000)
+        screening: Screening percentile used (default: 20)
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "mvpa", "aggregate_permutations.py")
+
+    cmd = f"{PYTHON_BIN} {script} --subject {subject} --n-permutations {n_permutations} --screening {screening}"
+    print(f"Aggregating permutation results: {cmd}")
+    c.run(cmd)
+
+
 
 
 # =============================================================================
@@ -799,6 +848,28 @@ def viz_within_subject_conditions(c, verbose=0, log_dir=None):
     cmd = ' '.join(cmd_parts)
 
     print("Generating within-subject condition correlation visualizations...")
+    c.run(cmd)
+
+
+@task
+def viz_mvpa_confusion_matrices(c, screening=20, output=None):
+    """
+    Plot MVPA confusion matrices for all subjects.
+
+    Creates a 2x2 grid visualization showing classification confusion matrices
+    with task icons and separation styling for clear interpretation.
+
+    Args:
+        screening: Screening percentile used (default: 20)
+        output: Output path for figure (default: auto-generated in reports/figures/)
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "mvpa_confusion_matrices.py")
+
+    cmd = f"{PYTHON_BIN} {script} --screening {screening}"
+    if output:
+        cmd += f" --output {output}"
+
+    print(f"Plotting MVPA confusion matrices: {cmd}")
     c.run(cmd)
 
 

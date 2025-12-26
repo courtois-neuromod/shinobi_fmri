@@ -11,4 +11,5 @@
 # Create log directory
 mkdir -p logfiles/shi_mvpa_seslvl
 
-/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/mvpa/compute_mvpa.py --subject $1 --n_jobs 40
+# Run MVPA for all subjects (will process all subjects from config)
+/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/mvpa/compute_mvpa.py --n_jobs 40

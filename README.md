@@ -98,6 +98,8 @@ The pipeline provides the following task categories:
 
 **MVPA:**
 - `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding)
+- `mvpa.permutations` - Distributed permutation testing for significance
+- `mvpa.aggregate-permutations` - Aggregate permutation results and compute p-values
 
 **Correlation Analysis:**
 - `corr.beta` - Compute beta map correlations with HCP data
@@ -115,6 +117,7 @@ The pipeline provides the following task categories:
 - `viz.atlas-tables` - Generate atlas tables for z-maps
 - `viz.fingerprinting` - Fingerprinting analysis visualizations
 - `viz.within-subject-conditions` - Within-subject condition correlation heatmaps
+- `viz.mvpa-confusion-matrices` - MVPA confusion matrices with task grouping
 
 **Pipelines:**
 - `pipeline.full` - Complete pipeline for a subject/session

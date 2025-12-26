@@ -140,15 +140,14 @@ invoke glm.subject-level --condition JUMP
 
 ### `mvpa.session-level`
 
-Run session-level Multi-Voxel Pattern Analysis (MVPA) for classification/decoding.
+Run session-level Multi-Voxel Pattern Analysis (MVPA) for classification/decoding. Fits decoder and computes cross-validated accuracies, confusion matrices, and comparison with dummy classifier.
 
 **Arguments:**
 
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `--subject` | str | - | Yes | Subject ID (e.g., `sub-01`) |
-| `--task-name` | str | None | No | Task name (kept for compatibility) |
-| `--perm-index` | int | 0 | No | Permutation index for significance testing |
+| `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, processes all subjects |
+| `--screening` | int | 20 | No | Feature screening percentile (1-100) |
 | `--slurm` | flag | False | No | Submit to SLURM cluster |
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
@@ -160,14 +159,89 @@ Run session-level Multi-Voxel Pattern Analysis (MVPA) for classification/decodin
 # Run MVPA for a single subject
 invoke mvpa.session-level --subject sub-01 --verbose 1
 
-# Run with more CPU cores
-invoke mvpa.session-level --subject sub-01 --n-jobs 16
+# Run for all subjects with custom screening
+invoke mvpa.session-level --screening 10
 
 # Submit to SLURM
-invoke mvpa.session-level --subject sub-01 --slurm
+invoke mvpa.session-level --slurm
+```
 
-# Run permutation test
-invoke mvpa.session-level --subject sub-01 --perm-index 1
+---
+
+### `mvpa.permutations`
+
+Submit distributed SLURM jobs for permutation testing. Automatically splits permutations across multiple jobs for parallel processing.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--subjects` | str | None | No | Comma-separated subject IDs (e.g., `sub-01,sub-02`). If None, uses all |
+| `--n-permutations` | int | 1000 | No | Total number of permutations |
+| `--perms-per-job` | int | 50 | No | Number of permutations per SLURM job |
+| `--screening` | int | 20 | No | Feature screening percentile |
+| `--n-jobs` | int | 40 | No | CPUs per decoder fit |
+| `--dry-run` | flag | False | No | Print commands without submitting |
+
+**Common Use Cases:**
+
+```bash
+# Submit 1000 permutations (20 jobs × 50 perms each)
+invoke mvpa.permutations
+
+# Test with fewer permutations
+invoke mvpa.permutations --n-permutations 100 --perms-per-job 10
+
+# Specific subjects only
+invoke mvpa.permutations --subjects "sub-01,sub-02"
+
+# Preview what would be submitted
+invoke mvpa.permutations --dry-run
+```
+
+---
+
+### `mvpa.aggregate-permutations`
+
+Aggregate permutation results and compute p-values for statistical significance testing.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--subject` | str | - | Yes | Subject ID (e.g., `sub-01`) |
+| `--n-permutations` | int | 1000 | No | Expected number of permutations |
+| `--screening` | int | 20 | No | Screening percentile used |
+
+**Common Use Cases:**
+
+```bash
+# Aggregate results after all permutation jobs complete
+invoke mvpa.aggregate-permutations --subject sub-01
+
+# With custom permutation count
+invoke mvpa.aggregate-permutations --subject sub-01 --n-permutations 500
+```
+
+---
+
+**Complete MVPA Workflow:**
+
+```bash
+# 1. Run actual MVPA analysis
+invoke mvpa.session-level --slurm
+
+# 2. Submit permutation testing (distributed)
+invoke mvpa.permutations --n-permutations 1000
+
+# 3. After jobs complete, aggregate results for each subject
+invoke mvpa.aggregate-permutations --subject sub-01
+invoke mvpa.aggregate-permutations --subject sub-02
+invoke mvpa.aggregate-permutations --subject sub-04
+invoke mvpa.aggregate-permutations --subject sub-06
+
+# 4. Generate visualization
+invoke viz.mvpa-confusion-matrices
 ```
 
 ---
@@ -620,6 +694,42 @@ invoke viz.within-subject-conditions --log-dir ./logs/viz_conditions
 - Violin and box plots comparing same-condition vs different-condition correlations
 - Condition specificity matrix showing which conditions are most distinctive
 - Statistical comparisons including Cohen's d and significance tests
+
+---
+
+### `viz.mvpa-confusion-matrices`
+
+Generate publication-quality confusion matrix visualization for all subjects with task icons and separation styling.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--screening` | int | 20 | No | Screening percentile used |
+| `--output` | str | Auto | No | Output path for figure |
+
+**Output:**
+- `reports/figures/mvpa_confusion_matrices_s{screening}.png` - 2x2 grid of confusion matrices
+
+**Common Use Cases:**
+
+```bash
+# Generate figure with default settings
+invoke viz.mvpa-confusion-matrices
+
+# Custom screening percentile
+invoke viz.mvpa-confusion-matrices --screening 10
+
+# Custom output location
+invoke viz.mvpa-confusion-matrices --output reports/my_figure.png
+```
+
+**What it generates:**
+- 2×2 grid showing confusion matrices for all 4 subjects
+- Task icons (♦ ✱ ■ ★ ● ▲) in tick labels for HCP conditions
+- Color-coded labels by task
+- Visual separation between Shinobi and HCP task blocks
+- Shared colorbar and legend showing all tasks
 
 ---
 

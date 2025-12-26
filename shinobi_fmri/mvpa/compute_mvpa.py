@@ -1,6 +1,10 @@
 import warnings
-warnings.filterwarnings("ignore")
 import os
+import sys
+
+# Suppress all warnings including sklearn confusion matrix warnings
+warnings.filterwarnings("ignore")
+os.environ['PYTHONWARNINGS'] = 'ignore'
 import os.path as op
 import numpy as np
 import pickle
@@ -20,14 +24,11 @@ from scipy import stats
 from shinobi_fmri.utils.logger import ShinobiLogger
 import logging
 
-def create_common_masker(path_to_data, subjects, masker_kwargs=None, logger=None):
+def create_common_masker(path_to_data, subjects, logger=None):
     """
-    Create a common NiftiMasker by resampling subject-specific brain masks 
+    Create a common NiftiMasker by resampling subject-specific brain masks
     to a common space.
     """
-    if masker_kwargs is None:
-        masker_kwargs = {}
-
     if logger:
         logger.info("Creating a common NiftiMasker. Resampling subject-specific brain masks...")
     else:
@@ -71,14 +72,14 @@ def create_common_masker(path_to_data, subjects, masker_kwargs=None, logger=None
                 print(f"Error creating mask for {sub}: {e}")
             continue
 
-    masker = NiftiMasker(**masker_kwargs)
+    masker = NiftiMasker()
     masker.fit(mask_files)
     return masker, target_affine, target_shape
 
 
-def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, target_shape, logger=None):
+def load_zmaps_for_subject(sub, contrasts, path_to_data, target_affine, target_shape, logger=None):
     """
-    Load z-maps for a given subject from both the main z_maps folder 
+    Load z-maps for a given subject from both the main z_maps folder
     and the hcp_results folder.
     Returns:
         z_maps (list of Nifti images)
@@ -176,11 +177,81 @@ def load_zmaps_for_subject(sub, model, contrasts, path_to_data, target_affine, t
     return z_maps, contrast_label, session_label
 
 
+def run_permutations(sub, z_maps, contrast_label, session_label, masker, screening_percentile, n_jobs,
+                      perm_start, perm_end, n_permutations, output_path, logger=None):
+    """
+    Run permutation testing for MVPA.
+    """
+    # Set base seed
+    np.random.seed(42)
+
+    # Generate all permutation seeds upfront for reproducibility
+    perm_seeds = [42 + i for i in range(n_permutations)]
+
+    if perm_end is None:
+        perm_end = n_permutations
+
+    perm_results = []
+
+    for perm_idx in range(perm_start, perm_end):
+        if logger:
+            logger.info(f"[{sub}] Running permutation {perm_idx + 1}/{n_permutations}")
+        else:
+            print(f"[{sub}] Running permutation {perm_idx + 1}/{n_permutations}")
+
+        # Set seed for this permutation
+        np.random.seed(perm_seeds[perm_idx])
+
+        # Shuffle labels
+        permuted_labels = np.random.permutation(contrast_label)
+
+        # Create decoder
+        decoder_perm = Decoder(
+            estimator=LinearSVC(random_state=42),
+            mask=masker,
+            standardize=True,
+            scoring='balanced_accuracy',
+            screening_percentile=screening_percentile,
+            cv=LeaveOneGroupOut(),
+            n_jobs=n_jobs,
+            verbose=0
+        )
+
+        # Fit with permuted labels
+        decoder_perm.fit(z_maps, permuted_labels, groups=session_label)
+
+        # Extract per-class scores
+        scores_per_class = {}
+        for class_label in decoder_perm.cv_scores_:
+            scores_per_class[class_label] = np.array(decoder_perm.cv_scores_[class_label])
+
+        # Store result
+        perm_results.append({
+            'perm_index': perm_idx,
+            'scores_per_class': scores_per_class
+        })
+
+        # Save progress every 10 permutations
+        if (perm_idx - perm_start + 1) % 10 == 0:
+            with open(output_path, 'wb') as f:
+                pickle.dump(perm_results, f)
+            if logger:
+                logger.info(f"[{sub}] Saved progress: {perm_idx - perm_start + 1} permutations")
+
+    # Final save
+    with open(output_path, 'wb') as f:
+        pickle.dump(perm_results, f)
+
+    if logger:
+        logger.info(f"[{sub}] Completed permutations {perm_start}-{perm_end-1}")
+
+    return perm_results
+
+
 def main(args, logger=None):
 
     np.random.seed(42)  # Global base seed for reproducibility
     path_to_data = config.DATA_PATH
-    model = "simple"
     CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']
     if args.subject is not None:
         subjects = [args.subject]
@@ -188,6 +259,9 @@ def main(args, logger=None):
         subjects = config.SUBJECTS
     screening_percentile = args.screening
     n_jobs = args.n_jobs
+    n_permutations = args.n_permutations
+    perm_start = args.perm_start
+    perm_end = args.perm_end if args.perm_end is not None else n_permutations
 
     # Build a common masker
     all_subjects = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
@@ -195,9 +269,9 @@ def main(args, logger=None):
 
     for sub in subjects:
         try:
-            mvpa_results_path = op.join(path_to_data, "processed", f"mvpa_results_with_hcpmin_s{screening_percentile}")
+            mvpa_results_path = op.join(path_to_data, "processed", f"mvpa_results_s{screening_percentile}")
             os.makedirs(mvpa_results_path, exist_ok=True)
-            decoder_fname = f"{sub}_{model}_decoder.pkl"
+            decoder_fname = f"{sub}_decoder.pkl"
             decoder_pkl_path = op.join(mvpa_results_path, decoder_fname)
 
             if logger:
@@ -207,9 +281,9 @@ def main(args, logger=None):
 
             # Load subject's z-maps
             z_maps, contrast_label, session_label = load_zmaps_for_subject(
-                sub, model, CONDS_LIST, path_to_data, target_affine, target_shape, logger=logger
+                sub, CONDS_LIST, path_to_data, target_affine, target_shape, logger=logger
             )
-            
+
             if not z_maps:
                 if logger:
                     logger.warning(f"No z-maps for {sub}, skipping")
@@ -218,10 +292,31 @@ def main(args, logger=None):
             class_list = sorted(np.unique(contrast_label))
 
             # --------------------------------------------------------------------
+            # PERMUTATION TESTING
+            # --------------------------------------------------------------------
+            if n_permutations > 0 and perm_start < perm_end:
+                # Running permutations only
+                perm_output_dir = op.join(mvpa_results_path, f"{sub}_permutations")
+                os.makedirs(perm_output_dir, exist_ok=True)
+                perm_output_path = op.join(perm_output_dir, f"perm_{perm_start}_{perm_end-1}.pkl")
+
+                if logger:
+                    logger.log_computation_start(f"MVPA_perm_{sub}_{perm_start}_{perm_end-1}", perm_output_path)
+
+                run_permutations(sub, z_maps, contrast_label, session_label, masker, screening_percentile,
+                                n_jobs, perm_start, perm_end, n_permutations, perm_output_path, logger=logger)
+
+                if logger:
+                    logger.log_computation_success(f"MVPA_perm_{sub}_{perm_start}_{perm_end-1}", perm_output_path)
+                continue  # Skip actual analysis when running permutations
+
+            # --------------------------------------------------------------------
             # CLASSIF
             # --------------------------------------------------------------------
             if logger:
                 logger.info("Computing Decoder...")
+
+            # Create decoder with CV - fit() will perform CV internally
             decoder = Decoder(
                 estimator=LinearSVC(random_state=42),
                 mask=masker,
@@ -232,11 +327,52 @@ def main(args, logger=None):
                 n_jobs=n_jobs,
                 verbose=1
             )
+
+            # Fit decoder with groups - CV happens internally
             decoder.fit(z_maps, contrast_label, groups=session_label)
 
-            # Compute confusion matrices and accuracies
-            y_pred = cross_val_predict(decoder, z_maps, contrast_label, groups=session_label, cv=decoder.cv, fit_params={'groups': session_label})
-            cm = confusion_matrix(contrast_label, y_pred, labels=class_list)
+            # Extract CV scores per class from decoder
+            scores_per_class = {}
+            for class_label in decoder.cv_scores_:
+                scores_per_class[class_label] = np.array(decoder.cv_scores_[class_label])
+
+            # Compute mean balanced accuracy across all folds
+            all_fold_scores = []
+            for class_scores in decoder.cv_scores_.values():
+                all_fold_scores.extend(class_scores)
+            scores = np.array(all_fold_scores)
+
+            # Compute confusion matrices for each CV fold
+            if logger:
+                logger.info("Computing confusion matrices...")
+            fold_confusions = []
+            cv = LeaveOneGroupOut()
+            for fold_idx, (train_idx, test_idx) in enumerate(cv.split(z_maps, contrast_label, groups=session_label)):
+                # Create a new decoder for this fold
+                fold_decoder = Decoder(
+                    estimator=LinearSVC(random_state=42),
+                    mask=masker,
+                    standardize=True,
+                    screening_percentile=screening_percentile,
+                    n_jobs=1,  # Single job for fold
+                    verbose=0
+                )
+
+                # Get train/test data
+                train_maps = [z_maps[i] for i in train_idx]
+                test_maps = [z_maps[i] for i in test_idx]
+                train_labels = [contrast_label[i] for i in train_idx]
+                test_labels = [contrast_label[i] for i in test_idx]
+
+                # Fit and predict
+                fold_decoder.fit(train_maps, train_labels)
+                y_pred = fold_decoder.predict(test_maps)
+
+                # Compute confusion matrix
+                cm_fold = confusion_matrix(test_labels, y_pred, labels=class_list)
+                fold_confusions.append(cm_fold)
+
+            fold_confusions = np.array(fold_confusions)
 
             # --------------------------------------------------------------------
             # DUMMY CLASSIF
@@ -244,7 +380,7 @@ def main(args, logger=None):
             if logger:
                 logger.info("Computing Dummy Decoder...")
             dummy_decoder = Decoder(
-                estimator=DummyClassifier(strategy='prior'),
+                estimator=DummyClassifier(strategy='prior', random_state=42),
                 mask=masker,
                 standardize=True,
                 scoring='balanced_accuracy',
@@ -253,11 +389,16 @@ def main(args, logger=None):
                 n_jobs=n_jobs,
                 verbose=1
             )
+
+            # Fit dummy decoder with groups
             dummy_decoder.fit(z_maps, contrast_label, groups=session_label)
-            from sklearn.model_selection import cross_val_score
-            # Compute confusion matrices and accuracies
-            scores = cross_val_score(decoder, z_maps, contrast_label, groups=session_label, scoring='balanced_accuracy', cv=decoder.cv, fit_params={'groups': session_label})
-            dummy_scores = cross_val_score(dummy_decoder, z_maps, contrast_label, groups=session_label, scoring='balanced_accuracy', cv=decoder.cv, fit_params={'groups': session_label})
+
+            # Extract dummy scores
+            dummy_all_fold_scores = []
+            for class_scores in dummy_decoder.cv_scores_.values():
+                dummy_all_fold_scores.extend(class_scores)
+            dummy_scores = np.array(dummy_all_fold_scores)
+
             t_stat, p_val = stats.ttest_ind(scores, dummy_scores)
             
             msg = f"[{sub}] T-test between decoder and dummy classifier: t-stat={t_stat:.3f}, p-value={p_val:.3f}"
@@ -274,8 +415,10 @@ def main(args, logger=None):
                 'decoder': decoder,
                 'contrast_label': contrast_label,
                 'class_labels': class_list,
-                'confusion_matrices': cm,
-                'balanced_accuracy': scores,
+                'scores_per_class': scores_per_class,
+                'balanced_accuracy_scores': scores,
+                'mean_balanced_accuracy': np.mean(scores),
+                'confusion_matrices': {'fold_confusions': fold_confusions},  # NB6 format
                 't_stat': t_stat,
                 'p_val': p_val,
             })
@@ -289,7 +432,7 @@ def main(args, logger=None):
             # Save weight maps to disk
             for class_lbl in decoder.classes_:
                 w_img = decoder.coef_img_[class_lbl]
-                out_fname = f"{sub}_{class_lbl}_{model}_weights.nii.gz"
+                out_fname = f"{sub}_{class_lbl}_weights.nii.gz"
                 out_path = op.join(mvpa_results_path, 'weight_maps', out_fname)
                 os.makedirs(op.dirname(out_path), exist_ok=True)
                 nib.save(w_img, out_path)
@@ -312,8 +455,14 @@ if __name__ == "__main__":
                         help="Subject to process (e.g. 'sub-01').")
     parser.add_argument("--screening", default=20, type=int,
                         help="Percentile for screening (default: 20).")
-    parser.add_argument("-nj", "--n_jobs", default=-1, type=int,
+    parser.add_argument("-nj", "--n-jobs", default=-1, type=int, dest='n_jobs',
                         help="Number of jobs for parallel processing (default: -1).")
+    parser.add_argument("--n-permutations", default=0, type=int,
+                        help="Total number of permutations (default: 0 = no permutation testing).")
+    parser.add_argument("--perm-start", default=0, type=int,
+                        help="Starting permutation index for this job (default: 0).")
+    parser.add_argument("--perm-end", default=None, type=int,
+                        help="Ending permutation index for this job (default: None = all).")
     parser.add_argument(
         "-v", "--verbose",
         action="count",
