@@ -1,5 +1,48 @@
+"""
+Session-Level (Second-Level) GLM Analysis for fMRI Data
+
+This script performs second-level GLM analysis by combining multiple runs
+within a single session of the Shinobi video game task.
+
+STATISTICAL METHODS:
+-------------------
+GLM Specification:
+  - Model: First-level GLM applied across multiple runs (fixed-effects)
+  - TR: 1.49 seconds
+  - Smoothing: 5mm FWHM isotropic Gaussian kernel
+  - Noise model: AR(1) autoregressive model
+  - Analysis level: Within-session, combining all runs
+
+Design Matrix:
+  - Task regressors: Game events from all runs concatenated
+  - Confounds: Standard fMRIPrep confounds per run
+  - Run boundaries: Handled automatically by nilearn
+
+Statistical Inference:
+  - Contrast type: F-test for each condition across runs
+  - Multiple comparison correction: Cluster-level FWE correction
+  - Cluster-forming threshold: Z > 2.3 (liberal for session-level)
+  - Family-wise error rate: alpha = 0.05
+  - Effect: Fixed-effects combining evidence across runs
+
+Outputs:
+  - Beta maps: Session-level effect sizes
+  - Z-maps: Uncorrected and cluster-corrected statistical maps
+  - HTML reports: Interactive visualizations
+  - Metadata JSON: Complete provenance tracking
+  - Dataset description: BIDS-compliant metadata
+
+USAGE:
+------
+  python compute_session_level.py -s sub-01 -ses ses-001 -v
+  python compute_session_level.py --subject sub-01 --session ses-001 --save-glm
+
+For detailed usage, see TASKS.md or run: python compute_session_level.py --help
+"""
+
 import os
 import os.path as op
+from typing import Tuple, List, Optional
 import pandas as pd
 import numpy as np
 import argparse
@@ -7,10 +50,10 @@ import logging
 import pickle
 import warnings
 import re
-from typing import Tuple
 
 import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 from shinobi_fmri.glm import utils
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -59,9 +102,30 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-def get_output_names(sub, ses, regressor_output_name, n_runs=None, use_low_level_confs=False):
+def get_output_names(
+    sub: str,
+    ses: str,
+    regressor_output_name: str,
+    n_runs: Optional[int] = None,
+    use_low_level_confs: bool = False
+) -> Tuple[str, str, str, str]:
     """
-    Constructs and returns the file paths for the GLM, z-map, beta-map, and report files in BIDS format.
+    Construct BIDS-compliant output file paths for session-level GLM results.
+
+    Args:
+        sub: Subject identifier (e.g., 'sub-01')
+        ses: Session identifier (e.g., 'ses-001')
+        regressor_output_name: Name of the contrast/regressor
+        n_runs: Number of runs included (None for all runs in session)
+        use_low_level_confs: Whether low-level confounds were used
+
+    Returns:
+        Tuple of (glm_fname, z_map_fname, beta_map_fname, report_fname):
+            Paths to GLM pickle, z-map, beta-map, and HTML report files
+
+    Note:
+        Output directory structure follows BIDS derivatives convention:
+        {DATA_PATH}/processed/session-level/sub-XX/ses-YY/{z_maps,beta_maps,glm}/
     """
     # Determine output directory based on whether low-level confounds are used
     output_dir = "processed_low-level" if use_low_level_confs else "processed"
@@ -138,9 +202,27 @@ def remove_runs_without_target_regressor(
     return images_copy, dataframes_copy
 
 
-def trim_design_matrices(design_matrices, regressor_name):
+def trim_design_matrices(
+    design_matrices: List[pd.DataFrame],
+    regressor_name: str
+) -> List[pd.DataFrame]:
     """
-    This function removes unwanted regressors from the design matrix for each run.
+    Remove unwanted condition regressors from design matrices.
+
+    For single-condition GLM analysis, this removes all other condition regressors
+    while keeping the target condition and all confounds. This prevents
+    multi-collinearity and focuses the GLM on the contrast of interest.
+
+    Args:
+        design_matrices: List of design matrices (one per run)
+        regressor_name: Name of the regressor to keep (e.g., 'HIT')
+
+    Returns:
+        List of trimmed design matrices with only target regressor + confounds
+
+    Note:
+        Confound regressors (motion, WM, CSF, etc.) are always kept.
+        Other condition regressors are removed to create orthogonal contrasts.
     """
     regressors_to_remove = CONDS_LIST.copy()
     if not "lvl" in regressor_name:
@@ -158,9 +240,38 @@ def trim_design_matrices(design_matrices, regressor_name):
     return trimmed_design_matrices
 
 
-def make_or_load_glm(sub, ses, run_list, glm_regressors, glm_fname, mask_resampled_global=None, save_glm=False, use_low_level_confs=False):
+def make_or_load_glm(
+    sub: str,
+    ses: str,
+    run_list: List[str],
+    glm_regressors: List[str],
+    glm_fname: str,
+    mask_resampled_global: Optional[Any] = None,
+    save_glm: bool = False,
+    use_low_level_confs: bool = False
+) -> Tuple[Any, Any]:
     """
-    Creates a General Linear Model (GLM) if it doesn't already exist, or loads it from disk if it does.
+    Create or load a fitted GLM for session-level analysis.
+
+    If save_glm is enabled and a saved GLM exists, loads it from disk.
+    Otherwise, loads data, fits a new GLM, and optionally saves it.
+
+    Args:
+        sub: Subject identifier (e.g., 'sub-01')
+        ses: Session identifier (e.g., 'ses-001')
+        run_list: List of run numbers to include
+        glm_regressors: List of regressor names for this GLM
+        glm_fname: Path where GLM pickle file is/will be saved
+        mask_resampled_global: Pre-computed mask (if available)
+        save_glm: Whether to save/load GLM objects (default: False)
+        use_low_level_confs: Whether to include psychophysical confounds
+
+    Returns:
+        Tuple of (fitted_glm, mask_resampled)
+
+    Note:
+        For interaction contrasts (e.g., 'HITXlvl5'), creates an interaction
+        regressor by multiplying the two base regressors.
     """
     if save_glm and os.path.exists(glm_fname):
         with open(glm_fname, "rb") as f:
@@ -225,9 +336,35 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
                     logger.log_computation_start(f"{regressor_output_name}", z_map_fname)
 
                 fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, use_low_level_confs=use_low_level_confs)
-                
+
                 # Use utils.make_z_map with cluster correction (Liberal threshold for session-level)
-                utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_output_name, cluster_thresh=2.3, alpha=0.05)
+                utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_output_name, cluster_thresh=config.GLM_CLUSTER_THRESH_SESSION, alpha=config.GLM_ALPHA)
+
+                # Save metadata JSON sidecar for reproducibility
+                metadata = create_metadata(
+                    description=f"Session-level GLM z-map for contrast {regressor_output_name}",
+                    script_path=__file__,
+                    output_files=[z_map_fname, beta_map_fname],
+                    parameters={
+                        'contrast': regressor_output_name,
+                        'glm_regressors': glm_regressors,
+                        'cluster_threshold': config.GLM_CLUSTER_THRESH_SESSION,
+                        'alpha': config.GLM_ALPHA,
+                        'hrf_model': utils.HRF_MODEL,
+                        'tr': utils.TR,
+                        'use_low_level_confounds': use_low_level_confs,
+                        'n_runs': len(run_list_subset),
+                    },
+                    subject=sub,
+                    session=ses,
+                    additional_info={
+                        'analysis_level': 'session',
+                        'runs_included': run_list_subset,
+                        'n_runs_label': n_runs_label,
+                        'glm_saved': save_glm,
+                    }
+                )
+                save_sidecar_metadata(z_map_fname, metadata, logger=logger)
 
                 if logger:
                     logger.log_computation_success(f"{regressor_output_name}", z_map_fname)
@@ -300,6 +437,26 @@ def main():
         log_dir=args.log_dir,
         verbosity=log_level
     )
+
+    # Create dataset_description.json for processed outputs
+    output_dir = "processed_low-level" if args.low_level_confs else "processed"
+    dataset_desc_dir = op.join(path_to_data, output_dir, "session-level")
+    if not op.exists(op.join(dataset_desc_dir, "dataset_description.json")):
+        create_dataset_description(
+            name="Session-level GLM Analysis",
+            description="Second-level GLM analysis combining multiple runs within a session (fixed-effects)",
+            pipeline_version="0.1.0",
+            derived_from="Run-level GLM z-maps",
+            parameters={
+                'cluster_threshold': config.GLM_CLUSTER_THRESH_SESSION,
+                'alpha': config.GLM_ALPHA,
+                'hrf_model': utils.HRF_MODEL,
+                'tr': utils.TR,
+                'use_low_level_confounds': args.low_level_confs,
+            },
+            output_dir=dataset_desc_dir
+        )
+        logger.info(f"Created dataset_description.json in {dataset_desc_dir}")
 
     try:
         process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger)

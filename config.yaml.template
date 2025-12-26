@@ -56,3 +56,25 @@ analysis:
     - Z
 
   game_fs: 60  # Game framerate
+
+# GLM Analysis Parameters
+glm:
+  # Data acquisition
+  tr: 1.49                    # Repetition time in seconds
+  hrf_model: spm              # Options: spm, glover, fir, spm + derivative
+
+  # Preprocessing
+  smoothing_fwhm: 5           # Spatial smoothing kernel (mm FWHM)
+  n_jobs: 16                  # Parallel jobs for GLM fitting (-1 for all cores)
+
+  # Statistical inference
+  alpha: 0.05                 # Family-wise error rate for cluster correction
+
+  # Cluster-forming thresholds (Z-scores)
+  cluster_thresh_run: 2.3     # Liberal threshold for run-level (first-level)
+  cluster_thresh_session: 2.3 # Liberal threshold for session-level (second-level)
+  cluster_thresh_subject: 3.1 # Conservative threshold for subject-level (third-level)
+
+  # Model configuration
+  noise_model: ar1            # Options: ar1 (recommended), ols
+  drift_model: null           # Options: null (drift handled via confounds), cosine, polynomial

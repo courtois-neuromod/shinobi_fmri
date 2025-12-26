@@ -22,6 +22,7 @@ from sklearn.model_selection import cross_val_predict
 from sklearn.dummy import DummyClassifier
 from scipy import stats
 from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 import logging
 
 def create_common_masker(path_to_data, subjects, logger=None):
@@ -425,7 +426,42 @@ def main(args, logger=None):
 
             with open(decoder_pkl_path, 'wb') as f:
                 pickle.dump(results_dict, f)
-            
+
+            # Save provenance metadata
+            metadata = create_metadata(
+                description=f"MVPA decoder results for {sub}",
+                script_path=__file__,
+                output_files=[decoder_pkl_path],
+                parameters={
+                    'estimator': 'LinearSVC',
+                    'random_state': 42,
+                    'screening_percentile': screening_percentile,
+                    'scoring': 'balanced_accuracy',
+                    'cv': 'LeaveOneGroupOut',
+                    'n_jobs': n_jobs,
+                    'standardize': True,
+                    'conditions': CONDS_LIST,
+                    'n_classes': len(class_list),
+                    'n_samples': len(z_maps),
+                },
+                subject=sub,
+                session=None,  # Multi-session MVPA
+                additional_info={
+                    'analysis_type': 'MVPA',
+                    'classes': class_list,
+                    'mean_balanced_accuracy': float(np.mean(scores)),
+                    't_stat': float(t_stat),
+                    'p_val': float(p_val),
+                }
+            )
+            # Save as .json next to .pkl file
+            metadata_path = decoder_pkl_path.replace('.pkl', '.json')
+            import json
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+            if logger:
+                logger.debug(f"Saved metadata: {metadata_path}")
+
             if logger:
                 logger.log_computation_success(f"MVPA_results_{sub}", decoder_pkl_path)
             
@@ -436,6 +472,26 @@ def main(args, logger=None):
                 out_path = op.join(mvpa_results_path, 'weight_maps', out_fname)
                 os.makedirs(op.dirname(out_path), exist_ok=True)
                 nib.save(w_img, out_path)
+
+                # Save provenance metadata for weight map
+                weight_metadata = create_metadata(
+                    description=f"MVPA weight map for class {class_lbl}",
+                    script_path=__file__,
+                    output_files=[out_path],
+                    parameters={
+                        'class': class_lbl,
+                        'estimator': 'LinearSVC',
+                        'screening_percentile': screening_percentile,
+                    },
+                    subject=sub,
+                    session=None,
+                    additional_info={
+                        'analysis_type': 'MVPA_weights',
+                        'decoder_results': op.basename(decoder_pkl_path),
+                    }
+                )
+                save_sidecar_metadata(out_path, weight_metadata, logger=logger)
+
                 if logger:
                     logger.debug(f"Saved weight map: {out_path}")
 

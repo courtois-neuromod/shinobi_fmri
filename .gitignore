@@ -95,3 +95,6 @@ tmp/
 # Log files (Python scripts and SLURM jobs)
 logs/
 slurm-*.out
+
+# Agent instructions symlink (AGENTS.md is committed, CLAUDE.md is local symlink)
+CLAUDE.md

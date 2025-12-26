@@ -70,6 +70,18 @@ GAME_FS = _config['analysis']['game_fs']
 PYTHON_BIN = _config['python']['local_bin']
 SLURM_PYTHON_BIN = _config['python']['slurm_bin']
 
+# GLM parameters
+GLM_TR = _config['glm']['tr']
+GLM_HRF_MODEL = _config['glm']['hrf_model']
+GLM_SMOOTHING_FWHM = _config['glm']['smoothing_fwhm']
+GLM_N_JOBS = _config['glm']['n_jobs']
+GLM_ALPHA = _config['glm']['alpha']
+GLM_CLUSTER_THRESH_RUN = _config['glm']['cluster_thresh_run']
+GLM_CLUSTER_THRESH_SESSION = _config['glm']['cluster_thresh_session']
+GLM_CLUSTER_THRESH_SUBJECT = _config['glm']['cluster_thresh_subject']
+GLM_NOISE_MODEL = _config['glm']['noise_model']
+GLM_DRIFT_MODEL = _config['glm']['drift_model']
+
 # Derived paths
 PROJECT_ROOT = op.dirname(op.abspath(__file__))
 SHINOBI_FMRI_DIR = op.join(PROJECT_ROOT, 'shinobi_fmri')

@@ -16,7 +16,9 @@ from collections import defaultdict
 from tqdm.auto import tqdm
 from tqdm_joblib import tqdm_joblib
 from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.provenance import create_metadata
 import logging
+import json
 
 CONTRASTS = ['Kill', 'HealthLoss', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'DOWN']
 SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
@@ -345,7 +347,31 @@ def merge_updates(path, updates, logger=None):
             current['corr_matrix'][i, j] = current['corr_matrix'][j, i] = value
             current['computed_mask'][i, j] = current['computed_mask'][j, i] = True
         np.fill_diagonal(current['corr_matrix'], 1.0)
-        save_with_retry(path, current, logger)
+
+        # Prepare metadata for provenance tracking
+        n_maps = current['corr_matrix'].shape[0]
+        n_computed = int(np.sum(current['computed_mask']) // 2)  # Divide by 2 for symmetry
+        n_total = (n_maps * (n_maps - 1)) // 2
+        metadata_params = {
+            'description': 'Beta map correlation matrix across shinobi and HCP datasets',
+            'parameters': {
+                'contrasts': CONTRASTS,
+                'subjects': SUBJECTS,
+                'model': MODEL,
+            },
+            'subject': None,  # Multi-subject analysis
+            'session': None,
+            'additional_info': {
+                'analysis_type': 'beta_correlations',
+                'n_maps': n_maps,
+                'n_computed_pairs': n_computed,
+                'n_total_pairs': n_total,
+                'completion_percentage': (n_computed / n_total * 100) if n_total > 0 else 0,
+                'mapnames_count': len(current.get('mapnames', [])),
+            }
+        }
+
+        save_with_retry(path, current, logger, save_metadata=True, metadata_params=metadata_params)
         return current
 
 
@@ -361,13 +387,33 @@ def load_existing_dict(results_path):
         return pickle.load(f)
 
 
-def save_with_retry(path, payload, logger=None):
+def save_with_retry(path, payload, logger=None, save_metadata=False, metadata_params=None):
     log(f"Saving results to {path}...", logger)
     while True:
         try:
             with open(path, 'wb') as f:
                 pickle.dump(payload, f)
             log("Results saved successfully.", logger)
+
+            # Save provenance metadata if requested
+            if save_metadata and metadata_params:
+                try:
+                    metadata = create_metadata(
+                        description=metadata_params.get('description', 'Correlation analysis results'),
+                        script_path=__file__,
+                        output_files=[path],
+                        parameters=metadata_params.get('parameters', {}),
+                        subject=metadata_params.get('subject'),
+                        session=metadata_params.get('session'),
+                        additional_info=metadata_params.get('additional_info', {})
+                    )
+                    metadata_path = path.replace('.pkl', '.json')
+                    with open(metadata_path, 'w') as f:
+                        json.dump(metadata, f, indent=2)
+                    log(f"Metadata saved to {metadata_path}", logger)
+                except Exception as e:
+                    log(f"Warning: Failed to save metadata: {e}", logger)
+
             return
         except OSError as e:
             log("Save failed, retrying in 100ms...", logger)

@@ -29,7 +29,6 @@ from nilearn.signal import clean
 from load_confounds import Confounds
 
 import shinobi_fmri.config as config
-from shinobi_fmri.annotations.annotations import trim_events_df
 from shinobi_fmri.utils.logger import ShinobiLogger
 from shinobi_fmri.glm.compute_run_level import add_psychophysics_confounds, add_button_press_confounds
 
@@ -116,9 +115,8 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
                 'error': f"Events file not found: {events_fname}"
             }
 
-        # Load and trim events first
+        # Load events
         run_events = pd.read_csv(events_fname, sep='\t', low_memory=False)
-        events_df = trim_events_df(run_events, trim_by="event")
 
         # Load confounds
         confounds_obj = Confounds(
@@ -153,9 +151,9 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
 
         # Filter events to keep only relevant columns and avoid warnings
         events_cols = ['onset', 'duration', 'trial_type']
-        if 'modulation' in events_df.columns:
+        if 'modulation' in run_events.columns:
             events_cols.append('modulation')
-        events_df_clean = events_df[events_cols]
+        events_df_clean = run_events[events_cols]
 
         design_matrix_raw = make_first_level_design_matrix(
             frame_times,

@@ -6,6 +6,28 @@ fMRI analysis pipeline for the [cneuromod.shinobi](https://github.com/courtois-n
 
 This package requires Python 3.8+.
 
+### Quick Setup (Recommended)
+
+Use the automated setup script:
+
+```bash
+# Clone the repository
+git clone https://github.com/courtois-neuromod/shinobi_fmri.git
+cd shinobi_fmri
+
+# Run automated setup
+./setup.sh
+```
+
+The setup script will:
+- Check Python version requirements
+- Create a virtual environment in `./env/`
+- Install all dependencies with pinned versions
+- Create `config.yaml` from template
+- Verify installation
+
+### Manual Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/courtois-neuromod/shinobi_fmri.git
@@ -144,6 +166,40 @@ invoke pipeline.full --subject sub-01 --session ses-001
 
 **For more examples and detailed argument documentation, see [TASKS.md](TASKS.md).**
 
+## Reproducibility Features
+
+This pipeline implements comprehensive provenance tracking for full reproducibility:
+
+### Metadata JSON Sidecars
+Every analysis output (z-maps, beta-maps) is automatically accompanied by a `.json` metadata file containing:
+- **Git commit hash** - links results to exact code version
+- **Analysis parameters** - all settings used (thresholds, models, etc.)
+- **Software versions** - Python, nilearn, numpy, scipy, and all dependencies
+- **Timestamps** - when the analysis was run
+- **Subject/session info** - BIDS identifiers
+- **Warnings** - flags uncommitted changes in repository
+
+Example: When you generate `sub-01_ses-001_task-shinobi_run-01_contrast-HIT_stat-z.nii.gz`, the pipeline also creates `sub-01_ses-001_task-shinobi_run-01_contrast-HIT_stat-z.json` with full provenance information.
+
+### Dataset Descriptions
+Each processed output directory contains a BIDS-compliant `dataset_description.json` describing:
+- Pipeline name and version
+- Source data
+- Key parameters
+- Generation timestamp
+- Git commit and branch
+
+### Pinned Dependencies
+All package versions are pinned in `requirements.txt` (21 packages with exact versions) ensuring consistent results across installations.
+
+### How to Use for Publications
+1. Run your analysis normally - metadata is saved automatically
+2. Note the git commit hash from the log or metadata files
+3. In your paper's methods section, cite the repository and commit hash
+4. Readers can reproduce your exact results using that commit
+
+See `AGENTS.md` for complete reproducible science guidelines.
+
 ## Project Structure
 
 - `shinobi_fmri/`: Main package source code
@@ -151,4 +207,4 @@ invoke pipeline.full --subject sub-01 --session ses-001
   - `mvpa/`: Multi-Voxel Pattern Analysis scripts
   - `correlations/`: Correlation analysis scripts
   - `visualization/`: Plotting and reporting tools
-  - `utils/`: Shared utilities (logger, etc.)
+  - `utils/`: Shared utilities (logger, provenance tracking, etc.)

@@ -7,7 +7,9 @@ import os.path as op
 import pickle
 import numpy as np
 import argparse
+import json
 import shinobi_fmri.config as config
+from shinobi_fmri.utils.provenance import create_metadata
 
 
 def aggregate_permutation_results(subject, mvpa_results_path, n_permutations, logger=None):
@@ -110,7 +112,31 @@ def aggregate_permutation_results(subject, mvpa_results_path, n_permutations, lo
     with open(output_path, 'wb') as f:
         pickle.dump(aggregated, f)
 
+    # Save provenance metadata
+    metadata = create_metadata(
+        description=f"Aggregated MVPA permutation test results for {subject}",
+        script_path=__file__,
+        output_files=[output_path],
+        parameters={
+            'n_permutations': total_perms_loaded,
+            'expected_permutations': n_permutations,
+        },
+        subject=subject,
+        session=None,
+        additional_info={
+            'analysis_type': 'MVPA_permutation_test',
+            'class_labels': class_labels,
+            'p_values_per_class': {k: float(v) for k, v in p_values.items()},
+            'overall_p_value': float(overall_p_value),
+            'overall_actual_score': float(overall_actual),
+        }
+    )
+    metadata_path = output_path.replace('.pkl', '.json')
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
     print(f"\nSaved aggregated results to: {output_path}")
+    print(f"Saved metadata to: {metadata_path}")
 
     return aggregated
 

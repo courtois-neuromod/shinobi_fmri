@@ -1,3 +1,57 @@
+"""
+Run-Level (First-Level) GLM Analysis for fMRI Data
+
+This script performs first-level General Linear Model analysis on individual
+fMRI runs from the Shinobi video game task.
+
+STATISTICAL METHODS:
+-------------------
+GLM Specification:
+  - Model: First-level GLM with canonical HRF (SPM model)
+  - TR: 1.49 seconds
+  - Smoothing: 5mm FWHM isotropic Gaussian kernel
+  - Noise model: AR(1) autoregressive model for temporal autocorrelation
+  - Preprocessing: Standardization (z-score) and linear detrending applied
+
+Design Matrix:
+  - Task regressors: Game events convolved with canonical HRF
+  - Confound regressors:
+      * Motion parameters (24 regressors: 6 motion + derivatives + quadratics)
+      * White matter and CSF signals
+      * Global signal
+      * Scrubbing regressors for high-motion volumes
+      * Optional: Low-level visual/audio features (--low-level-confs)
+      * Optional: Button press counts (--low-level-confs)
+
+Statistical Inference:
+  - Contrast type: F-test for each condition separately
+  - Multiple comparison correction: Cluster-level FWE correction
+  - Cluster-forming threshold: Z > 2.3 (liberal for run-level)
+  - Family-wise error rate: alpha = 0.05
+  - Method: Cluster extent thresholding (Friston et al., 1994)
+
+Outputs:
+  - Beta maps: Effect size estimates for each contrast
+  - Z-maps: Uncorrected F-test z-scores
+  - Corrected Z-maps: Cluster-corrected statistical maps
+  - HTML reports: Interactive visualizations with glass brains
+  - Metadata JSON: Provenance tracking (git hash, parameters, versions)
+  - GLM objects: Optional pickle files of fitted models (--save-glm)
+
+References:
+  - Friston et al. (1994). Statistical parametric maps in functional imaging.
+    Human Brain Mapping, 2(4), 189-210.
+  - Abraham et al. (2014). Machine learning for neuroimaging with scikit-learn.
+    Frontiers in Neuroinformatics, 8, 14.
+
+USAGE:
+------
+  python compute_run_level.py -s sub-01 -ses ses-001 -v
+  python compute_run_level.py --subject sub-01 --session ses-001 --save-glm
+
+For detailed usage, see TASKS.md or run: python compute_run_level.py --help
+"""
+
 import os
 import os.path as op
 import pandas as pd
@@ -8,6 +62,7 @@ import logging
 import pickle
 import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 from shinobi_fmri.glm import utils
 
 # Suppress informational warnings
@@ -142,8 +197,32 @@ def process_run(sub, ses, run, path_to_data, save_glm=False, use_low_level_confs
             beta_map_fname = op.join(beta_maps_dir, f"{base_name}_stat-beta.nii.gz")
 
             # Use utils.make_z_map with cluster correction (Liberal threshold for run-level)
-            z_map = utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_name, cluster_thresh=2.3, alpha=0.05)
-            
+            z_map = utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_name, cluster_thresh=config.GLM_CLUSTER_THRESH_RUN, alpha=config.GLM_ALPHA)
+
+            # Save metadata JSON sidecar for reproducibility
+            metadata = create_metadata(
+                description=f"Run-level GLM z-map for contrast {regressor_name}",
+                script_path=__file__,
+                output_files=[z_map_fname, beta_map_fname],
+                parameters={
+                    'contrast': regressor_name,
+                    'cluster_threshold': config.GLM_CLUSTER_THRESH_RUN,
+                    'alpha': config.GLM_ALPHA,
+                    'hrf_model': utils.HRF_MODEL,
+                    'tr': utils.TR,
+                    'use_low_level_confounds': use_low_level_confs,
+                    'conditions_list': CONDS_LIST,
+                },
+                subject=sub,
+                session=ses,
+                additional_info={
+                    'run': run_formatted,
+                    'output_directory': output_dir,
+                    'glm_saved': save_glm,
+                }
+            )
+            save_sidecar_metadata(z_map_fname, metadata, logger=logger)
+
             if logger:
                 logger.log_computation_success(regressor_name, z_map_fname)
         except Exception as e:
@@ -219,6 +298,26 @@ if __name__ == "__main__":
     
     logger.info(f"Writing processed data in : {path_to_data}")
     logger.info(f"Writing reports in : {figures_path}")
+
+    # Create dataset_description.json for processed outputs
+    output_dir = "processed_low-level" if args.low_level_confs else "processed"
+    dataset_desc_dir = op.join(path_to_data, output_dir, "run-level")
+    if not op.exists(op.join(dataset_desc_dir, "dataset_description.json")):
+        create_dataset_description(
+            name="Run-level GLM Analysis",
+            description="First-level GLM analysis of individual runs with cluster-corrected z-maps",
+            pipeline_version="0.1.0",
+            derived_from="shinobi.fmriprep preprocessed data",
+            parameters={
+                'cluster_threshold': config.GLM_CLUSTER_THRESH_RUN,
+                'alpha': config.GLM_ALPHA,
+                'hrf_model': utils.HRF_MODEL,
+                'tr': utils.TR,
+                'use_low_level_confounds': args.low_level_confs,
+            },
+            output_dir=dataset_desc_dir
+        )
+        logger.info(f"Created dataset_description.json in {dataset_desc_dir}")
 
     try:
         main(logger=logger)
