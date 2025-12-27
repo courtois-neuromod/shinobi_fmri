@@ -140,107 +140,79 @@ invoke glm.subject-level --condition JUMP
 
 ### `mvpa.session-level`
 
-Run session-level Multi-Voxel Pattern Analysis (MVPA) for classification/decoding. Fits decoder and computes cross-validated accuracies, confusion matrices, and comparison with dummy classifier.
+Run complete session-level Multi-Voxel Pattern Analysis (MVPA) pipeline: decoder + permutation testing + aggregation. Supports both local (sequential) and SLURM (parallel with job dependencies) execution modes.
+
+The task automatically:
+1. Fits decoder and computes cross-validated accuracies, confusion matrices
+2. Runs permutation testing for statistical significance (optional)
+3. Aggregates permutation results and computes p-values (optional)
+
+**Key Features:**
+- **SLURM mode**: Uses job dependencies to automatically chain decoder → permutations → aggregation
+- **Local mode**: Runs all steps sequentially
+- **Flexible**: Skip any step (decoder, permutations, aggregation) as needed
 
 **Arguments:**
 
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, processes all subjects |
+| `--n-permutations` | int | 1000 | No | Total number of permutations (set to 0 to skip permutation testing) |
+| `--perms-per-job` | int | 50 | No | Number of permutations per SLURM job (ignored for local mode) |
 | `--screening` | int | 20 | No | Feature screening percentile (1-100) |
-| `--slurm` | flag | False | No | Submit to SLURM cluster |
-| `--n-jobs` | int | -1 | No | Number of parallel jobs |
+| `--n-jobs` | int | -1 | No | Number of parallel jobs for decoder fitting |
+| `--slurm` | flag | False | No | Submit to SLURM cluster with job dependencies |
+| `--skip-decoder` | flag | False | No | Skip decoder step (run only permutations/aggregation) |
+| `--skip-permutations` | flag | False | No | Skip permutation testing |
+| `--skip-aggregate` | flag | False | No | Skip aggregation step |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
 **Common Use Cases:**
 
 ```bash
-# Run MVPA for a single subject
-invoke mvpa.session-level --subject sub-01 --verbose 1
+# Run complete pipeline locally for one subject (decoder + 1000 permutations + aggregation)
+invoke mvpa.session-level --subject sub-01
 
-# Run for all subjects with custom screening
-invoke mvpa.session-level --screening 10
-
-# Submit to SLURM
-invoke mvpa.session-level --slurm
-```
-
----
-
-### `mvpa.permutations`
-
-Submit distributed SLURM jobs for permutation testing. Automatically splits permutations across multiple jobs for parallel processing.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--subjects` | str | None | No | Comma-separated subject IDs (e.g., `sub-01,sub-02`). If None, uses all |
-| `--n-permutations` | int | 1000 | No | Total number of permutations |
-| `--perms-per-job` | int | 50 | No | Number of permutations per SLURM job |
-| `--screening` | int | 20 | No | Feature screening percentile |
-| `--n-jobs` | int | 40 | No | CPUs per decoder fit |
-| `--dry-run` | flag | False | No | Print commands without submitting |
-
-**Common Use Cases:**
-
-```bash
-# Submit 1000 permutations (20 jobs × 50 perms each)
-invoke mvpa.permutations
-
-# Test with fewer permutations
-invoke mvpa.permutations --n-permutations 100 --perms-per-job 10
-
-# Specific subjects only
-invoke mvpa.permutations --subjects "sub-01,sub-02"
-
-# Preview what would be submitted
-invoke mvpa.permutations --dry-run
-```
-
----
-
-### `mvpa.aggregate-permutations`
-
-Aggregate permutation results and compute p-values for statistical significance testing.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--subject` | str | - | Yes | Subject ID (e.g., `sub-01`) |
-| `--n-permutations` | int | 1000 | No | Expected number of permutations |
-| `--screening` | int | 20 | No | Screening percentile used |
-
-**Common Use Cases:**
-
-```bash
-# Aggregate results after all permutation jobs complete
-invoke mvpa.aggregate-permutations --subject sub-01
-
-# With custom permutation count
-invoke mvpa.aggregate-permutations --subject sub-01 --n-permutations 500
-```
-
----
-
-**Complete MVPA Workflow:**
-
-```bash
-# 1. Run actual MVPA analysis
+# Run complete pipeline on SLURM for all subjects
+# Automatically chains jobs: decoder → permutations → aggregation with dependencies
 invoke mvpa.session-level --slurm
 
-# 2. Submit permutation testing (distributed)
-invoke mvpa.permutations --n-permutations 1000
+# Run only decoder (no permutations)
+invoke mvpa.session-level --subject sub-01 --n-permutations 0
 
-# 3. After jobs complete, aggregate results for each subject
-invoke mvpa.aggregate-permutations --subject sub-01
-invoke mvpa.aggregate-permutations --subject sub-02
-invoke mvpa.aggregate-permutations --subject sub-04
-invoke mvpa.aggregate-permutations --subject sub-06
+# Quick test with fewer permutations
+invoke mvpa.session-level --subject sub-01 --n-permutations 100 --perms-per-job 10
 
-# 4. Generate visualization
+# SLURM: Run only permutations and aggregation (decoder already completed)
+invoke mvpa.session-level --subject sub-01 --skip-decoder --slurm
+
+# Local: Run only aggregation (decoder and permutations already done)
+invoke mvpa.session-level --subject sub-01 --skip-decoder --skip-permutations
+
+# Custom screening with full pipeline on SLURM
+invoke mvpa.session-level --screening 10 --n-permutations 1000 --slurm
+```
+
+**How Job Dependencies Work (SLURM Mode):**
+
+When you run with `--slurm`, the task:
+1. Submits decoder job → captures job ID
+2. Submits permutation jobs (e.g., 20 jobs for 1000 perms) → captures all job IDs
+3. Submits aggregation job with `--dependency=afterok:decoder_id:perm_id1:perm_id2:...`
+
+The aggregation job waits for ALL previous jobs (both decoder and all permutations) to complete successfully before running.
+
+**Complete Workflow Example:**
+
+```bash
+# Single command runs everything on SLURM with proper job dependencies
+invoke mvpa.session-level --subject sub-01 --n-permutations 1000 --slurm
+
+# Monitor jobs
+squeue -u $USER
+
+# After completion, visualize results
 invoke viz.mvpa-confusion-matrices
 ```
 

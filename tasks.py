@@ -280,87 +280,149 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
 # =============================================================================
 
 @task
-def mvpa_session_level(c, subject=None, screening=20, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
+def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
+                       screening=20, n_jobs=-1, slurm=False,
+                       skip_decoder=False, skip_permutations=False, skip_aggregate=False,
+                       verbose=0, log_dir=None):
     """
-    Run session-level MVPA analysis (actual decoder, not permutations).
+    Run complete session-level MVPA pipeline: decoder + permutations + aggregation.
+
+    Supports both local (sequential) and SLURM (parallel with job dependencies) execution.
 
     Args:
         subject: Subject ID (e.g., sub-01). If None, processes all subjects.
+        n_permutations: Total number of permutations (default: 1000, set to 0 to skip)
+        perms_per_job: Number of permutations per SLURM job (default: 50, ignored for local)
         screening: Feature screening percentile (default: 20)
-        slurm: If True, submit to SLURM cluster
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
+        slurm: If True, submit to SLURM cluster with job dependencies
+        skip_decoder: Skip decoder step (run only permutations/aggregation)
+        skip_permutations: Skip permutation testing
+        skip_aggregate: Skip aggregation step
         verbose: Verbosity level
         log_dir: Custom log directory
+
+    Examples:
+        # Run full pipeline locally for one subject
+        invoke mvpa.session-level --subject sub-01
+
+        # Run full pipeline on SLURM for all subjects
+        invoke mvpa.session-level --slurm
+
+        # Run only decoder (no permutations)
+        invoke mvpa.session-level --subject sub-01 --n-permutations 0
+
+        # Run only permutations and aggregation (decoder already done)
+        invoke mvpa.session-level --subject sub-01 --skip-decoder --slurm
     """
-    script = op.join(SHINOBI_FMRI_DIR, "mvpa", "compute_mvpa.py")
-
-    args = f"--screening {screening} --n-jobs {n_jobs}"
-    if subject:
-        args += f" --subject {subject}"
-
-    if isinstance(verbose, int) and verbose > 0:
-        args += f" -{'v' * verbose}"
-    if log_dir:
-        args += f" --log-dir {log_dir}"
-
-    if slurm:
-        slurm_script = op.join(SLURM_DIR, "subm_mvpa_ses-level.sh")
-        cmd = f"sbatch {slurm_script}"
-        print(f"Submitting MVPA to SLURM")
+    # Determine subjects to process
+    if subject is None:
+        subjects = SUBJECTS
     else:
-        cmd = f"{PYTHON_BIN} {script} {args}"
-        print(f"Running locally: {cmd}")
+        subjects = [subject]
 
-    c.run(cmd)
+    for sub in subjects:
+        print(f"\n{'='*60}")
+        print(f"MVPA Pipeline for {sub}")
+        print(f"{'='*60}")
 
+        if slurm:
+            # ================================================================
+            # SLURM mode with job dependencies
+            # ================================================================
+            job_ids = []
 
-@task
-def mvpa_permutations(c, subjects=None, n_permutations=1000, perms_per_job=50, screening=20, n_jobs=40, dry_run=False):
-    """
-    Submit SLURM jobs for MVPA permutation testing.
+            # Step 1: Submit decoder job
+            if not skip_decoder:
+                decoder_script = op.join(SLURM_DIR, "subm_mvpa_ses-level.sh")
+                # Use --parsable to get just the job ID
+                cmd = f"sbatch --parsable {decoder_script} {sub} {screening} {n_jobs}"
+                print(f"[1/3] Submitting decoder job for {sub}...")
+                result = c.run(cmd, hide=True)
+                decoder_job_id = result.stdout.strip()
+                job_ids.append(decoder_job_id)
+                print(f"  ✓ Decoder job: {decoder_job_id}")
 
-    Args:
-        subjects: Comma-separated subject IDs (e.g., 'sub-01,sub-02'). If None, uses all subjects.
-        n_permutations: Total number of permutations (default: 1000)
-        perms_per_job: Number of permutations per SLURM job (default: 50)
-        screening: Feature screening percentile (default: 20)
-        n_jobs: CPUs per decoder fit (default: 40)
-        dry_run: If True, print commands without submitting
-    """
-    batch_launcher = op.join(SLURM_DIR, "batch_launch_mvpa_permutations.py")
+            # Step 2: Submit permutation jobs (if requested)
+            perm_job_ids = []
+            if n_permutations > 0 and not skip_permutations:
+                print(f"[2/3] Submitting permutation jobs for {sub}...")
+                n_jobs_needed = (n_permutations + perms_per_job - 1) // perms_per_job
 
-    cmd = f"{PYTHON_BIN} {batch_launcher}"
-    cmd += f" --n-permutations {n_permutations}"
-    cmd += f" --perms-per-job {perms_per_job}"
-    cmd += f" --screening {screening}"
-    cmd += f" --n-jobs {n_jobs}"
+                perm_script = op.join(SLURM_DIR, "subm_mvpa_permutation.sh")
+                for job_idx in range(n_jobs_needed):
+                    perm_start = job_idx * perms_per_job
+                    perm_end = min((job_idx + 1) * perms_per_job, n_permutations)
 
-    if subjects:
-        subject_list = subjects.split(',')
-        cmd += f" --subjects {' '.join(subject_list)}"
+                    cmd = f"sbatch --parsable {perm_script} {sub} {n_permutations} {perm_start} {perm_end} {screening} {n_jobs}"
+                    result = c.run(cmd, hide=True)
+                    perm_job_id = result.stdout.strip()
+                    perm_job_ids.append(perm_job_id)
+                    job_ids.append(perm_job_id)
 
-    if dry_run:
-        cmd += " --dry-run"
+                print(f"  ✓ Submitted {len(perm_job_ids)} permutation jobs: {perm_job_ids[0]}-{perm_job_ids[-1]}")
 
-    print(f"Launching permutation jobs: {cmd}")
-    c.run(cmd)
+            # Step 3: Submit aggregation job with dependencies on ALL previous jobs
+            if n_permutations > 0 and not skip_aggregate:
+                if not job_ids:
+                    print(f"  ⚠ Warning: No jobs to depend on for aggregation. Run decoder and/or permutations first.")
+                else:
+                    print(f"[3/3] Submitting aggregation job for {sub}...")
+                    agg_script = op.join(SLURM_DIR, "subm_mvpa_aggregate.sh")
+                    dependency_str = ":".join(job_ids)
+                    cmd = f"sbatch --parsable --dependency=afterok:{dependency_str} {agg_script} {sub} {n_permutations} {screening}"
+                    result = c.run(cmd, hide=True)
+                    agg_job_id = result.stdout.strip()
+                    print(f"  ✓ Aggregation job: {agg_job_id} (waits for {len(job_ids)} jobs)")
 
+            print(f"\n{'='*60}")
+            print(f"SLURM jobs submitted for {sub}!")
+            print(f"Monitor with: squeue -u $USER")
+            print(f"{'='*60}\n")
 
-@task
-def mvpa_aggregate_permutations(c, subject, n_permutations=1000, screening=20):
-    """
-    Aggregate permutation results and compute p-values.
+        else:
+            # ================================================================
+            # Local mode - run sequentially
+            # ================================================================
 
-    Args:
-        subject: Subject ID (e.g., sub-01)
-        n_permutations: Expected number of permutations (default: 1000)
-        screening: Screening percentile used (default: 20)
-    """
-    script = op.join(SHINOBI_FMRI_DIR, "mvpa", "aggregate_permutations.py")
+            # Step 1: Run decoder
+            if not skip_decoder:
+                print(f"[1/3] Running decoder for {sub}...")
+                script = op.join(SHINOBI_FMRI_DIR, "mvpa", "compute_mvpa.py")
+                args = f"--subject {sub} --screening {screening} --n-jobs {n_jobs}"
+                if isinstance(verbose, int) and verbose > 0:
+                    args += f" -{'v' * verbose}"
+                if log_dir:
+                    args += f" --log-dir {log_dir}"
+                cmd = f"{PYTHON_BIN} {script} {args}"
+                c.run(cmd)
+                print(f"  ✓ Decoder complete")
 
-    cmd = f"{PYTHON_BIN} {script} --subject {subject} --n-permutations {n_permutations} --screening {screening}"
-    print(f"Aggregating permutation results: {cmd}")
-    c.run(cmd)
+            # Step 2: Run permutations
+            if n_permutations > 0 and not skip_permutations:
+                print(f"[2/3] Running {n_permutations} permutations for {sub}...")
+                script = op.join(SHINOBI_FMRI_DIR, "mvpa", "compute_mvpa.py")
+                args = f"--subject {sub} --screening {screening} --n-jobs {n_jobs}"
+                args += f" --n-permutations {n_permutations} --perm-start 0 --perm-end {n_permutations}"
+                if isinstance(verbose, int) and verbose > 0:
+                    args += f" -{'v' * verbose}"
+                if log_dir:
+                    args += f" --log-dir {log_dir}"
+                cmd = f"{PYTHON_BIN} {script} {args}"
+                c.run(cmd)
+                print(f"  ✓ Permutations complete")
+
+            # Step 3: Aggregate results
+            if n_permutations > 0 and not skip_aggregate:
+                print(f"[3/3] Aggregating permutation results for {sub}...")
+                script = op.join(SHINOBI_FMRI_DIR, "mvpa", "aggregate_permutations.py")
+                cmd = f"{PYTHON_BIN} {script} --subject {sub} --n-permutations {n_permutations} --screening {screening}"
+                c.run(cmd)
+                print(f"  ✓ Aggregation complete")
+
+            print(f"\n{'='*60}")
+            print(f"MVPA pipeline complete for {sub}!")
+            print(f"{'='*60}\n")
 
 
 
