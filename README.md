@@ -145,9 +145,6 @@ The pipeline provides the following task categories:
 - `pipeline.full` - Complete pipeline for a subject/session
 - `pipeline.subject` - Complete subject-level pipeline
 
-**Setup:**
-- `setup.env` - Install Python dependencies
-
 ### Example Usage
 
 ```bash

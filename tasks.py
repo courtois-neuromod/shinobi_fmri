@@ -998,17 +998,6 @@ def pipeline_subject(c, subject, slurm=False, n_jobs=-1):
     print(f"{'='*60}\n")
 
 
-# =============================================================================
-# Environment Setup Tasks
-# =============================================================================
-
-@task
-def setup_env(c):
-    """Install Python dependencies from requirements.txt."""
-    print("Installing dependencies from requirements.txt...")
-    c.run("pip install -r requirements.txt")
-
-
 @task
 def info(c):
     """Display configuration and environment information."""
@@ -1079,11 +1068,6 @@ pipeline_collection = Collection('pipeline')
 pipeline_collection.add_task(pipeline_full, name='full')
 pipeline_collection.add_task(pipeline_subject, name='subject')
 namespace.add_collection(pipeline_collection)
-
-# Setup and utility tasks
-setup_collection = Collection('setup')
-setup_collection.add_task(setup_env, name='env')
-namespace.add_collection(setup_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)
