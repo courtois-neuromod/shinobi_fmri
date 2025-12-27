@@ -42,7 +42,7 @@ For detailed usage, see TASKS.md or run: python compute_session_level.py --help
 
 import os
 import os.path as op
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Any
 import pandas as pd
 import numpy as np
 import argparse
