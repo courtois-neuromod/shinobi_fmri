@@ -203,17 +203,34 @@ def create_metadata(
     # Get repository root (assumes script is in shinobi_fmri/)
     script_dir = op.dirname(op.abspath(script_path))
 
-    # Try to find repo root
+    # Try to find repo root starting from script directory
     repo_root = script_dir
+    found_git = False
     for _ in range(5):  # Search up to 5 levels
         if op.exists(op.join(repo_root, '.git')):
+            found_git = True
             break
         parent = op.dirname(repo_root)
         if parent == repo_root:  # Reached filesystem root
             break
         repo_root = parent
 
-    git_status = get_git_status(repo_root)
+    # If .git not found from script path, try current working directory
+    # (useful when script is run from repo root, e.g., via SLURM)
+    if not found_git:
+        cwd = os.getcwd()
+        # Search from current working directory
+        repo_root = cwd
+        for _ in range(5):
+            if op.exists(op.join(repo_root, '.git')):
+                found_git = True
+                break
+            parent = op.dirname(repo_root)
+            if parent == repo_root:
+                break
+            repo_root = parent
+
+    git_status = get_git_status(repo_root if found_git else None)
 
     metadata = {
         'description': description,
