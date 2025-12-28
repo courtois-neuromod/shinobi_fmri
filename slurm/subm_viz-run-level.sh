@@ -2,13 +2,17 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=12:00:00
 #SBATCH --job-name=shi_viz_runlvl
-#SBATCH --output=logfiles/%x/%x_%j.out
-#SBATCH --error=logfiles/%x/%x_%j.err
+#SBATCH --output=logs/slurm/%x/%x_%j.out
+#SBATCH --error=logs/slurm/%x/%x_%j.err
 #SBATCH --mem=16G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 
-# Create log directory
-mkdir -p logfiles/shi_viz_runlvl
+# Load configuration from config.yaml
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/load_config.sh"
 
-/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/visualization/viz_run-level.py --subject $1 --condition $2
+# Create log directory
+mkdir -p "$LOGS_DIR/slurm/shi_viz_runlvl"
+
+"$PYTHON_BIN" "$SCRIPTS_DIR/visualization/viz_run-level.py" --subject $1 --condition $2

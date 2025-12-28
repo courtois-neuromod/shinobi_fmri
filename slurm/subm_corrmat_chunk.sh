@@ -7,37 +7,26 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
 
-# Create log directory
-mkdir -p logs/slurm
-
 CHUNK_START=${1:-0}
 LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 CHUNK_SIZE=100
 
-# Find repo root using SLURM_SUBMIT_DIR (where sbatch was called from)
-# Try SLURM_SUBMIT_DIR first (in case called from repo root)
-if [ -d "${SLURM_SUBMIT_DIR}/shinobi_fmri" ]; then
-    REPO_ROOT="${SLURM_SUBMIT_DIR}"
-else
-    # Otherwise assume called from slurm/ subdirectory
-    REPO_ROOT="${SLURM_SUBMIT_DIR}/.."
-fi
+# Load configuration from config.yaml
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/load_config.sh"
 
-CORRELATION_SCRIPT="${REPO_ROOT}/shinobi_fmri/correlations/compute_beta_correlations.py"
+# Create log directory
+mkdir -p "$LOGS_DIR/slurm"
+
+CORRELATION_SCRIPT="$SCRIPTS_DIR/correlations/compute_beta_correlations.py"
 
 # Verify script exists
 if [ ! -f "$CORRELATION_SCRIPT" ]; then
     echo "ERROR: Script not found at: $CORRELATION_SCRIPT"
-    echo "SLURM_SUBMIT_DIR: ${SLURM_SUBMIT_DIR}"
     echo "REPO_ROOT: ${REPO_ROOT}"
-    echo "Checked for shinobi_fmri/ directory in: ${SLURM_SUBMIT_DIR}"
     exit 1
 fi
-
-# Determine Python executable from config.yaml (slurm_bin setting)
-# Falls back to 'python' from PATH if not configured
-PYTHON_BIN=${SHINOBI_SLURM_PYTHON_BIN:-python}
 
 # Build command with optional arguments
 CMD="${PYTHON_BIN} \

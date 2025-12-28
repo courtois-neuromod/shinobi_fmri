@@ -2,13 +2,17 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=12:00:00
 #SBATCH --job-name=shinobi_corrmat
-#SBATCH --output=logfiles/%x/%x_%j.out
-#SBATCH --error=logfiles/%x/%x_%j.err
+#SBATCH --output=logs/slurm/%x/%x_%j.out
+#SBATCH --error=logs/slurm/%x/%x_%j.err
 #SBATCH --mem=48G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 
-# Create log directory
-mkdir -p logfiles/shinobi_corrmat
+# Load configuration from config.yaml
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/load_config.sh"
 
-/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/correlations/compute_beta_correlations.py
+# Create log directory
+mkdir -p "$LOGS_DIR/slurm/shinobi_corrmat"
+
+"$PYTHON_BIN" "$SCRIPTS_DIR/correlations/compute_beta_correlations.py"

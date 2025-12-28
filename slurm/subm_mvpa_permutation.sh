@@ -2,8 +2,8 @@
 #SBATCH --account=def-pbellec
 #SBATCH --time=12:00:00
 #SBATCH --job-name=shi_mvpa_perm
-#SBATCH --output=logfiles/%x/%x_%A_%a.out
-#SBATCH --error=logfiles/%x/%x_%A_%a.err
+#SBATCH --output=logs/slurm/%x/%x_%A_%a.out
+#SBATCH --error=logs/slurm/%x/%x_%A_%a.err
 #SBATCH --mem=128G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
@@ -23,8 +23,12 @@ PERM_END=$4
 SCREENING=${5:-20}
 N_JOBS=${6:-40}
 
+# Load configuration from config.yaml
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+source "$SCRIPT_DIR/load_config.sh"
+
 # Create log directory
-mkdir -p logfiles/shi_mvpa_perm
+mkdir -p "$LOGS_DIR/slurm/shi_mvpa_perm"
 
 echo "=========================================="
 echo "MVPA Permutation Testing"
@@ -33,9 +37,10 @@ echo "Subject:      $SUBJECT"
 echo "Permutations: $PERM_START to $((PERM_END-1)) (out of $N_PERM total)"
 echo "Screening:    $SCREENING%"
 echo "CPUs:         $N_JOBS"
+echo "Python:       $PYTHON_BIN"
 echo "=========================================="
 
-/home/hyruuk/python_envs/shinobi/bin/python /home/hyruuk/GitHub/neuromod/shinobi_fmri/shinobi_fmri/mvpa/compute_mvpa.py \
+"$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
     --subject $SUBJECT \
     --n-permutations $N_PERM \
     --perm-start $PERM_START \
