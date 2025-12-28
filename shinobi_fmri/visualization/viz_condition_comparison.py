@@ -419,52 +419,6 @@ def plot_single_surface_view(overlay_img, hemisphere, view, cmap, threshold, dpi
     return img_array
 
 
-def apply_surface_mask(overlay_img, img1, img2, z_threshold, logger=None):
-    """Apply surface-based masking to overlay to match annotation panel behavior.
-
-    Creates a volume mask based on which voxels would be shown in annotation panels
-    when projected to surface, then applies this mask to the overlay.
-
-    Args:
-        overlay_img (Nifti1Image): Encoded overlay image
-        img1 (Nifti1Image): Raw z-map for condition 1
-        img2 (Nifti1Image): Raw z-map for condition 2
-        z_threshold (float): Z-score threshold (e.g., 3.0)
-        logger (AnalysisLogger): Logger instance
-
-    Returns:
-        Nifti1Image: Masked overlay image
-    """
-    if logger:
-        logger.debug("Applying volume-based masking for consistency with annotation panels...")
-
-    # Create volume masks based on threshold (like annotation panels do)
-    # Annotation panels use symmetric_cbar=False with threshold, which shows z > threshold
-    data1 = img1.get_fdata()
-    data2 = img2.get_fdata()
-
-    # Create masks: voxels that would be shown in annotation panels
-    mask1 = data1 > z_threshold
-    mask2 = data2 > z_threshold
-
-    # Combined mask: show overlay where either condition passes threshold
-    combined_mask = mask1 | mask2
-
-    # Apply mask to overlay
-    overlay_data = overlay_img.get_fdata()
-    overlay_data_masked = np.where(combined_mask, overlay_data, 0)
-
-    # Create new image
-    masked_overlay_img = nib.Nifti1Image(overlay_data_masked, overlay_img.affine, overlay_img.header)
-
-    if logger:
-        voxels_before = np.sum(overlay_data > 0)
-        voxels_after = np.sum(overlay_data_masked > 0)
-        logger.debug(f"Volume masking applied: {voxels_before} → {voxels_after} voxels")
-
-    return masked_overlay_img
-
-
 def create_subject_label(subject_id, width, height, dpi=300):
     """Create a subject ID label using matplotlib for proper font scaling.
 
@@ -605,25 +559,18 @@ def create_four_subject_panel(subject_images, save_path, legend_data, dpi=300, l
         logger.info(f"Saved panel: {save_path}")
 
 
-def plot_overlay_surface(overlay_img, save_path, img1=None, img2=None, z_threshold=3.0, threshold=2.5, dpi=300, logger=None):
+def plot_overlay_surface(overlay_img, save_path, threshold=0.5, dpi=300, logger=None):
     """Plot overlay map on inflated brain surface.
 
     Args:
-        overlay_img (Nifti1Image): Overlay map with three-color coding
+        overlay_img (Nifti1Image): Overlay map with three-color coding (already thresholded)
         save_path (str): Path to save the image
-        img1 (Nifti1Image): Raw z-map for condition 1 (for masking)
-        img2 (Nifti1Image): Raw z-map for condition 2 (for masking)
-        z_threshold (float): Z-score threshold for raw maps (default: 3.0)
-        threshold (float): Threshold for display (default: 1.0)
+        threshold (float): Threshold for display (default: 0.5, must be ≤1.0 to show red values)
         dpi (int): DPI of output image
         logger (AnalysisLogger): Logger instance
     """
     if logger:
         logger.debug("Rendering individual surface views...")
-
-    # Apply surface-based masking if raw z-maps are provided
-    if img1 is not None and img2 is not None:
-        overlay_img = apply_surface_mask(overlay_img, img1, img2, z_threshold, logger)
 
     # Create custom three-color colormap (Blue/Red/Purple)
     cmap = create_three_color_colormap()
@@ -784,20 +731,24 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     weight1 = 'bold' if source1 == 'shinobi' else 'normal'
     weight2 = 'bold' if source2 == 'shinobi' else 'normal'
 
-    # Vertical layout - much larger to accommodate bigger text
-    fig, ax = plt.subplots(figsize=(8, 18), dpi=dpi)
+    # Vertical layout - much larger to accommodate bigger text and spacing
+    fig, ax = plt.subplots(figsize=(8, 20), dpi=dpi)
     ax.axis('off')
 
     # Create gradient colorbars - inverted so dark is at top, light at bottom
     # Gradient values: 0 (dark) at top → 1 (light) at bottom
     gradient = np.linspace(0, 1, 256).reshape(-1, 1)
 
-    # Bar width (half of previous)
+    # Bar width and positions - increased spacing between colorbars
     bar_width = 0.075
     bar_x = 0.05
 
+    # Colorbar positions with more spacing to accommodate labels
+    cbar_height = 0.22
+    cbar_spacing = 0.12  # Space between colorbars
+
     # Blue gradient for condition 1
-    ax_cond1 = fig.add_axes([bar_x, 0.68, bar_width, 0.25])
+    ax_cond1 = fig.add_axes([bar_x, 0.70, bar_width, cbar_height])
     cmap1 = mcolors.LinearSegmentedColormap.from_list('cond1', ['#00008B', '#6666FF'])
     ax_cond1.imshow(gradient, aspect='auto', cmap=cmap1, extent=[0, 1, 0, 1])
     ax_cond1.set_xticks([])
@@ -808,12 +759,15 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     for spine in ax_cond1.spines.values():
         spine.set_visible(True)
         spine.set_linewidth(3)
-    # Add label directly on this axes, centered vertically at 0.5
+    # Add value label above the colorbar (closer to bar)
+    ax_cond1.text(0.5, 1.08, r'$|z|$', ha='center', va='bottom', fontsize=32,
+                  fontweight='normal', transform=ax_cond1.transAxes)
+    # Add condition label to the right
     ax_cond1.text(1.3, 0.5, label1, ha='left', va='center', fontsize=45,
                   fontweight=weight1, color=color1, transform=ax_cond1.transAxes)
 
     # Red gradient for condition 2
-    ax_cond2 = fig.add_axes([bar_x, 0.39, bar_width, 0.25])
+    ax_cond2 = fig.add_axes([bar_x, 0.70 - cbar_height - cbar_spacing, bar_width, cbar_height])
     cmap2 = mcolors.LinearSegmentedColormap.from_list('cond2', ['#8B0000', '#FF6666'])
     ax_cond2.imshow(gradient, aspect='auto', cmap=cmap2, extent=[0, 1, 0, 1])
     ax_cond2.set_xticks([])
@@ -823,12 +777,15 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     for spine in ax_cond2.spines.values():
         spine.set_visible(True)
         spine.set_linewidth(3)
-    # Add label directly on this axes, centered vertically at 0.5
+    # Add value label above the colorbar (closer to bar)
+    ax_cond2.text(0.5, 1.08, r'$|z|$', ha='center', va='bottom', fontsize=32,
+                  fontweight='normal', transform=ax_cond2.transAxes)
+    # Add condition label to the right
     ax_cond2.text(1.3, 0.5, label2, ha='left', va='center', fontsize=45,
                   fontweight=weight2, color=color2, transform=ax_cond2.transAxes)
 
     # Purple gradient for both conditions
-    ax_both = fig.add_axes([bar_x, 0.10, bar_width, 0.25])
+    ax_both = fig.add_axes([bar_x, 0.70 - 2*(cbar_height + cbar_spacing), bar_width, cbar_height])
     cmap_both = mcolors.LinearSegmentedColormap.from_list('both', ['#6600CC', '#CC66FF'])
     ax_both.imshow(gradient, aspect='auto', cmap=cmap_both, extent=[0, 1, 0, 1])
     ax_both.set_xticks([])
@@ -838,7 +795,10 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     for spine in ax_both.spines.values():
         spine.set_visible(True)
         spine.set_linewidth(3)
-    # Add label directly on this axes, centered vertically at 0.5
+    # Add value label above the colorbar (mean of absolute z-scores, closer to bar)
+    ax_both.text(0.5, 1.08, r'$|\bar{z}|$', ha='center', va='bottom', fontsize=32,
+                 fontweight='normal', transform=ax_both.transAxes)
+    # Add condition label to the right
     ax_both.text(1.3, 0.5, 'Both', ha='left', va='center', fontsize=45,
                  fontweight='normal', color='black', transform=ax_both.transAxes)
 
@@ -1008,9 +968,9 @@ def main():
                 overlay_img = create_overlay_map(img1, img2, args.threshold, logger)
 
                 # Plot overlay and get image array (don't save individual files)
-                img_array = plot_overlay_surface(overlay_img, None,
-                                   img1=img1, img2=img2, z_threshold=args.threshold,
-                                   threshold=2.5, logger=logger)
+                # Use threshold=0.5 to show all encoded values (Blue: 1-6, Red: -6 to -1, Purple: 7-12)
+                img_array = plot_overlay_surface(overlay_img, save_path=None,
+                                   threshold=0.5, logger=logger)
 
                 subject_images[subject] = img_array
 

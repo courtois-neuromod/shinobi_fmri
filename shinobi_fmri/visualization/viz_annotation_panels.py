@@ -481,13 +481,17 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
             ax.axis('off')
 
     # Add title
-    fig.suptitle(f"{condition}", fontsize=32, fontweight='bold', x=0.4444)
+    fig.suptitle(f"{condition}", fontsize=32, x=0.4444)
 
     # Add colorbar
     _, _, cmap = create_colormap()
     inner_gs = gridspec.GridSpecFromSubplotSpec(4, 8, subplot_spec=gs[:, 8])
     cbar_ax = fig.add_subplot(inner_gs[1:3, 0])
-    plt.colorbar(cmap, cax=cbar_ax)
+    cbar = plt.colorbar(cmap, cax=cbar_ax)
+
+    # Add |z| label above colorbar
+    cbar_ax.text(0.5, 1.05, r'$|z|$', ha='center', va='bottom', fontsize=12,
+                 transform=cbar_ax.transAxes)
 
     # Save figure
     fig.tight_layout()

@@ -291,42 +291,6 @@ invoke corr.fingerprinting --log-dir ./logs/fingerprinting
 
 ---
 
-### `corr.within-subject-conditions`
-
-Compute within-subject condition correlations to assess condition specificity.
-
-**Description:**
-
-For each subject, computes how maps from different conditions correlate with each other. This reveals how distinct different experimental conditions are within each individual.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--verbose` | int | 0 | No | Verbosity level (0-2) |
-| `--log-dir` | str | None | No | Custom log directory |
-
-**Outputs:**
-- `processed/within_subject_condition_correlations/{subject}_condition_correlations.tsv` - Per-subject condition correlation matrices
-- `processed/within_subject_condition_correlations/average_condition_correlations.tsv` - Average across subjects
-
-**Common Use Cases:**
-
-```bash
-# Compute within-subject condition correlations
-invoke corr.within-subject-conditions --verbose 1
-
-# With custom log directory
-invoke corr.within-subject-conditions --log-dir ./logs/condition_corr
-```
-
-**What it computes:**
-- Condition × condition correlation matrix for each subject
-- Average correlation matrices across all subjects
-- Same-condition vs different-condition correlation statistics
-
----
-
 ## Visualization Tasks
 
 ### `viz.run-level`
@@ -630,13 +594,13 @@ invoke viz.fingerprinting --log-dir ./logs/viz_fingerprinting
 
 ---
 
-### `viz.within-subject-conditions`
+### `viz.within-subject-correlations`
 
-Generate within-subject condition correlation visualizations.
+Compute and visualize within-subject condition correlations.
 
 **Description:**
 
-Creates heatmaps and plots showing how different experimental conditions correlate with each other within each subject, demonstrating condition specificity and distinctiveness.
+Computes how maps from different conditions correlate with each other within each subject, then creates heatmaps and plots demonstrating condition specificity and distinctiveness. This task combines both computation and visualization in a single step (computation is fast, so no need for separate steps).
 
 **Arguments:**
 
@@ -654,18 +618,20 @@ Creates heatmaps and plots showing how different experimental conditions correla
 **Common Use Cases:**
 
 ```bash
-# Generate within-subject condition visualizations
-invoke viz.within-subject-conditions --verbose 1
+# Compute and visualize within-subject condition correlations
+invoke viz.within-subject-correlations --verbose 1
 
 # With custom log directory
-invoke viz.within-subject-conditions --log-dir ./logs/viz_conditions
+invoke viz.within-subject-correlations --log-dir ./logs/viz_correlations
 ```
 
-**What it generates:**
-- Condition × condition correlation heatmaps for each subject (separated by Shinobi/HCP)
-- Violin and box plots comparing same-condition vs different-condition correlations
-- Condition specificity matrix showing which conditions are most distinctive
-- Statistical comparisons including Cohen's d and significance tests
+**What it does:**
+- Computes condition × condition correlation matrix for each subject
+- Computes average correlation matrices across all subjects
+- Generates correlation heatmaps for each subject (separated by Shinobi/HCP)
+- Creates violin and box plots comparing same-condition vs different-condition correlations
+- Plots condition specificity matrix showing which conditions are most distinctive
+- Computes statistical comparisons including Cohen's d and significance tests
 
 ---
 
