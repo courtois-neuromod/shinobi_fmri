@@ -3,13 +3,28 @@
 # This script should be sourced, not executed: source load_config.sh
 
 # Determine repository root
-# If submitted from slurm/ directory, go up one level
-if [ -d "$SLURM_SUBMIT_DIR/shinobi_fmri" ]; then
+# Strategy: Try multiple methods to find the repo root
+
+# Method 1: Use SLURM_SUBMIT_DIR (directory from which job was submitted)
+if [ -n "$SLURM_SUBMIT_DIR" ] && [ -d "$SLURM_SUBMIT_DIR/shinobi_fmri" ]; then
     export REPO_ROOT="$SLURM_SUBMIT_DIR"
-elif [ -d "$SLURM_SUBMIT_DIR/../shinobi_fmri" ]; then
+elif [ -n "$SLURM_SUBMIT_DIR" ] && [ -d "$SLURM_SUBMIT_DIR/../shinobi_fmri" ]; then
     export REPO_ROOT="$SLURM_SUBMIT_DIR/.."
+# Method 2: Use this script's location (should be in slurm/ subdirectory)
+elif [ -n "$BASH_SOURCE" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -d "$SCRIPT_DIR/../shinobi_fmri" ]; then
+        export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    else
+        echo "ERROR: Cannot determine repository root"
+        echo "Script is at: $SCRIPT_DIR"
+        echo "Expected shinobi_fmri at: $SCRIPT_DIR/../shinobi_fmri"
+        exit 1
+    fi
 else
-    echo "ERROR: Cannot determine repository root from SLURM_SUBMIT_DIR: $SLURM_SUBMIT_DIR"
+    echo "ERROR: Cannot determine repository root"
+    echo "SLURM_SUBMIT_DIR = $SLURM_SUBMIT_DIR"
+    echo "BASH_SOURCE = $BASH_SOURCE"
     exit 1
 fi
 
@@ -72,3 +87,9 @@ fi
 # Export repo root for script paths
 export SCRIPTS_DIR="$REPO_ROOT/shinobi_fmri"
 export LOGS_DIR="$REPO_ROOT/logs"
+
+# Verify critical paths exist
+if [ ! -d "$SCRIPTS_DIR" ]; then
+    echo "ERROR: Scripts directory not found at: $SCRIPTS_DIR"
+    exit 1
+fi
