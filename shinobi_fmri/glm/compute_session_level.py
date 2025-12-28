@@ -188,18 +188,34 @@ def remove_runs_without_target_regressor(
 ):
     """
     Removes runs that do not contain all target regressors.
-    """
-    images_copy = fmri_imgs.copy()
-    dataframes_copy = trimmed_design_matrices.copy()
-    for img, df in zip(fmri_imgs, trimmed_design_matrices):
-        for reg in regressor_names:
-            if reg not in df.columns:
-                if img in images_copy:
-                    images_copy.remove(img)
-                if df in dataframes_copy:
-                    dataframes_copy.remove(df)
 
-    return images_copy, dataframes_copy
+    Args:
+        regressor_names: List of regressor names that must be present
+        fmri_imgs: List of fMRI image objects
+        trimmed_design_matrices: List of design matrices (pandas DataFrames)
+
+    Returns:
+        Tuple of (filtered_images, filtered_design_matrices) containing only
+        runs that have all required regressors.
+
+    Note:
+        Uses index-based filtering to avoid pandas DataFrame comparison issues
+        when checking membership with 'in' operator.
+    """
+    # Track indices of runs to keep
+    indices_to_keep = []
+
+    for i, (img, df) in enumerate(zip(fmri_imgs, trimmed_design_matrices)):
+        # Check if this run has all required regressors
+        has_all_regressors = all(reg in df.columns for reg in regressor_names)
+        if has_all_regressors:
+            indices_to_keep.append(i)
+
+    # Keep only runs that have all target regressors
+    images_filtered = [fmri_imgs[i] for i in indices_to_keep]
+    dataframes_filtered = [trimmed_design_matrices[i] for i in indices_to_keep]
+
+    return images_filtered, dataframes_filtered
 
 
 def trim_design_matrices(
