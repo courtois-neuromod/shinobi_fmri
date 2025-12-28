@@ -12,14 +12,22 @@ LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 CHUNK_SIZE=100
 
-# Load configuration from config.yaml
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/load_config.sh"
+# Get repository root (where config.yaml lives)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
 # Create log directory
-mkdir -p "$LOGS_DIR/slurm"
+mkdir -p logs/slurm
 
-CORRELATION_SCRIPT="$SCRIPTS_DIR/correlations/compute_beta_correlations.py"
+# Read Python path from config.yaml
+PYTHON_BIN=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); print(c['python']['slurm_bin'])")
+
+# Make it absolute if relative
+if [[ ! "$PYTHON_BIN" = /* ]]; then
+    PYTHON_BIN="$REPO_ROOT/$PYTHON_BIN"
+fi
+
+CORRELATION_SCRIPT="shinobi_fmri/correlations/compute_beta_correlations.py"
 
 # Verify script exists
 if [ ! -f "$CORRELATION_SCRIPT" ]; then
@@ -56,8 +64,5 @@ echo "Verbosity: ${VERBOSE_FLAG:-'default'}"
 echo "Command: $CMD"
 echo "========================================"
 
-# Load exit status tracking utility
-source "$SCRIPT_DIR/rename_logs_on_exit.sh"
-
-# Execute the command and rename logs based on exit status
-eval "run_and_rename_logs $CMD"
+# Execute the command
+eval "$CMD"

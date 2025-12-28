@@ -23,12 +23,20 @@ PERM_END=$4
 SCREENING=${5:-20}
 N_JOBS=${6:-40}
 
-# Load configuration from config.yaml
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/load_config.sh"
+# Get repository root (where config.yaml lives)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
 # Create log directory
-mkdir -p "$LOGS_DIR/slurm/shi_mvpa_perm"
+mkdir -p logs/slurm/shi_mvpa_perm
+
+# Read Python path from config.yaml
+PYTHON_BIN=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); print(c['python']['slurm_bin'])")
+
+# Make it absolute if relative
+if [[ ! "$PYTHON_BIN" = /* ]]; then
+    PYTHON_BIN="$REPO_ROOT/$PYTHON_BIN"
+fi
 
 echo "=========================================="
 echo "MVPA Permutation Testing"
@@ -40,11 +48,8 @@ echo "CPUs:         $N_JOBS"
 echo "Python:       $PYTHON_BIN"
 echo "=========================================="
 
-# Load exit status tracking utility
-source "$SCRIPT_DIR/rename_logs_on_exit.sh"
-
-# Run permutation test and rename logs based on exit status
-run_and_rename_logs "$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
+# Run permutation test
+"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py \
     --subject $SUBJECT \
     --n-permutations $N_PERM \
     --perm-start $PERM_START \

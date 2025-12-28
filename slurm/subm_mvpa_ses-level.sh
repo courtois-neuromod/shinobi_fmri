@@ -17,12 +17,20 @@ SUBJECT=$1
 SCREENING=${2:-20}
 N_JOBS=${3:-40}
 
-# Load configuration from config.yaml
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/load_config.sh"
+# Get repository root (where config.yaml lives)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
 # Create log directory
-mkdir -p "$LOGS_DIR/slurm/shi_mvpa_seslvl"
+mkdir -p logs/slurm/shi_mvpa_seslvl
+
+# Read Python path from config.yaml
+PYTHON_BIN=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); print(c['python']['slurm_bin'])")
+
+# Make it absolute if relative
+if [[ ! "$PYTHON_BIN" = /* ]]; then
+    PYTHON_BIN="$REPO_ROOT/$PYTHON_BIN"
+fi
 
 echo "=========================================="
 echo "MVPA Session-Level Decoder"
@@ -31,14 +39,10 @@ echo "Subject:   $SUBJECT"
 echo "Screening: $SCREENING%"
 echo "CPUs:      $N_JOBS"
 echo "Python:    $PYTHON_BIN"
-echo "Data path: $DATA_PATH"
 echo "=========================================="
 
-# Load exit status tracking utility
-source "$SCRIPT_DIR/rename_logs_on_exit.sh"
-
-# Run MVPA decoder (no permutations) and rename logs based on exit status
-run_and_rename_logs "$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
+# Run MVPA decoder
+"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py \
     --subject $SUBJECT \
     --screening $SCREENING \
     --n-jobs $N_JOBS \
