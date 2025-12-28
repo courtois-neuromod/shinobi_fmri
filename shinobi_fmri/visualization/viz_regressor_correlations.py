@@ -30,7 +30,7 @@ from load_confounds import Confounds
 
 import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import AnalysisLogger
-from shinobi_fmri.glm.compute_run_level import add_psychophysics_confounds, add_button_press_confounds
+from shinobi_fmri.glm.utils import add_psychophysics_confounds, add_button_press_confounds
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='nilearn')

@@ -40,7 +40,11 @@ echo "CPUs:         $N_JOBS"
 echo "Python:       $PYTHON_BIN"
 echo "=========================================="
 
-"$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
+# Load exit status tracking utility
+source "$SCRIPT_DIR/rename_logs_on_exit.sh"
+
+# Run permutation test and rename logs based on exit status
+run_and_rename_logs "$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
     --subject $SUBJECT \
     --n-permutations $N_PERM \
     --perm-start $PERM_START \

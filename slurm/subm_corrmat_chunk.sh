@@ -56,5 +56,8 @@ echo "Verbosity: ${VERBOSE_FLAG:-'default'}"
 echo "Command: $CMD"
 echo "========================================"
 
-# Execute the command
-eval $CMD
+# Load exit status tracking utility
+source "$SCRIPT_DIR/rename_logs_on_exit.sh"
+
+# Execute the command and rename logs based on exit status
+eval "run_and_rename_logs $CMD"

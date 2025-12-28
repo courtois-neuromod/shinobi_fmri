@@ -33,7 +33,11 @@ echo "Screening:    $SCREENING%"
 echo "Python:       $PYTHON_BIN"
 echo "=========================================="
 
-"$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/aggregate_permutations.py" \
+# Load exit status tracking utility
+source "$SCRIPT_DIR/rename_logs_on_exit.sh"
+
+# Run aggregation and rename logs based on exit status
+run_and_rename_logs "$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/aggregate_permutations.py" \
     --subject $SUBJECT \
     --n-permutations $N_PERM \
     --screening $SCREENING

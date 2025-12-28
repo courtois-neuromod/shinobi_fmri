@@ -34,8 +34,11 @@ echo "Python:    $PYTHON_BIN"
 echo "Data path: $DATA_PATH"
 echo "=========================================="
 
-# Run MVPA decoder (no permutations)
-"$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
+# Load exit status tracking utility
+source "$SCRIPT_DIR/rename_logs_on_exit.sh"
+
+# Run MVPA decoder (no permutations) and rename logs based on exit status
+run_and_rename_logs "$PYTHON_BIN" "$SCRIPTS_DIR/mvpa/compute_mvpa.py" \
     --subject $SUBJECT \
     --screening $SCREENING \
     --n-jobs $N_JOBS \
