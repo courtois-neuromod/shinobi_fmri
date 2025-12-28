@@ -30,4 +30,4 @@ if [[ ! "$PYTHON_BIN" = /* ]]; then
 fi
 
 # Run visualization
-"$PYTHON_BIN" shinobi_fmri/visualization/viz_session-level.py
+"$PYTHON_BIN" shinobi_fmri/visualization/viz_session_level.py

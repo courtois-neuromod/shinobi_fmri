@@ -7,7 +7,7 @@ checking for completeness and optionally file integrity.
 Usage:
     python tests/validate_outputs.py
     python tests/validate_outputs.py --subject sub-01
-    python tests/validate_outputs.py --analysis-type glm_run
+    python tests/validate_outputs.py --analysis-type glm_session
     python tests/validate_outputs.py --check-integrity
 
     # Via invoke:
@@ -59,7 +59,7 @@ class PipelineValidator:
             data_path: Root data directory
             subjects: List of subjects to validate (None = all from config)
             analysis_types: List of analysis types to check (None = all)
-                Options: ['glm_run', 'glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
+                Options: ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
             check_integrity: If True, validate file contents (slower)
             logger: Optional logger instance
         """
@@ -70,7 +70,7 @@ class PipelineValidator:
         self.logger = logger
 
         # Determine which analyses to validate
-        all_types = ['glm_run', 'glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
+        all_types = ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
         self.analysis_types = analysis_types or all_types
 
         # Results storage
@@ -100,50 +100,6 @@ class PipelineValidator:
             List of session IDs (e.g., ['ses-001', 'ses-002', ...])
         """
         return get_sessions_from_raw_data(self.data_path, subject)
-
-    def validate_glm_run_level(self) -> ValidationResult:
-        """
-        Validate run-level GLM outputs.
-
-        Returns:
-            ValidationResult for run-level GLM
-        """
-        result = ValidationResult("GLM Run-Level")
-
-        for subject in self.subjects:
-            sessions = self.get_subject_sessions(subject)
-
-            for session in sessions:
-                runs = get_available_runs(self.data_path, subject, session)
-
-                for run in runs:
-                    run_formatted = f"run-{int(run):02d}"
-
-                    for condition in self.conditions:
-                        # Check z-map
-                        z_map_dir = op.join(
-                            self.data_path, "processed", "run-level",
-                            subject, session, "z_maps"
-                        )
-                        base_name = f"{subject}_{session}_task-shinobi_{run_formatted}_contrast-{condition}"
-                        z_map_file = op.join(z_map_dir, f"{base_name}_stat-z.nii.gz")
-
-                        result.add_expected(z_map_file)
-
-                        if self.check_integrity and op.exists(z_map_file):
-                            is_valid, error = validate_nifti(z_map_file, check_integrity=True)
-                            if not is_valid:
-                                result.add_error(z_map_file, error)
-
-                        # Check beta map
-                        beta_map_dir = op.join(
-                            self.data_path, "processed", "run-level",
-                            subject, session, "beta_maps"
-                        )
-                        beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
-                        result.add_expected(beta_map_file)
-
-        return result
 
     def validate_glm_session_level(self) -> ValidationResult:
         """
@@ -485,28 +441,24 @@ class PipelineValidator:
         self.log("=" * 80)
 
         # Run validations
-        if 'glm_run' in self.analysis_types:
-            self.log("\n[1/6] Validating GLM run-level outputs...")
-            self.results['glm_run'] = self.validate_glm_run_level()
-
         if 'glm_session' in self.analysis_types:
-            self.log("\n[2/6] Validating GLM session-level outputs...")
+            self.log("\n[1/5] Validating GLM session-level outputs...")
             self.results['glm_session'] = self.validate_glm_session_level()
 
         if 'glm_subject' in self.analysis_types:
-            self.log("\n[3/6] Validating GLM subject-level outputs...")
+            self.log("\n[2/5] Validating GLM subject-level outputs...")
             self.results['glm_subject'] = self.validate_glm_subject_level()
 
         if 'mvpa' in self.analysis_types:
-            self.log("\n[4/6] Validating MVPA outputs...")
+            self.log("\n[3/5] Validating MVPA outputs...")
             self.results['mvpa'] = self.validate_mvpa()
 
         if 'correlations' in self.analysis_types:
-            self.log("\n[5/6] Validating correlation outputs...")
+            self.log("\n[4/5] Validating correlation outputs...")
             self.results['correlations'] = self.validate_correlations()
 
         if 'figures' in self.analysis_types:
-            self.log("\n[6/6] Validating figures and visualizations...")
+            self.log("\n[5/5] Validating figures and visualizations...")
             self.results['figures'] = self.validate_figures()
 
         return self.results
@@ -600,7 +552,7 @@ def parse_args():
     parser.add_argument(
         '--analysis-type',
         type=str,
-        choices=['glm_run', 'glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures', 'all'],
+        choices=['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures', 'all'],
         default='all',
         help='Type of analysis to validate. Default: all'
     )

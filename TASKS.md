@@ -29,46 +29,6 @@ Most tasks support these common arguments:
 
 ## GLM Analysis Tasks
 
-### `glm.run-level`
-
-Run run-level (first-level) GLM analysis for individual fMRI runs.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, process all subjects |
-| `--session` | str | None | No | Session ID (e.g., `ses-001`). If None, process all sessions |
-| `--slurm` | flag | False | No | Submit to SLURM cluster |
-| `--n-jobs` | int | -1 | No | Number of parallel jobs |
-| `--verbose` | int | 0 | No | Verbosity level (0-2) |
-| `--log-dir` | str | None | No | Custom log directory |
-| `--low-level-confs` | flag | False | No | Include low-level confounds and button-press rate in design matrix |
-
-**Common Use Cases:**
-
-```bash
-# Process a single subject/session locally
-invoke glm.run-level --subject sub-01 --session ses-001 --verbose 1
-
-# Process a single subject/session on SLURM
-invoke glm.run-level --subject sub-01 --session ses-001 --slurm
-
-# Process all sessions for a specific subject
-invoke glm.run-level --subject sub-01
-
-# Process all subjects and sessions locally
-invoke glm.run-level
-
-# Process all with SLURM batch submission
-invoke glm.run-level --slurm
-
-# Include low-level confounds in the design matrix
-invoke glm.run-level --subject sub-01 --session ses-001 --low-level-confs
-```
-
----
-
 ### `glm.session-level`
 
 Run session-level (second-level) GLM analysis by combining runs within a session.
@@ -292,32 +252,6 @@ invoke corr.fingerprinting --log-dir ./logs/fingerprinting
 ---
 
 ## Visualization Tasks
-
-### `viz.run-level`
-
-Generate visualizations for run-level GLM results.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--subject` | str | - | Yes | Subject ID (e.g., `sub-01`) |
-| `--condition` | str | - | Yes | Condition/contrast name |
-| `--slurm` | flag | False | No | Submit to SLURM cluster |
-| `--verbose` | int | 0 | No | Verbosity level (0-2) |
-| `--log-dir` | str | None | No | Custom log directory |
-
-**Common Use Cases:**
-
-```bash
-# Generate run-level visualizations
-invoke viz.run-level --subject sub-01 --condition HIT --verbose 1
-
-# Submit to SLURM
-invoke viz.run-level --subject sub-01 --condition JUMP --slurm
-```
-
----
 
 ### `viz.session-level`
 
@@ -680,9 +614,8 @@ These tasks run complete analysis pipelines combining multiple steps.
 Run complete analysis pipeline for a single subject/session.
 
 **Pipeline stages:**
-1. Run-level GLM
-2. Session-level GLM
-3. Visualizations
+1. Session-level GLM
+2. Visualizations
 
 **Arguments:**
 
@@ -791,7 +724,7 @@ Many tasks support batch processing by omitting subject/session/condition argume
 
 ```bash
 # Process all subjects/sessions
-invoke glm.run-level
+invoke glm.session-level
 
 # Process all conditions for a subject
 invoke glm.subject-level --subject sub-01

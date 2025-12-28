@@ -6,11 +6,8 @@ supporting both local execution and SLURM-based cluster computing.
 
 Usage:
     invoke --list                                               # Show all available tasks
-    invoke glm.run-level --subject sub-01 --session ses-001     # Run single subject/session locally
-    invoke glm.run-level --subject sub-01 --session ses-001 --slurm  # Submit single job to SLURM
-    invoke glm.run-level                                        # Run all subjects/sessions locally
-    invoke glm.run-level --slurm                                # Submit all to SLURM (batch mode)
-    invoke glm.run-level --n-jobs 8                             # Use 8 CPU cores (default: -1 = all)
+    invoke glm.session-level --subject sub-01 --session ses-001 # Run single subject/session locally
+    invoke glm.session-level --slurm                            # Submit all to SLURM (batch mode)
 """
 
 from invoke import task, Collection
@@ -111,64 +108,6 @@ def get_all_runs(data_path):
 # =============================================================================
 # GLM Analysis Tasks
 # =============================================================================
-
-@task
-def glm_run_level(c, subject=None, session=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None, low_level_confs=False):
-    """
-    Run run-level GLM analysis.
-
-    Args:
-        subject: Subject ID (e.g., sub-01) - if None, process all subjects
-        session: Session ID (e.g., ses-001) - if None, process all sessions
-        slurm: If True, submit to SLURM cluster (single job or batch mode depending on subject/session)
-        n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
-        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
-        log_dir: Custom log directory
-        low_level_confs: If True, include low-level confounds and button-press rate in design matrix
-    """
-    # If no subject specified, process all subjects/sessions
-    if subject is None:
-        runs = get_all_runs(DATA_PATH)
-        print(f"Processing {len(runs)} runs for all subjects...")
-        for sub, ses in runs:
-            glm_run_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
-        return
-
-    # If subject specified but no session, process all sessions for that subject
-    if session is None:
-        sub_ses_pairs = get_subject_sessions(DATA_PATH, subject=subject)
-        print(f"Processing {len(sub_ses_pairs)} sessions for {subject}...")
-        for sub, ses in sub_ses_pairs:
-            glm_run_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
-        return
-
-    # Process single subject/session
-    script = op.join(SHINOBI_FMRI_DIR, "glm", "compute_run_level.py")
-
-    args = f"--subject {subject} --session {session}"
-
-    # Handle verbosity
-    if isinstance(verbose, int) and verbose > 0:
-        args += f" -{'v' * verbose}"
-    elif isinstance(verbose, bool) and verbose:
-        args += " -v"
-
-    if log_dir:
-        args += f" --log-dir {log_dir}"
-
-    if low_level_confs:
-        args += " --low-level-confs"
-
-    if slurm:
-        slurm_script = op.join(SLURM_DIR, "subm_run-level.sh")
-        cmd = f"sbatch {slurm_script} {subject} {session}"
-        print(f"Submitting to SLURM: {subject} {session}")
-    else:
-        cmd = f"{PYTHON_BIN} {script} {args}"
-        print(f"Running locally: {cmd}")
-
-    c.run(cmd)
-
 
 @task
 def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None, low_level_confs=False):
@@ -498,37 +437,6 @@ def fingerprinting(c, verbose=0, log_dir=None):
 # =============================================================================
 
 @task
-def viz_run_level(c, subject, condition, slurm=False, verbose=0, log_dir=None):
-    """
-    Generate run-level visualizations.
-
-    Args:
-        subject: Subject ID (e.g., sub-01)
-        condition: Condition/contrast name
-        slurm: If True, submit to SLURM cluster
-        verbose: Verbosity level
-        log_dir: Custom log directory
-    """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_run-level.py")
-    
-    args = f"--subject {subject} --condition {condition}"
-    if isinstance(verbose, int) and verbose > 0:
-        args += f" -{'v' * verbose}"
-    if log_dir:
-        args += f" --log-dir {log_dir}"
-
-    if slurm:
-        slurm_script = op.join(SLURM_DIR, "subm_viz-run-level.sh")
-        cmd = f"sbatch {slurm_script} {subject} {condition}"
-        print(f"Submitting to SLURM: {subject} {condition}")
-    else:
-        cmd = f"{PYTHON_BIN} {script} {args}"
-        print(f"Running locally: {cmd}")
-
-    c.run(cmd)
-
-
-@task
 def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, log_dir=None):
     """
     Generate session-level visualizations.
@@ -540,7 +448,7 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_session-level.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_session_level.py")
     
     args = ""
     if subject:
@@ -575,7 +483,7 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None):
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_subject-level.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_subject_level.py")
     
     args = ""
     if isinstance(verbose, int) and verbose > 0:
@@ -657,7 +565,7 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "beta_correlations_plot.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_beta_correlations.py")
 
     cmd_parts = [PYTHON_BIN, script]
 
@@ -810,7 +718,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         direction: Direction of the contrast (both, pos, neg)
         overwrite: Overwrite existing cluster files
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "generate_atlas_tables.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")
 
     cmd_parts = [PYTHON_BIN, script]
 
@@ -844,7 +752,7 @@ def viz_fingerprinting(c, verbose=0, log_dir=None):
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "fingerprinting_plot.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_fingerprinting.py")
 
     cmd_parts = [PYTHON_BIN, script]
 
@@ -872,7 +780,7 @@ def viz_within_subject_correlations(c, verbose=0, log_dir=None):
         verbose: Verbosity level
         log_dir: Custom log directory
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "within_subject_correlations.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_within_subject_correlations.py")
 
     cmd_parts = [PYTHON_BIN, script]
 
@@ -899,7 +807,7 @@ def viz_mvpa_confusion_matrices(c, screening=20, output=None):
         screening: Screening percentile used (default: 20)
         output: Output path for figure (default: auto-generated in reports/figures/)
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "mvpa_confusion_matrices.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_mvpa_confusion_matrices.py")
 
     cmd = f"{PYTHON_BIN} {script} --screening {screening}"
     if output:
@@ -918,7 +826,7 @@ def pipeline_full(c, subject, session, slurm=False, n_jobs=-1):
     """
     Run complete analysis pipeline for a single subject/session.
 
-    This runs: run-level GLM -> session-level GLM -> visualizations
+    This runs: session-level GLM -> visualizations
 
     Args:
         subject: Subject ID (e.g., sub-01)
@@ -930,13 +838,10 @@ def pipeline_full(c, subject, session, slurm=False, n_jobs=-1):
     print(f"Running full pipeline for {subject} {session}")
     print(f"{'='*60}\n")
 
-    print("\n[1/3] Run-level GLM...")
-    glm_run_level(c, subject, session, slurm=slurm, n_jobs=n_jobs)
-
-    print("\n[2/3] Session-level GLM...")
+    print("\n[1/2] Session-level GLM...")
     glm_session_level(c, subject, session, slurm=slurm, n_jobs=n_jobs)
 
-    print("\n[3/3] Visualizations...")
+    print("\n[2/2] Visualizations...")
     viz_session_level(c, slurm=slurm)
 
     print(f"\n{'='*60}")
@@ -1064,7 +969,6 @@ namespace = Collection()
 
 # GLM tasks
 glm_collection = Collection('glm')
-glm_collection.add_task(glm_run_level, name='run-level')
 glm_collection.add_task(glm_session_level, name='session-level')
 glm_collection.add_task(glm_subject_level, name='subject-level')
 namespace.add_collection(glm_collection)
@@ -1082,7 +986,6 @@ namespace.add_collection(corr_collection)
 
 # Visualization tasks
 viz_collection = Collection('viz')
-viz_collection.add_task(viz_run_level, name='run-level')
 viz_collection.add_task(viz_session_level, name='session-level')
 viz_collection.add_task(viz_subject_level, name='subject-level')
 viz_collection.add_task(viz_annotation_panels, name='annotation-panels')

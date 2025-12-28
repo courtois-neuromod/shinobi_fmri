@@ -114,7 +114,6 @@ invoke info
 The pipeline provides the following task categories:
 
 **GLM Analysis:**
-- `glm.run-level` - Run-level (first-level) GLM analysis
 - `glm.session-level` - Session-level (second-level) GLM analysis
 - `glm.subject-level` - Subject-level (third-level) GLM analysis
 
@@ -128,7 +127,6 @@ The pipeline provides the following task categories:
 - `corr.fingerprinting` - Subject identification from brain map similarity
 
 **Visualization:**
-- `viz.run-level` - Run-level visualizations
 - `viz.session-level` - Session-level visualizations
 - `viz.subject-level` - Subject-level visualizations
 - `viz.annotation-panels` - Generate annotation panels and PDFs
@@ -148,7 +146,7 @@ The pipeline provides the following task categories:
 
 ```bash
 # Run GLM analysis for a subject/session
-invoke glm.run-level --subject sub-01 --session ses-001 --verbose 1
+invoke glm.session-level --subject sub-01 --session ses-001 --verbose 1
 
 # Submit all correlation chunks to SLURM
 invoke corr.beta --slurm --chunk-size 100 --verbose 1

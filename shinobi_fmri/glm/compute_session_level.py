@@ -462,7 +462,7 @@ def main():
             name="Session-level GLM Analysis",
             description="Second-level GLM analysis combining multiple runs within a session (fixed-effects)",
             pipeline_version="0.1.0",
-            derived_from="Run-level GLM z-maps",
+            derived_from="Preprocessed fMRI data (shinobi.fmriprep)",
             parameters={
                 'cluster_threshold': config.GLM_CLUSTER_THRESH_SESSION,
                 'alpha': config.GLM_ALPHA,
