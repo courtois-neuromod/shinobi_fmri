@@ -12,8 +12,14 @@ LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 CHUNK_SIZE=100
 
-# Get repository root (where config.yaml lives)
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    REPO_ROOT="$SLURM_SUBMIT_DIR"
+else
+    # Fallback for local testing
+    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
 cd "$REPO_ROOT"
 
 # Create log directory
