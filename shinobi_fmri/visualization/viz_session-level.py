@@ -11,7 +11,7 @@ import nibabel as nb
 from nilearn.plotting import plot_img_on_surf, plot_stat_map
 from nilearn.glm import threshold_stats_img
 import argparse
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
 
 parser = argparse.ArgumentParser()
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="Viz_session",
         log_dir=args.log_dir,
         verbosity=log_level

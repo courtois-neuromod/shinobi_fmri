@@ -15,7 +15,7 @@ from joblib import Parallel, delayed
 from collections import defaultdict
 from tqdm.auto import tqdm
 from tqdm_joblib import tqdm_joblib
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata
 import logging
 import json
@@ -528,7 +528,7 @@ def main():
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="Correlations",
         log_dir=args.log_dir,
         verbosity=log_level

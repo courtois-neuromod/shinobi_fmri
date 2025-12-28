@@ -35,7 +35,7 @@ from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, landscape
 from tqdm import tqdm
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
 
 try:
@@ -252,7 +252,7 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, pbar=
         fig_folder (str): Path to save the images
         data_path (str): Path to data directory
         pbar (tqdm): Optional progress bar to update
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
     """
     # Create subject-level z-map
     # New structure: processed/subject-level/sub-XX/z_maps/
@@ -356,7 +356,7 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
         save_path (str): Path to save the combined panel
         data_path (str): Path to data directory
         pbar (tqdm): Optional progress bar to update
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
     """
     images = []
 
@@ -600,7 +600,7 @@ def main():
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="Viz_panels",
         log_dir=args.log_dir,
         verbosity=log_level

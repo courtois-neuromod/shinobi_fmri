@@ -52,7 +52,7 @@ import warnings
 import re
 
 import shinobi_fmri.config as config
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 from shinobi_fmri.glm import utils
 
@@ -430,7 +430,7 @@ def main():
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="GLM_session",
         subject=sub,
         session=ses,

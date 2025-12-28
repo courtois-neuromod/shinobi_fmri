@@ -37,7 +37,7 @@ from nilearn import plotting, image
 from nilearn.plotting.cm import _cmap_d as nilearn_cmaps
 from PIL import Image
 from tqdm import tqdm
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
 
 try:
@@ -187,7 +187,7 @@ def load_zmap(source, subject, condition, hcp_task, data_path, logger=None):
         condition (str): Condition name
         hcp_task (str): HCP task name (only used if source='hcp')
         data_path (str): Path to data directory
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image or None: Loaded z-map image, or None if not found
@@ -250,7 +250,7 @@ def create_overlay_map(img1, img2, threshold=DEFAULT_THRESHOLD, logger=None):
         img1 (Nifti1Image): Z-map for condition 1
         img2 (Nifti1Image): Z-map for condition 2
         threshold (float): Significance threshold (default: 3.0)
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image: Overlay map with coded values
@@ -430,7 +430,7 @@ def apply_surface_mask(overlay_img, img1, img2, z_threshold, logger=None):
         img1 (Nifti1Image): Raw z-map for condition 1
         img2 (Nifti1Image): Raw z-map for condition 2
         z_threshold (float): Z-score threshold (e.g., 3.0)
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image: Masked overlay image
@@ -616,7 +616,7 @@ def plot_overlay_surface(overlay_img, save_path, img1=None, img2=None, z_thresho
         z_threshold (float): Z-score threshold for raw maps (default: 3.0)
         threshold (float): Threshold for display (default: 1.0)
         dpi (int): DPI of output image
-        logger (ShinobiLogger): Logger instance
+        logger (AnalysisLogger): Logger instance
     """
     if logger:
         logger.debug("Rendering individual surface views...")
@@ -930,7 +930,7 @@ def main():
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="CondComparison",
         log_dir=args.log_dir,
         verbosity=log_level

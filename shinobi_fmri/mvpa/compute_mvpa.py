@@ -21,7 +21,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import cross_val_predict
 from sklearn.dummy import DummyClassifier
 from scipy import stats
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 import logging
 
@@ -541,7 +541,7 @@ if __name__ == "__main__":
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="MVPA",
         subject=args.subject,
         log_dir=args.log_dir,

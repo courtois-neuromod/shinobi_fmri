@@ -1,5 +1,5 @@
 """
-Logging utilities for Shinobi fMRI analysis pipeline.
+Logging utilities for fMRI analysis pipelines.
 
 Provides structured logging with both console output and detailed log files
 for debugging and tracking analysis computations.
@@ -72,14 +72,14 @@ class ProcessingSummary:
         return "\n".join(lines)
 
 
-class ShinobiLogger:
-    """Logger for Shinobi analysis with console and file output."""
+class AnalysisLogger:
+    """Logger for analysis pipelines with console and file output."""
 
     def __init__(self, log_name: str, subject: str = None, session: Optional[str] = None,
                  condition: Optional[str] = None, log_dir: Optional[str] = None,
                  verbosity: int = logging.INFO):
         """
-        Initialize Shinobi logger.
+        Initialize analysis logger.
 
         Args:
             log_name: Name of the logger/task (e.g. 'GLM_session', 'MVPA')

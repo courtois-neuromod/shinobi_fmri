@@ -29,7 +29,7 @@ from nilearn.signal import clean
 from load_confounds import Confounds
 
 import shinobi_fmri.config as config
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.glm.compute_run_level import add_psychophysics_confounds, add_button_press_confounds
 
 # Suppress specific warnings
@@ -219,7 +219,7 @@ def build_design_matrices(subjects, path_to_data, figures_path, use_low_level_co
         path_to_data: Path to data directory
         figures_path: Path to figures directory
         use_low_level_confs: Include low-level confounds (psychophysics and button presses)
-        logger: ShinobiLogger instance
+        logger: AnalysisLogger instance
 
     Returns:
         dict: Dictionary containing design matrices, subjects, sessions, and runs
@@ -302,7 +302,7 @@ def plot_run_correlations(regressors_dict, figures_path, logger=None):
     Args:
         regressors_dict: Dictionary containing design matrices
         figures_path: Path to save figures
-        logger: ShinobiLogger instance
+        logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
@@ -369,7 +369,7 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
         regressors_dict: Dictionary containing correlation matrices
         subjects: List of subjects to process
         figures_path: Path to save figures
-        logger: ShinobiLogger instance
+        logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
@@ -426,7 +426,7 @@ def main():
     # Setup logging
     verbosity_map = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
     verbosity_level = verbosity_map.get(args.verbose, logging.DEBUG)
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="regressor_correlations",
         verbosity=verbosity_level,
         log_dir=args.log_dir

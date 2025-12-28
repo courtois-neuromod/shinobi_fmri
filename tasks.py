@@ -1024,6 +1024,64 @@ def info(c):
 
 
 # =============================================================================
+# Validation Tasks
+# =============================================================================
+
+@task
+def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False,
+                    output=None, verbose=False, log_dir=None):
+    """
+    Validate shinobi_fmri pipeline outputs for completeness.
+
+    Checks all expected analysis outputs exist and optionally validates file integrity.
+
+    Args:
+        subject: Specific subject to validate (e.g., sub-01). Default: all subjects
+        analysis_type: Type of analysis to validate
+                      (glm_run, glm_session, glm_subject, mvpa, correlations, figures, all)
+        check_integrity: If True, validate file contents (slower but thorough)
+        output: Path to save detailed JSON report (optional)
+        verbose: If True, enable verbose output (INFO level)
+        log_dir: Custom log directory
+
+    Examples:
+        # Validate everything
+        invoke validate.outputs
+
+        # Validate specific subject
+        invoke validate.outputs --subject sub-01
+
+        # Validate only GLM outputs
+        invoke validate.outputs --analysis-type glm_run
+
+        # Validate figures and visualizations
+        invoke validate.outputs --analysis-type figures
+
+        # Full integrity check with detailed report
+        invoke validate.outputs --check-integrity --output validation_report.json --verbose
+    """
+    script = op.join(PROJECT_ROOT, "tests", "validate_outputs.py")
+
+    args = []
+    if subject:
+        args.append(f"--subject {subject}")
+    if analysis_type != 'all':
+        args.append(f"--analysis-type {analysis_type}")
+    if check_integrity:
+        args.append("--check-integrity")
+    if output:
+        args.append(f"--output {output}")
+    if verbose:
+        args.append("-v")
+    if log_dir:
+        args.append(f"--log-dir {log_dir}")
+
+    cmd = f"{PYTHON_BIN} {script} {' '.join(args)}"
+    print(f"Running validation: {cmd}")
+    c.run(cmd)
+
+
+# =============================================================================
 # Build Task Collections
 # =============================================================================
 
@@ -1068,6 +1126,11 @@ pipeline_collection = Collection('pipeline')
 pipeline_collection.add_task(pipeline_full, name='full')
 pipeline_collection.add_task(pipeline_subject, name='subject')
 namespace.add_collection(pipeline_collection)
+
+# Validation tasks
+validate_collection = Collection('validate')
+validate_collection.add_task(validate_outputs, name='outputs')
+namespace.add_collection(validate_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)

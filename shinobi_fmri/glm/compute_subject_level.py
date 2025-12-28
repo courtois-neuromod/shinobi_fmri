@@ -59,7 +59,7 @@ import warnings
 import argparse
 import logging
 import shinobi_fmri.config as config
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 from nilearn.glm import cluster_level_inference
 from nilearn.glm.second_level import SecondLevelModel
@@ -101,7 +101,7 @@ def process_subject(
     sub: str,
     condition: str,
     path_to_data: str,
-    logger: Optional[ShinobiLogger] = None
+    logger: Optional[AnalysisLogger] = None
 ) -> Optional[Nifti1Image]:
     """
     Perform subject-level GLM analysis by combining session-level z-maps.
@@ -302,7 +302,7 @@ if __name__ == "__main__":
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="GLM_subject",
         subject=sub,
         condition=condition,

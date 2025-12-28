@@ -61,7 +61,7 @@ import argparse
 import logging
 import pickle
 import shinobi_fmri.config as config
-from shinobi_fmri.utils.logger import ShinobiLogger
+from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata, create_dataset_description
 from shinobi_fmri.glm import utils
 
@@ -288,7 +288,7 @@ if __name__ == "__main__":
         log_level = logging.DEBUG
 
     # Initialize logger
-    logger = ShinobiLogger(
+    logger = AnalysisLogger(
         log_name="GLM_run",
         subject=sub,
         session=ses,
