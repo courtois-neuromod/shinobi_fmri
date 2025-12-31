@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
-#SBATCH --time=03:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=shi_corr_chunk
 #SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --mem=64G
