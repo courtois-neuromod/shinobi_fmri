@@ -35,6 +35,7 @@ def parse_args():
     parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
     parser.add_argument("--log-dir", default=None, help="Directory for log files")
     parser.add_argument("--slurm", action="store_true", help="Submit SLURM jobs in chunks instead of running locally")
+    parser.add_argument("--low-level-confs", action="store_true", help="Use beta maps from GLM with low-level confounds (processed_low-level/ directory)")
     return parser.parse_args()
 
 
@@ -75,15 +76,23 @@ def make_processed_record(base_dir, source, contrast, fname, path_to_data):
     return {'map_path': map_path, 'raw_path': raw_path, 'subj': subj, 'ses': ses, 'cond': contrast, 'source': source}
 
 
-def collect_processed_records(base_dir, contrasts, model, path_to_data):
+def collect_processed_records(base_dir, contrasts, model, path_to_data, use_low_level_confs=False):
     """
     Collect beta maps from the processed directory structure.
     Includes: processed/session-level*/sub-XX/ses-YY/beta_maps/
+
+    Args:
+        base_dir: Base directory path (not used, kept for compatibility)
+        contrasts: List of contrasts to collect
+        model: Model name (not used, kept for compatibility)
+        path_to_data: Root path to data directory
+        use_low_level_confs: If True, look in processed_low-level/ instead of processed/
     """
     records = []
 
-    # Find all session-level directories (session-level, session-level_1runs, etc.)
-    processed_dir = op.join(path_to_data, "processed")
+    # Determine which processed directory to use
+    processed_dirname = "processed_low-level" if use_low_level_confs else "processed"
+    processed_dir = op.join(path_to_data, processed_dirname)
     if not op.isdir(processed_dir):
         return records
 
@@ -146,14 +155,20 @@ def collect_processed_records(base_dir, contrasts, model, path_to_data):
     return records
 
 
-def collect_subject_level_records(contrasts, path_to_data):
+def collect_subject_level_records(contrasts, path_to_data, use_low_level_confs=False):
     """
     Collect subject-level beta maps (aggregated across sessions).
-    Structure: processed/subject-level/sub-XX/beta_maps/
+    Structure: processed/subject-level/sub-XX/beta_maps/ or processed_low-level/subject-level/sub-XX/beta_maps/
+
+    Args:
+        contrasts: List of contrasts to collect
+        path_to_data: Root path to data directory
+        use_low_level_confs: If True, look in processed_low-level/ instead of processed/
     """
     records = []
 
-    subject_level_dir = op.join(path_to_data, "processed", "subject-level")
+    processed_dirname = "processed_low-level" if use_low_level_confs else "processed"
+    subject_level_dir = op.join(path_to_data, processed_dirname, "subject-level")
     if not op.isdir(subject_level_dir):
         return records
 
@@ -449,7 +464,7 @@ def list_nii_files(directory):
     return sorted(f for f in os.listdir(directory) if f.endswith(".nii.gz"))
 
 
-def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, logger=None):
+def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, use_low_level_confs=False, logger=None):
     """Submit SLURM jobs for each chunk of maps."""
     import subprocess
 
@@ -476,6 +491,9 @@ def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, logger=None)
     else:
         verbose_flag = ""
 
+    # Determine low-level confounds flag
+    low_level_flag = "--low-level-confs" if use_low_level_confs else ""
+
     job_ids = []
     for chunk_idx in range(num_chunks):
         chunk_start = chunk_idx * chunk_size
@@ -484,9 +502,9 @@ def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, logger=None)
         log(msg, logger)
 
         try:
-            # Pass log_dir and verbosity to the SLURM script
+            # Pass log_dir, verbosity, and low-level-confs flag to the SLURM script
             result = subprocess.run(
-                ["sbatch", slurm_script, str(chunk_start), log_dir or "", verbose_flag],
+                ["sbatch", slurm_script, str(chunk_start), log_dir or "", verbose_flag, low_level_flag],
                 capture_output=True,
                 text=True,
                 check=True
@@ -536,15 +554,20 @@ def main():
 
     try:
         path_to_data = DATA_PATH
+
+        # Determine output path based on whether low-level confounds are used
+        processed_dirname = "processed_low-level" if args.low_level_confs else "processed"
+        results_path = op.join(DATA_PATH, processed_dirname, 'beta_maps_correlations.pkl')
+
         log("Preparing reference geometry...", logger)
         target_affine, target_shape = get_reference_geometry(path_to_data, SUBJECTS[0])
         log("Fitting shared masker from subject masks...", logger)
         masker = build_masker(SUBJECTS, path_to_data, target_affine, target_shape)
         log("Collecting processed beta maps (session-level variants)...", logger)
-        processed_records = collect_processed_records(None, CONTRASTS, MODEL, path_to_data)
+        processed_records = collect_processed_records(None, CONTRASTS, MODEL, path_to_data, args.low_level_confs)
         log(f"Discovered {len(processed_records)} session-level maps.", logger)
         log("Collecting subject-level beta maps...", logger)
-        subject_records = collect_subject_level_records(CONTRASTS, path_to_data)
+        subject_records = collect_subject_level_records(CONTRASTS, path_to_data, args.low_level_confs)
         log(f"Discovered {len(subject_records)} subject-level maps.", logger)
         log("Collecting HCP entries...", logger)
         hcp_records = collect_hcp_records(path_to_data, SUBJECTS)
@@ -559,11 +582,11 @@ def main():
         # If --slurm flag is provided, submit batch jobs and exit
         if args.slurm:
             total_maps = len(records)
-            submit_slurm_chunks(total_maps, args.chunk_size, args.log_dir, log_level, logger)
+            submit_slurm_chunks(total_maps, args.chunk_size, args.log_dir, log_level, args.low_level_confs, logger)
             return
         # Initialize output file if it doesn't exist
-        existing = load_existing_dict(RESULTS_PATH)
-        data = ensure_output_file(RESULTS_PATH, records, existing, logger)
+        existing = load_existing_dict(results_path)
+        data = ensure_output_file(results_path, records, existing, logger)
 
         # Process the assigned chunk
         total_maps = len(records)
@@ -573,13 +596,13 @@ def main():
             save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, logger)
             return
         log(f"Assigned map indices: {chunk_indices}", logger)
-        pairs, latest = collect_pending_pairs_for_indices(RESULTS_PATH, chunk_indices)
+        pairs, latest = collect_pending_pairs_for_indices(results_path, chunk_indices)
         if not pairs:
             log("No pending correlations for this chunk.", logger)
             save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
             return
         updates = compute_pairs_batch(pairs, records, masker, target_affine, target_shape, args.n_jobs, args.backend, logger)
-        latest = merge_updates(RESULTS_PATH, updates, logger)
+        latest = merge_updates(results_path, updates, logger)
         save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
         
     finally:

@@ -192,6 +192,7 @@ Compute beta map correlation matrices with HCP data.
 | `--chunk-size` | int | 100 | No | Number of maps per chunk |
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--slurm` | flag | False | No | Automatically submit all chunks as SLURM jobs |
+| `--low-level-confs` | flag | False | No | Use beta maps from GLM with low-level confounds (processed_low-level/ directory) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -200,6 +201,9 @@ Compute beta map correlation matrices with HCP data.
 ```bash
 # Submit all chunks to SLURM (recommended for large datasets)
 invoke corr.beta --slurm --chunk-size 100 --verbose 1
+
+# Use beta maps from GLM with low-level confounds
+invoke corr.beta --slurm --low-level-confs --verbose 1
 
 # Run single chunk locally (for testing)
 invoke corr.beta --chunk-start 0 --chunk-size 100 --n-jobs 20 --verbose 1
@@ -377,7 +381,7 @@ invoke viz.beta-correlations --input-path /path/to/correlations.pkl --output-pat
 
 Generate correlation matrices for design matrix regressors.
 
-Creates correlation heatmaps and clustermaps showing relationships between all regressors (annotations) in the GLM design matrices. Produces both per-run and subject-averaged visualizations.
+Creates correlation heatmaps and clustermaps showing relationships between all regressors (annotations) in the GLM design matrices. Produces both per-run and subject-averaged visualizations. The 2x2 subject-averaged grid includes Shinobi task conditions and low-level confounds (psychophysics: luminance, optical_flow, audio_envelope; button presses: button_presses_count).
 
 **Arguments:**
 

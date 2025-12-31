@@ -416,7 +416,7 @@ def add_button_press_confounds(
         Updated confounds tuple with button press regressors added
 
     Note:
-        Adds 'button_count_press' regressor tracking number of simultaneous
+        Adds 'button_presses_count' regressor tracking number of simultaneous
         button presses per TR. Handles 8 buttons: DOWN, LEFT, RIGHT, UP, C, Y, X, Z.
         Button state transitions (False→True) are detected as presses.
     """
@@ -487,7 +487,7 @@ def add_button_press_confounds(
     # Add regressors to confounds[0]
     #confounds[0]['button_any_press'] = any_press
     #confounds[0]['button_any_release'] = any_release
-    confounds[0]['button_count_press'] = count_press
+    confounds[0]['button_presses_count'] = count_press
     #confounds[0]['button_count_release'] = count_release
     
     return confounds

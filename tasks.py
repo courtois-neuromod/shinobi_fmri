@@ -371,7 +371,7 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
 # =============================================================================
 
 @task
-def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbose=0, log_dir=None):
+def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
     """
     Compute beta map correlations with HCP data.
 
@@ -382,6 +382,7 @@ def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, 
         slurm: If True, automatically submit all chunks as SLURM jobs
         verbose: Verbosity level
         log_dir: Custom log directory
+        low_level_confs: Use beta maps from GLM with low-level confounds (processed_low-level/ directory)
     """
     script = op.join(SHINOBI_FMRI_DIR, "correlations", "compute_beta_correlations.py")
 
@@ -390,6 +391,8 @@ def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, 
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
+    if low_level_confs:
+        args += " --low-level-confs"
 
     if slurm:
         # Use the script's built-in --slurm mode to batch submit all chunks

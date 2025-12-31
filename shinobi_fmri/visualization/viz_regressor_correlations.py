@@ -6,9 +6,10 @@ key regressors in the GLM. It produces:
 1. Design matrices (one per run) showing all regressors
 2. 2x2 correlation grid showing subject-averaged correlations
 
-The 2x2 grid focuses on Shinobi task conditions and psychophysics confounds
-(luminance, optical_flow, audio_envelope) to identify multicollinearity between
-task events and low-level visual/audio features.
+The 2x2 grid focuses on Shinobi task conditions and low-level confounds
+(psychophysics: luminance, optical_flow, audio_envelope; and button press:
+button_presses_count) to identify multicollinearity between task events and
+low-level visual/audio features and motor activity.
 """
 
 import os
@@ -444,9 +445,9 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logge
     averaged correlation matrix in a 2x2 layout with a shared red-white-blue colorbar.
 
     Only includes 8 Shinobi task conditions (DOWN, HIT, HealthGain, HealthLoss,
-    JUMP, Kill, LEFT, RIGHT) and 3 psychophysics confounds (luminance,
-    optical_flow, audio_envelope). Correlation values are displayed in each cell
-    with 2 decimal places.
+    JUMP, Kill, LEFT, RIGHT), 3 psychophysics confounds (luminance,
+    optical_flow, audio_envelope), and button press confounds (button_presses_count).
+    Correlation values are displayed in each cell with 2 decimal places.
 
     Args:
         regressors_dict: Dictionary containing correlation matrices
@@ -466,8 +467,10 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logge
                           'Kill', 'LEFT', 'RIGHT']
     # Psychophysics confounds
     psychophysics_confounds = ['luminance', 'optical_flow', 'audio_envelope']
+    # Button press confounds
+    button_confounds = ['button_presses_count']
     # Combined list
-    regressors_to_include = shinobi_conditions + psychophysics_confounds
+    regressors_to_include = shinobi_conditions + psychophysics_confounds + button_confounds
 
     # Prepare averaged correlation matrices for each subject
     subject_corr_mats = {}
