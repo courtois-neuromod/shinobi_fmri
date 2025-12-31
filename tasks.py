@@ -595,18 +595,17 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
 
 
 @task
-def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=False, verbose=0, log_dir=None):
+def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=True, verbose=0, log_dir=None):
     """
     Generate correlation matrices for design matrix regressors.
 
-    Creates correlation heatmaps and clustermaps showing relationships between
-    all regressors (annotations) in the GLM design matrices. Produces both
-    per-run and subject-averaged visualizations.
+    Creates design matrices and 2x2 correlation grid showing relationships between
+    Shinobi task conditions and psychophysics confounds.
 
     Args:
         subject: Specific subject to process (default: all subjects)
         skip_generation: Skip design matrix generation, only plot from existing pickle
-        low_level_confs: Include low-level confounds (psychophysics and button presses)
+        low_level_confs: Include low-level confounds (psychophysics and button presses) (default: True)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
     """
@@ -618,7 +617,9 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
         cmd_parts.extend(['--subject', subject])
     if skip_generation:
         cmd_parts.append('--skip-generation')
-    if low_level_confs:
+    if not low_level_confs:
+        cmd_parts.append('--no-low-level-confs')
+    else:
         cmd_parts.append('--low-level-confs')
 
     if isinstance(verbose, int) and verbose > 0:
@@ -633,8 +634,8 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
         print(f"  Subject: {subject}")
     else:
         print(f"  Processing all subjects")
-    if low_level_confs:
-        print(f"  Including low-level confounds")
+    if not low_level_confs:
+        print(f"  WARNING: Low-level confounds excluded (use default for 2x2 plot)")
 
     c.run(cmd)
 

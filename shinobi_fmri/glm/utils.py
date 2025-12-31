@@ -527,7 +527,7 @@ def add_psychophysics_confounds(
         if row["trial_type"] != "gym-retro_game":
             continue
 
-        if pd.isna(row["onset"]):
+        if pd.isna(row["onset"]) or pd.isna(row["stim_file"]):
             n_invalid_onsets += 1
             continue
 

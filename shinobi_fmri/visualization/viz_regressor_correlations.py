@@ -1,13 +1,14 @@
 """
-Generate correlation matrices for GLM design matrix regressors.
+Generate design matrices and correlation visualization for GLM regressors.
 
-This script computes and visualizes correlation matrices between all regressors
-(annotations) in the GLM design matrices. It produces:
-1. Per-run correlation heatmaps and clustermaps
-2. Subject-averaged correlation heatmaps and clustermaps
+This script computes and visualizes design matrices and correlations between
+key regressors in the GLM. It produces:
+1. Design matrices (one per run) showing all regressors
+2. 2x2 correlation grid showing subject-averaged correlations
 
-The correlations help identify multicollinearity issues and understand
-relationships between different task events.
+The 2x2 grid focuses on Shinobi task conditions and psychophysics confounds
+(luminance, optical_flow, audio_envelope) to identify multicollinearity between
+task events and low-level visual/audio features.
 """
 
 import os
@@ -26,7 +27,7 @@ from tqdm import tqdm
 
 from nilearn.glm.first_level import make_first_level_design_matrix
 from nilearn.signal import clean
-from load_confounds import Confounds
+import nilearn.interfaces.fmriprep
 
 import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import AnalysisLogger
@@ -69,7 +70,14 @@ def setup_argparse():
     parser.add_argument(
         "--low-level-confs",
         action="store_true",
-        help="Include low-level confounds (psychophysics and button presses) in design matrix",
+        default=True,
+        help="Include low-level confounds (psychophysics and button presses) in design matrix (default: True)",
+    )
+    parser.add_argument(
+        "--no-low-level-confs",
+        dest="low_level_confs",
+        action="store_false",
+        help="Exclude low-level confounds from design matrix",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -118,15 +126,15 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
         # Load events
         run_events = pd.read_csv(events_fname, sep='\t', low_memory=False)
 
-        # Load confounds
-        confounds_obj = Confounds(
-            strategy=["motion", 'global', 'wm_csf'],
-            motion="full",
-            wm_csf='basic',
-            global_signal='full'
-        )
+        # Load confounds using nilearn interface (returns tuple)
         try:
-            confounds_df = confounds_obj.load(fmri_fname)
+            confounds = nilearn.interfaces.fmriprep.load_confounds(
+                fmri_fname,
+                strategy=("motion", "high_pass", "wm_csf"),
+                motion="full",
+                wm_csf="basic",
+                global_signal="full",
+            )
         except Exception as e:
              return {
                 'success': False,
@@ -138,12 +146,11 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
 
         # Add low-level confounds if requested
         if use_low_level_confs:
-            confounds_tuple = (confounds_df,)
-            confounds_tuple = add_psychophysics_confounds(confounds_tuple, run_events)
-            confounds_tuple = add_button_press_confounds(confounds_tuple, run_events)
-            confounds = confounds_tuple[0]
-        else:
-            confounds = confounds_df
+            confounds = add_psychophysics_confounds(confounds, run_events, path_to_data, t_r=t_r)
+            confounds = add_button_press_confounds(confounds, run_events, t_r=t_r)
+
+        # Extract DataFrame from tuple
+        confounds = confounds[0]
 
         # Generate design matrix
         n_slices = confounds.shape[0]
@@ -196,8 +203,7 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
             'regressors': design_matrix_clean,
             'subject': sub,
             'session': ses,
-            'run': run,
-            'confounds_shape': confounds.shape
+            'run': run
         }
 
     except Exception as e:
@@ -281,9 +287,8 @@ def build_design_matrices(subjects, path_to_data, figures_path, use_low_level_co
             regressors_dict['subject'].append(res['subject'])
             regressors_dict['session'].append(res['session'])
             regressors_dict['run'].append(res['run'])
-            
+
             if logger:
-                logger.debug(f"Confounds shape: {res['confounds_shape']}")
                 logger.summary.add_computed(f"Design matrix: {res['subject']} {res['session']} run {res['run']}")
         else:
             if logger:
@@ -343,17 +348,22 @@ def plot_run_correlations(regressors_dict, figures_path, logger=None):
         plt.savefig(fig_fname, dpi=100, bbox_inches='tight')
         plt.close()
 
-        # Cluster map
-        f = sns.clustermap(
-            corr, mask=mask, figsize=(30, 25),
-            cbar_kws={"shrink": .5}
-        )
-        fig_fname = op.join(
-            output_dir,
-            f'regressor_correlations_{sub}_{ses}_run-{run_num}_cluster.png'
-        )
-        f.savefig(fig_fname, dpi=100, bbox_inches='tight')
-        plt.close()
+        # Cluster map (only if no NaN/inf values)
+        if np.all(np.isfinite(corr.values)):
+            try:
+                f = sns.clustermap(
+                    corr, mask=mask, figsize=(30, 25),
+                    cbar_kws={"shrink": .5}
+                )
+                fig_fname = op.join(
+                    output_dir,
+                    f'regressor_correlations_{sub}_{ses}_run-{run_num}_cluster.png'
+                )
+                f.savefig(fig_fname, dpi=100, bbox_inches='tight')
+                plt.close()
+            except ValueError as e:
+                if logger:
+                    logger.warning(f"Could not create clustermap for {sub} {ses} run {run_num}: {str(e)}")
 
         if logger:
             logger.summary.add_computed(f"Run correlations: {sub} {ses} run {run_num}")
@@ -404,18 +414,191 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
         plt.savefig(fig_fname, dpi=100, bbox_inches='tight')
         plt.close()
 
-        # Cluster map
-        f = sns.clustermap(
-            averaged_corr_mat, mask=mask, figsize=(30, 25),
-            center=0, square=True, linewidths=.5, annot=True,
-            cbar_kws={"shrink": .5}, fmt='.2f'
-        )
-        fig_fname = op.join(output_dir, f'regressor_correlations_{sub}_cluster.png')
-        f.savefig(fig_fname, dpi=100, bbox_inches='tight')
-        plt.close()
+        # Cluster map (only if no NaN/inf values)
+        if np.all(np.isfinite(averaged_corr_mat.values)):
+            try:
+                f = sns.clustermap(
+                    averaged_corr_mat, mask=mask, figsize=(30, 25),
+                    center=0, square=True, linewidths=.5, annot=True,
+                    cbar_kws={"shrink": .5}, fmt='.2f'
+                )
+                fig_fname = op.join(output_dir, f'regressor_correlations_{sub}_cluster.png')
+                f.savefig(fig_fname, dpi=100, bbox_inches='tight')
+                plt.close()
+            except ValueError as e:
+                if logger:
+                    logger.warning(f"Could not create clustermap for {sub}: {str(e)}")
+        else:
+            if logger:
+                logger.warning(f"Skipping clustermap for {sub} due to non-finite correlation values")
 
         if logger:
             logger.summary.add_computed(f"Subject-averaged correlations: {sub}")
+
+
+def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logger=None):
+    """
+    Plot a 2x2 grid of subject-averaged correlation matrices.
+
+    Creates a compact visualization showing the lower triangle of each subject's
+    averaged correlation matrix in a 2x2 layout with a shared red-white-blue colorbar.
+
+    Only includes 8 Shinobi task conditions (DOWN, HIT, HealthGain, HealthLoss,
+    JUMP, Kill, LEFT, RIGHT) and 3 psychophysics confounds (luminance,
+    optical_flow, audio_envelope). Correlation values are displayed in each cell
+    with 2 decimal places.
+
+    Args:
+        regressors_dict: Dictionary containing correlation matrices
+        subjects: List of subjects to process (should be 4 subjects for 2x2 grid)
+        figures_path: Path to save figures
+        logger: AnalysisLogger instance
+    """
+    output_dir = op.join(figures_path, 'design_matrices')
+    os.makedirs(output_dir, exist_ok=True)
+
+    if logger:
+        logger.info(f"Plotting 2x2 grid for {len(subjects)} subjects")
+
+    # Define which regressors to include
+    # Shinobi conditions (excluding UP - not analyzed)
+    shinobi_conditions = ['DOWN', 'HIT', 'HealthGain', 'HealthLoss', 'JUMP',
+                          'Kill', 'LEFT', 'RIGHT']
+    # Psychophysics confounds
+    psychophysics_confounds = ['luminance', 'optical_flow', 'audio_envelope']
+    # Combined list
+    regressors_to_include = shinobi_conditions + psychophysics_confounds
+
+    # Prepare averaged correlation matrices for each subject
+    subject_corr_mats = {}
+    all_values = []  # To compute global vmin/vmax
+
+    for sub in subjects:
+        # Collect all correlation matrices for this subject
+        subj_corrs = []
+        for idx, corr_mat in enumerate(regressors_dict['corr_mat']):
+            if regressors_dict['subject'][idx] == sub:
+                subj_corrs.append(corr_mat)
+
+        if not subj_corrs:
+            if logger:
+                logger.warning(f"No correlation matrices found for {sub}")
+            continue
+
+        # Average across runs
+        averaged_corr_mat = pd.concat(subj_corrs, axis=0).groupby(level=0).mean()
+
+        # Filter to keep only specified regressors
+        available_regressors = [r for r in regressors_to_include if r in averaged_corr_mat.index]
+        if len(available_regressors) == 0:
+            if logger:
+                logger.warning(f"No target regressors found for {sub}")
+            continue
+
+        averaged_corr_mat = averaged_corr_mat.loc[available_regressors, available_regressors]
+        subject_corr_mats[sub] = averaged_corr_mat
+
+        # Collect values from lower triangle for global color scale
+        mask_lower = np.tril(np.ones_like(averaged_corr_mat, dtype=bool), k=-1)
+        all_values.extend(averaged_corr_mat.values[mask_lower])
+
+    if not subject_corr_mats:
+        if logger:
+            logger.error("No correlation matrices to plot")
+        return
+
+    # Compute global color scale
+    vmin = np.min(all_values)
+    vmax = np.max(all_values)
+    abs_max = max(abs(vmin), abs(vmax))
+
+    # Create 2x2 figure with larger size for bigger cells
+    fig, axes = plt.subplots(2, 2, figsize=(28, 26))
+    axes = axes.flatten()
+
+    # Plot each subject in a subplot
+    for idx, sub in enumerate(subjects[:4]):  # Only plot first 4 subjects
+        ax = axes[idx]
+
+        if sub not in subject_corr_mats:
+            ax.set_visible(False)
+            continue
+
+        corr_mat = subject_corr_mats[sub]
+
+        # Create mask for upper triangle (including diagonal)
+        mask = np.triu(np.ones_like(corr_mat, dtype=bool))
+
+        # Plot heatmap with RdBu_r colormap (red-white-blue)
+        sns.heatmap(
+            corr_mat,
+            mask=mask,
+            center=0,
+            vmin=-abs_max,
+            vmax=abs_max,
+            cmap='RdBu_r',
+            square=True,
+            linewidths=0.5,
+            cbar=False,  # We'll add a shared colorbar later
+            ax=ax,
+            xticklabels=True,
+            yticklabels=True,
+            annot=True,  # Show correlation values in squares
+            fmt='.2f',  # Two decimal places
+            annot_kws={'fontsize': 16}  # Font size for annotations (doubled from 8)
+        )
+
+        # Subtitle (subject name) - not bold, positioned very close to matrix
+        # Use ax.text() to manually position the subtitle near the top of the axes
+        ax.text(0.5, 0.92, f'{sub}', transform=ax.transAxes,
+                fontsize=32, fontweight='normal', ha='center', va='top')
+
+        # Get tick labels
+        xticklabels = ax.get_xticklabels()
+        yticklabels = ax.get_yticklabels()
+
+        # Remove first row label (no data shown) and last column label (no data shown)
+        # since we mask the diagonal
+        yticklabels[0].set_visible(False)  # First row (DOWN)
+        xticklabels[-1].set_visible(False)  # Last column (audio_envelope)
+
+        # Rotate labels for better readability with slightly smaller font
+        ax.set_xticklabels(xticklabels, rotation=90, ha='right', fontsize=18)
+        ax.set_yticklabels(yticklabels, rotation=0, fontsize=18)
+
+    # Hide unused subplots if less than 4 subjects
+    for idx in range(len(subjects), 4):
+        axes[idx].set_visible(False)
+
+    # Add shared colorbar on the right (size of one subplot, vertically centered)
+    fig.subplots_adjust(right=0.92)
+    # Calculate vertical center and height to match one subplot
+    subplot_height = 0.35  # Approximate height of one subplot in figure coordinates
+    vertical_center = 0.5  # Center of figure
+    cbar_bottom = vertical_center - (subplot_height / 2)
+    cbar_ax = fig.add_axes([0.94, cbar_bottom, 0.02, subplot_height])
+    sm = plt.cm.ScalarMappable(
+        cmap='RdBu_r',
+        norm=plt.Normalize(vmin=-abs_max, vmax=abs_max)
+    )
+    sm.set_array([])
+    cbar = fig.colorbar(sm, cax=cbar_ax)
+
+    # Set colorbar tick label size (doubled from default)
+    cbar.ax.tick_params(labelsize=20)
+
+    # Add "r̄" (r bar) label above the colorbar (not rotated)
+    cbar.ax.text(0.5, 1.05, r'$\bar{r}$', transform=cbar.ax.transAxes,
+                 fontsize=36, ha='center', va='bottom')
+
+    # Save figure
+    fig_fname = op.join(output_dir, 'regressor_correlations_2x2_subjects.png')
+    plt.savefig(fig_fname, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    if logger:
+        logger.info(f"Saved 2x2 correlation plot to {fig_fname}")
+        logger.summary.add_computed("2x2 subject correlation grid")
 
 
 def main():
@@ -468,12 +651,19 @@ def main():
         with open(regressors_dict_fname, "wb") as f:
             pickle.dump(regressors_dict, f)
 
-    # Generate correlation plots
-    logger.info("Plotting run-level correlations...")
-    plot_run_correlations(regressors_dict, figures_path, logger)
+    # Compute correlation matrices (needed for 2x2 plot)
+    logger.info("Computing correlation matrices...")
+    regressors_dict['corr_mat'] = []
+    for run_idx, run in enumerate(regressors_dict['regressors']):
+        # Compute correlation matrix (excluding constant)
+        corr = run.corr()
+        if 'constant' in corr.index:
+            corr = corr.drop(index='constant').drop(columns='constant')
+        regressors_dict['corr_mat'].append(corr)
 
-    logger.info("Plotting subject-averaged correlations...")
-    plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, logger)
+    # Generate 2x2 subject correlation grid (Shinobi conditions + 3 psychophysics confounds only)
+    logger.info("Plotting 2x2 subject correlation grid...")
+    plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logger)
 
     logger.info("Done!")
     logger.close()
