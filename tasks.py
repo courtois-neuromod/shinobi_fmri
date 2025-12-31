@@ -152,8 +152,9 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
 
     if slurm:
         slurm_script = op.join(SLURM_DIR, "subm_session-level.sh")
-        cmd = f"sbatch {slurm_script} {subject} {session}"
-        print(f"Submitting to SLURM: {subject} {session}")
+        low_level_flag = "--low-level-confs" if low_level_confs else ""
+        cmd = f"sbatch {slurm_script} {subject} {session} {low_level_flag}"
+        print(f"Submitting to SLURM: {subject} {session}{' (low-level-confs)' if low_level_confs else ''}")
     else:
         cmd = f"{PYTHON_BIN} {script} {args}"
         print(f"Running locally: {cmd}")
