@@ -215,6 +215,53 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
     c.run(cmd)
 
 
+@task
+def glm_apply_cluster_correction(c, level="both", subject=None, session=None, threshold=None, alpha=0.05, overwrite=False, verbose=0, log_dir=None):
+    """
+    Apply cluster-level FWE correction to existing z-maps.
+
+    Takes raw uncorrected z-maps and applies cluster-level family-wise error
+    correction, saving properly thresholded z-maps (not p-value maps).
+
+    Useful for:
+    - Re-running correction with different thresholds
+    - Applying correction to z-maps generated before this fix
+    - Fixing p-value maps to proper thresholded z-maps
+
+    Args:
+        level: Analysis level to process ('subject', 'session', or 'both')
+        subject: Process specific subject only (default: all subjects)
+        session: Process specific session only (session-level only, default: all sessions)
+        threshold: Cluster-forming threshold (default: from config - 2.3 for subject/session)
+        alpha: Family-wise error rate (default: 0.05)
+        overwrite: Overwrite existing corrected z-maps
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "glm", "apply_cluster_correction.py")
+
+    cmd_parts = [PYTHON_BIN, script, "--level", level]
+
+    if subject:
+        cmd_parts.extend(["--subject", subject])
+    if session:
+        cmd_parts.extend(["--session", session])
+    if threshold is not None:
+        cmd_parts.extend(["--threshold", str(threshold)])
+    if alpha != 0.05:
+        cmd_parts.extend(["--alpha", str(alpha)])
+    if overwrite:
+        cmd_parts.append("--overwrite")
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    print(f"Applying cluster-level FWE correction ({level}-level)...")
+    c.run(cmd)
+
+
 # =============================================================================
 # MVPA Tasks
 # =============================================================================
@@ -507,7 +554,7 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None):
 
 
 @task
-def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, verbose=0, log_dir=None):
+def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, use_raw_maps=False, force=False, verbose=0, log_dir=None):
     """
     Generate annotation panels with subject-level and session-level brain maps.
 
@@ -522,6 +569,8 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         skip_individual: Skip generating individual brain maps
         skip_panels: Skip generating annotation panels
         skip_pdf: Skip generating PDF
+        use_raw_maps: Use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        force: Force regeneration of images even if they already exist
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -540,6 +589,10 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         cmd_parts.append('--skip-panels')
     if skip_pdf:
         cmd_parts.append('--skip-pdf')
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
+    if force:
+        cmd_parts.append('--force')
         
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
@@ -645,7 +698,7 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
 
 
 @task
-def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, verbose=0, log_dir=None, output_dir=None):
+def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_raw_maps=False, verbose=0, log_dir=None, output_dir=None):
     """
     Generate condition comparison surface plots.
 
@@ -665,6 +718,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
         cond2: Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")
         run_all: Generate all predefined comparisons (default if no conditions specified)
         threshold: Significance threshold for z-maps (default: 3.0)
+        use_raw_maps: Use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
         output_dir: Custom output directory (default: reports/figures/condition_comparison/)
@@ -687,6 +741,9 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
     if threshold != 3.0:
         cmd_parts.extend(['--threshold', str(threshold)])
+
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
 
     if output_dir:
         cmd_parts.extend(['--output-dir', output_dir])
@@ -711,7 +768,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
 
 @task
-def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', overwrite=False):
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_raw_maps=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -721,6 +778,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         cluster_extent: Minimum cluster size in voxels (default: 5)
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
+        use_raw_maps: Use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
         overwrite: Overwrite existing cluster files
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")
@@ -735,6 +793,9 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
     cmd_parts.extend(['--cluster-extent', str(cluster_extent)])
     cmd_parts.extend(['--voxel-thresh', str(voxel_thresh)])
     cmd_parts.extend(['--direction', direction])
+
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
 
     if overwrite:
         cmd_parts.append('--overwrite')
@@ -976,6 +1037,7 @@ namespace = Collection()
 glm_collection = Collection('glm')
 glm_collection.add_task(glm_session_level, name='session-level')
 glm_collection.add_task(glm_subject_level, name='subject-level')
+glm_collection.add_task(glm_apply_cluster_correction, name='apply-cluster-correction')
 namespace.add_collection(glm_collection)
 
 # MVPA tasks

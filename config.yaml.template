@@ -71,9 +71,11 @@ glm:
   alpha: 0.05                 # Family-wise error rate for cluster correction
 
   # Cluster-forming thresholds (Z-scores)
-  cluster_thresh_run: 2.3     # Liberal threshold for run-level (first-level)
-  cluster_thresh_session: 2.3 # Liberal threshold for session-level (second-level)
-  cluster_thresh_subject: 3.1 # Conservative threshold for subject-level (third-level)
+  # NOTE: 2.3 is FSL's default (p<0.01 uncorrected) and appropriate for naturalistic paradigms
+  # with modest sample sizes (3-10 runs/sessions per level)
+  cluster_thresh_run: 2.3     # Threshold for run-level (first-level)
+  cluster_thresh_session: 2.3 # Threshold for session-level (second-level)
+  cluster_thresh_subject: 2.3 # Threshold for subject-level (third-level) - lowered from 3.1
 
   # Model configuration
   noise_model: ar1            # Options: ar1 (recommended), ols

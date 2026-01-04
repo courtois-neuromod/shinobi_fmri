@@ -228,14 +228,40 @@ Expected filename pattern: *contrast-{condition}*stat-z.nii.gz
         if logger:
             logger.log_computation_success(f"SubjectLevel_{condition}", subjectlevel_z_map_fname)
 
-        # Compute and save cluster-corrected Z-map (Conservative threshold)
+        # Compute and save cluster-corrected Z-map
+        # NOTE: cluster_level_inference returns a p-value map, we need to threshold it
+        # to get a proper z-map with original z-values in significant clusters
         try:
-            corrected_map = cluster_level_inference(z_map, threshold=config.GLM_CLUSTER_THRESH_SUBJECT, alpha=config.GLM_ALPHA)
-            # BIDS-compliant naming: insert 'desc-corrected'
+            # Get cluster-level FWE-corrected p-value map
+            p_map = cluster_level_inference(z_map, threshold=config.GLM_CLUSTER_THRESH_SUBJECT, alpha=config.GLM_ALPHA)
+            p_data = p_map.get_fdata()
+            z_data = z_map.get_fdata()
+
+            # Create thresholded z-map: keep original z-values only for voxels in significant clusters
+            sig_mask = (p_data > 0) & (p_data < config.GLM_ALPHA)
+            thresholded_z = np.zeros_like(z_data)
+            thresholded_z[sig_mask] = z_data[sig_mask]
+
+            # Save properly thresholded z-map
             corrected_fname = subjectlevel_z_map_fname.replace('_stat-z.nii.gz', '_desc-corrected_stat-z.nii.gz')
-            corrected_map.to_filename(corrected_fname)
+            corrected_img = nib.Nifti1Image(thresholded_z, z_map.affine, z_map.header)
+            corrected_img.to_filename(corrected_fname)
+
+            # Log correction statistics
+            n_sig_voxels = np.sum(sig_mask)
+            if logger:
+                if n_sig_voxels > 0:
+                    logger.info(f"  FWE correction: {n_sig_voxels} voxels survive (max |z|={np.max(np.abs(thresholded_z)):.2f})")
+                else:
+                    cluster_ps = p_data[p_data > 0]
+                    min_p = np.min(cluster_ps) if len(cluster_ps) > 0 else 1.0
+                    logger.warning(f"  FWE correction: No significant clusters (min p={min_p:.3f})")
+
         except Exception as e:
-            print(f"Warning: Failed to compute cluster correction for {condition}: {e}")
+            if logger:
+                logger.error(f"Failed to compute cluster correction for {condition}: {e}")
+            else:
+                print(f"Warning: Failed to compute cluster correction for {condition}: {e}")
 
         # Compute beta map (using effect size instead of z-score)
         beta_map = second_level_model.compute_contrast(second_level_contrast=[1],

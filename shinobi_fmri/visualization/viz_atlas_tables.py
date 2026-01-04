@@ -45,24 +45,26 @@ def parse_bids_filename(filename):
         
     return subject, contrast
 
-def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', overwrite=False):
+def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', use_raw_maps=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
-    
+
     Args:
         input_dir: Directory containing subject folders (e.g. processed/subject-level).
         output_dir: Directory to save the output CSV files.
         cluster_extent: Minimum cluster size in voxels.
         voxel_thresh: Voxel threshold for significance.
         direction: Direction of the contrast ('both', 'pos', 'neg').
+        use_raw_maps: If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False).
         overwrite: If True, overwrite existing files.
     """
-    
+
     if not op.exists(output_dir):
         os.makedirs(output_dir)
 
     print(f"Scanning for z-maps in {input_dir}...")
-    
+    print(f"Using {'raw uncorrected' if use_raw_maps else 'cluster-corrected'} z-maps")
+
     # Check if input_dir exists
     if not op.exists(input_dir):
         print(f"Error: Input directory {input_dir} does not exist.")
@@ -70,7 +72,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
 
     # Find subject directories
     subjects = sorted([d for d in os.listdir(input_dir) if d.startswith('sub-') and op.isdir(op.join(input_dir, d))])
-    
+
     if not subjects:
         print(f"No subject directories found in {input_dir}")
         return
@@ -81,8 +83,22 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         zmaps_path = op.join(input_dir, sub, 'z_maps')
         if not op.exists(zmaps_path):
             continue
-            
-        zmaps_list = glob.glob(op.join(zmaps_path, '*.nii.gz'))
+
+        # Use corrected or raw maps based on flag
+        if use_raw_maps:
+            # Look for raw z-maps only (no desc-corrected in filename)
+            zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
+            # Exclude corrected maps from the list
+            zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
+        else:
+            # Look for corrected z-maps first
+            zmaps_list = glob.glob(op.join(zmaps_path, '*_desc-corrected_stat-z.nii.gz'))
+            # Fall back to raw maps if no corrected maps found
+            if not zmaps_list:
+                zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
+                zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
+                if zmaps_list:
+                    print(f"  Note: Using raw maps for {sub} (corrected maps not found)")
         
         for zmap in zmaps_list:
             
@@ -230,8 +246,9 @@ if __name__ == "__main__":
     parser.add_argument("--cluster-extent", type=int, default=5, help="Minimum cluster size in voxels.")
     parser.add_argument("--voxel-thresh", type=float, default=3.0, help="Voxel threshold for significance.")
     parser.add_argument("--direction", type=str, default="both", choices=["both", "pos", "neg"], help="Direction of the contrast.")
+    parser.add_argument("--use-raw-maps", action="store_true", help="Use raw uncorrected z-maps instead of cluster-corrected maps (default: use corrected maps).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing cluster files.")
-    
+
     args = parser.parse_args()
-    
-    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.overwrite)
+
+    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_raw_maps, args.overwrite)

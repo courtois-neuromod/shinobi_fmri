@@ -96,6 +96,63 @@ invoke glm.subject-level --condition JUMP
 
 ---
 
+### `glm.apply-cluster-correction`
+
+Apply cluster-level FWE (family-wise error) correction to existing z-maps.
+
+This task takes raw uncorrected z-maps and applies cluster-level correction, saving **properly thresholded z-maps** (not p-value maps) where only voxels in FWE-significant clusters retain their original z-values.
+
+**Use this task to:**
+- Re-run correction with different thresholds or alpha levels
+- Fix existing p-value "corrected" maps to proper thresholded z-maps
+- Apply correction to z-maps generated before this fix
+
+**Statistical Method:**
+- Uses nilearn's `cluster_level_inference` for cluster-level FWE correction
+- Cluster-forming threshold: configurable (default: 2.3 for all levels)
+- Family-wise error rate: alpha (default: 0.05)
+- Only clusters with p < alpha survive correction
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--level` | str | `both` | Yes | Analysis level to process (`subject`, `session`, or `both`) |
+| `--subject` | str | None | No | Process specific subject only (default: all subjects) |
+| `--session` | str | None | No | Process specific session only (session-level only, default: all sessions) |
+| `--threshold` | float | config | No | Cluster-forming threshold (default: 2.3 from config) |
+| `--alpha` | float | 0.05 | No | Family-wise error rate |
+| `--overwrite` | flag | False | No | Overwrite existing corrected z-maps |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Apply correction to all subject-level and session-level z-maps
+invoke glm.apply-cluster-correction --level both -v
+
+# Re-run subject-level correction with lower threshold (more liberal)
+invoke glm.apply-cluster-correction --level subject --threshold 2.0 --overwrite -v
+
+# Apply correction to specific subject's session-level maps
+invoke glm.apply-cluster-correction --level session --subject sub-01 -v
+
+# Use less stringent alpha for exploratory analysis
+invoke glm.apply-cluster-correction --level both --alpha 0.10 -v
+
+# Overwrite existing corrected maps (e.g., after changing config thresholds)
+invoke glm.apply-cluster-correction --level both --overwrite -vv
+```
+
+**Notes:**
+- Output files: `*_desc-corrected_stat-z.nii.gz`
+- Contains original z-values for significant clusters, zero elsewhere
+- Default threshold changed from 3.1 to 2.3 for subject-level (FSL's default)
+- Appropriate for naturalistic paradigms with modest sample sizes
+
+---
+
 ## MVPA Tasks
 
 ### `mvpa.session-level`
@@ -328,6 +385,7 @@ Generate annotation panels with subject-level and session-level brain maps for d
 | `--skip-individual` | flag | False | No | Skip generating individual brain maps |
 | `--skip-panels` | flag | False | No | Skip generating annotation panels |
 | `--skip-pdf` | flag | False | No | Skip generating PDF |
+| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -345,6 +403,9 @@ invoke viz.annotation-panels --condition HIT --skip-individual
 
 # Only generate individual maps (no panels or PDF)
 invoke viz.annotation-panels --condition HIT --skip-panels --skip-pdf
+
+# Use raw uncorrected z-maps instead of cluster-corrected maps
+invoke viz.annotation-panels --condition HIT --use-raw-maps
 
 # Process all default conditions
 invoke viz.annotation-panels
@@ -434,6 +495,7 @@ Creates surface plots comparing two conditions with three-color overlay:
 | `--cond2` | str | None | No | Second condition in format `source:condition` (e.g., `shinobi:HealthLoss` or `hcp:punishment`) |
 | `--run-all` | flag | False | No | Generate all predefined comparisons (default if no conditions specified) |
 | `--threshold` | float | 3.0 | No | Significance threshold for z-maps |
+| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 | `--output-dir` | str | `reports/figures/condition_comparison/` | No | Custom output directory |
@@ -449,6 +511,9 @@ invoke viz.condition-comparison --cond1 shinobi:Kill --cond2 hcp:reward
 
 # Use custom threshold
 invoke viz.condition-comparison --run-all --threshold 2.5
+
+# Use raw uncorrected z-maps instead of cluster-corrected maps
+invoke viz.condition-comparison --run-all --use-raw-maps
 
 # Custom output directory
 invoke viz.condition-comparison --cond1 shinobi:LEFT --cond2 shinobi:RIGHT --output-dir /custom/path
@@ -469,6 +534,7 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--cluster-extent` | int | 5 | No | Minimum cluster size in voxels |
 | `--voxel-thresh` | float | 3.0 | No | Voxel threshold for significance |
 | `--direction` | str | `both` | No | Direction of the contrast (`both`, `pos`, `neg`) |
+| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
 **Common Use Cases:**
@@ -482,6 +548,9 @@ invoke viz.atlas-tables --cluster-extent 10 --voxel-thresh 2.5
 
 # Only positive activations
 invoke viz.atlas-tables --direction pos
+
+# Use raw uncorrected z-maps instead of cluster-corrected maps
+invoke viz.atlas-tables --use-raw-maps
 
 # Use custom input/output directories
 invoke viz.atlas-tables --input-dir /path/to/zmaps --output-dir /path/to/tables

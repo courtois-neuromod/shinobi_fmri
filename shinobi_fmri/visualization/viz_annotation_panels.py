@@ -96,7 +96,7 @@ def crop_whitespace(img):
     return img
 
 
-def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, threshold=3, dpi=300):
+def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, threshold=2.3, dpi=300):
     """Plot inflated brain surface map and save the image.
 
     Creates a composite of 4 views (Lateral/Medial x Left/Right) with minimal spacing.
@@ -239,7 +239,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, pbar=None, logger=None):
+def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_raw_maps=False, force=False, pbar=None, logger=None):
     """Create all individual brain map images for a subject and condition.
 
     This includes:
@@ -251,22 +251,48 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, pbar=
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
         data_path (str): Path to data directory
+        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        force (bool): If True, regenerate images even if they already exist (default: False)
         pbar (tqdm): Optional progress bar to update
         logger (AnalysisLogger): Logger instance
     """
     # Create subject-level z-map
     # New structure: processed/subject-level/sub-XX/z_maps/
-    sublevel_zmap_path = op.join(
-        data_path,
-        "processed",
-        "subject-level",
-        subject,
-        "z_maps",
-        f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-    )
+    # By default, use corrected maps; fall back to raw if not available or if use_raw_maps=True
+    if use_raw_maps:
+        sublevel_zmap_path = op.join(
+            data_path,
+            "processed",
+            "subject-level",
+            subject,
+            "z_maps",
+            f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+        )
+    else:
+        sublevel_zmap_path = op.join(
+            data_path,
+            "processed",
+            "subject-level",
+            subject,
+            "z_maps",
+            f"{subject}_task-shinobi_contrast-{condition}_desc-corrected_stat-z.nii.gz"
+        )
+        # Fall back to raw map if corrected doesn't exist
+        if not op.isfile(sublevel_zmap_path):
+            sublevel_zmap_path = op.join(
+                data_path,
+                "processed",
+                "subject-level",
+                subject,
+                "z_maps",
+                f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+            )
+            if logger and op.isfile(sublevel_zmap_path):
+                logger.debug(f"Corrected map not found, using raw map for {subject} {condition}")
+
     sublevel_save_path = op.join(fig_folder, f"{subject}_{condition}.png")
 
-    if not op.isfile(sublevel_save_path):
+    if force or not op.isfile(sublevel_save_path):
         if op.isfile(sublevel_zmap_path):
             if logger:
                 logger.debug(f"Plotting subject-level map: {sublevel_zmap_path}")
@@ -292,18 +318,44 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, pbar=
 
         for session in ses_list:
             # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
-            zmap_path = op.join(
-                data_path,
-                "processed",
-                "session-level",
-                subject,
-                session,
-                "z_maps",
-                f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-            )
+            # By default, use corrected maps; fall back to raw if not available or if use_raw_maps=True
+            if use_raw_maps:
+                zmap_path = op.join(
+                    data_path,
+                    "processed",
+                    "session-level",
+                    subject,
+                    session,
+                    "z_maps",
+                    f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                )
+            else:
+                zmap_path = op.join(
+                    data_path,
+                    "processed",
+                    "session-level",
+                    subject,
+                    session,
+                    "z_maps",
+                    f"{subject}_{session}_task-shinobi_contrast-{condition}_desc-corrected_stat-z.nii.gz"
+                )
+                # Fall back to raw map if corrected doesn't exist
+                if not op.isfile(zmap_path):
+                    zmap_path = op.join(
+                        data_path,
+                        "processed",
+                        "session-level",
+                        subject,
+                        session,
+                        "z_maps",
+                        f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                    )
+                    if logger and op.isfile(zmap_path):
+                        logger.debug(f"Corrected map not found, using raw map for {subject} {session} {condition}")
+
             save_path = op.join(fig_folder, f"{subject}_{session}_{condition}.png")
 
-            if not op.isfile(save_path):
+            if force or not op.isfile(save_path):
                 if op.isfile(zmap_path):
                     if logger:
                         logger.debug(f"Plotting session-level map: {zmap_path}")
@@ -343,7 +395,7 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, logger=None):
+def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_raw_maps=False, pbar=None, logger=None):
     """Create a combined panel showing all subjects for one annotation.
 
     Creates a 4x9 grid showing:
@@ -355,6 +407,7 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
         data_path (str): Path to data directory
+        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
         pbar (tqdm): Optional progress bar to update
         logger (AnalysisLogger): Logger instance
     """
@@ -377,15 +430,38 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, pbar=None, l
         for session in ses_list:
             try:
                 # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
-                zmap_path = op.join(
-                    data_path,
-                    "processed",
-                    "session-level",
-                    subject,
-                    session,
-                    "z_maps",
-                    f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-                )
+                # Use corrected or raw maps based on flag
+                if use_raw_maps:
+                    zmap_path = op.join(
+                        data_path,
+                        "processed",
+                        "session-level",
+                        subject,
+                        session,
+                        "z_maps",
+                        f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                    )
+                else:
+                    zmap_path = op.join(
+                        data_path,
+                        "processed",
+                        "session-level",
+                        subject,
+                        session,
+                        "z_maps",
+                        f"{subject}_{session}_task-shinobi_contrast-{condition}_desc-corrected_stat-z.nii.gz"
+                    )
+                    # Fall back to raw map if corrected doesn't exist
+                    if not op.isfile(zmap_path):
+                        zmap_path = op.join(
+                            data_path,
+                            "processed",
+                            "session-level",
+                            subject,
+                            session,
+                            "z_maps",
+                            f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                        )
 
                 if op.isfile(zmap_path):
                     img = nib.load(zmap_path).get_fdata()
@@ -582,6 +658,16 @@ def main():
         help='Skip generating PDF'
     )
     parser.add_argument(
+        '--use-raw-maps',
+        action='store_true',
+        help='Use raw uncorrected z-maps instead of cluster-corrected maps (default: use corrected maps)'
+    )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force regeneration of images even if they already exist'
+    )
+    parser.add_argument(
         '-v', '--verbose',
         action="count",
         default=0,
@@ -621,6 +707,7 @@ def main():
 
         logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
+        logger.info(f"Using {'raw uncorrected' if args.use_raw_maps else 'cluster-corrected'} z-maps")
         logger.info(f"Output directory: {args.output_dir}\n")
 
         # Create output directory
@@ -655,14 +742,16 @@ def main():
                         )
                         os.makedirs(fig_folder, exist_ok=True)
                         create_all_images(subject, condition, fig_folder,
-                                        data_path=args.data_path, pbar=pbar, logger=logger)
+                                        data_path=args.data_path, use_raw_maps=args.use_raw_maps,
+                                        force=args.force, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
                 save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
                     make_annotation_plot(condition, save_path,
-                                       data_path=args.data_path, pbar=pbar, logger=logger)
+                                       data_path=args.data_path, use_raw_maps=args.use_raw_maps,
+                                       pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:

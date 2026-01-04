@@ -742,13 +742,32 @@ def make_z_map(
     z_map.to_filename(z_map_fname)
 
     # Compute and save cluster-corrected Z-map
+    # NOTE: cluster_level_inference returns a p-value map, we need to threshold it
+    # to get a proper z-map with original z-values in significant clusters
     if cluster_thresh is not None:
         try:
-            corrected_map = cluster_level_inference(z_map, threshold=cluster_thresh, alpha=alpha)
-            # BIDS-compliant naming: insert 'desc-corrected' before 'stat-z'
-            # Assumes filename ends with _stat-z.nii.gz
+            # Get cluster-level FWE-corrected p-value map
+            p_map = cluster_level_inference(z_map, threshold=cluster_thresh, alpha=alpha)
+            p_data = p_map.get_fdata()
+            z_data = z_map.get_fdata()
+
+            # Create thresholded z-map: keep original z-values only for voxels in significant clusters
+            sig_mask = (p_data > 0) & (p_data < alpha)
+            thresholded_z = np.zeros_like(z_data)
+            thresholded_z[sig_mask] = z_data[sig_mask]
+
+            # Save properly thresholded z-map
             corrected_fname = z_map_fname.replace('_stat-z.nii.gz', '_desc-corrected_stat-z.nii.gz')
-            corrected_map.to_filename(corrected_fname)
+            corrected_img = Nifti1Image(thresholded_z, z_map.affine, z_map.header)
+            corrected_img.to_filename(corrected_fname)
+
+            # Log success (basic, since this function doesn't have logger)
+            n_sig_voxels = np.sum(sig_mask)
+            if n_sig_voxels > 0:
+                print(f"  FWE correction: {n_sig_voxels} voxels survive")
+            else:
+                print(f"  FWE correction: No significant clusters")
+
         except Exception as e:
             print(f"Warning: Failed to compute cluster correction for {regressor_name}: {e}")
 
