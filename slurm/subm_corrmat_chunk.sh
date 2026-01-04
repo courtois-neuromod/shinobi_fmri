@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-pbellec
 #SBATCH --time=12:00:00
-#SBATCH --job-name=shi_corr_chunk
-#SBATCH --output=logs/slurm/%x_%j.out
+#SBATCH --job-name=shi_corr_betas
+#SBATCH --output=logs/slurm/%x/%x_%j.out
 #SBATCH --mem=64G
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
@@ -23,7 +23,7 @@ fi
 cd "$REPO_ROOT"
 
 # Create log directory
-mkdir -p logs/slurm
+mkdir -p logs/slurm/shi_corr_betas
 
 # Read Python path from config.yaml
 PYTHON_BIN=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml')); print(c['python']['slurm_bin'])")
