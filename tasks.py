@@ -612,13 +612,14 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
 
 
 @task
-def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_dir=None):
+def viz_beta_correlations(c, input_path=None, output_path=None, low_level=False, verbose=0, log_dir=None):
     """
     Generate beta correlations figure.
 
     Args:
         input_path: Path to input .pkl file (default: {DATA_PATH}/processed/beta_correlations.pkl)
         output_path: Path to save the output figure (default: {FIG_PATH}/beta_correlations_plot.png)
+        low_level: Use low-level correlation matrix (processed_low-level/ and _low-level.png)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -630,6 +631,9 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
         cmd_parts.extend(['--input', input_path])
     if output_path:
         cmd_parts.extend(['--output', output_path])
+    
+    if low_level:
+        cmd_parts.append('--low-level')
 
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
@@ -642,11 +646,14 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
     if input_path:
         print(f"  Input: {input_path}")
     else:
-        print(f"  Input: Using default from config")
+        input_loc = "processed_low-level" if low_level else "processed"
+        print(f"  Input: Using default from config ({input_loc})")
+    
     if output_path:
         print(f"  Output: {output_path}")
     else:
-        print(f"  Output: Using default from config")
+        suffix = "_low-level" if low_level else ""
+        print(f"  Output: Using default from config (beta_correlations_plot{suffix}.png)")
 
     c.run(cmd)
 

@@ -1,5 +1,7 @@
 import os
 import os.path as op
+import warnings
+from tqdm import tqdm
 from nilearn import datasets
 from nilearn import surface
 from nilearn import plotting
@@ -13,6 +15,10 @@ from nilearn.glm import threshold_stats_img
 import argparse
 from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
+
+# Filter specific warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="numpy", message="Warning: 'partition' will ignore the 'mask' of the MaskedArray")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="The `darkness` parameter will be deprecated")
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -71,34 +77,34 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
     fig = plotting.plot_surf_stat_map(
         fsaverage.infl_right, texture, hemi='right',
         title='Lateral right', vmax=6, colorbar=True,
-        threshold=3., bg_map=fsaverage.sulc_right, view="lateral",
-        output_file=op.join(output_path, f"{sub}_{modeltype}model_{cond_name}_lateral-right.png")
+        threshold=3., bg_map=fsaverage.sulc_right, view="lateral", darkness=None,
+        output_file=op.join(output_path, f"{sub}_{cond_name}_lateral-right.png")
     )
     fig = plotting.plot_surf_stat_map(
         fsaverage.infl_right, texture, hemi='right',
         title='Medial right', vmax=6, colorbar=True,
-        threshold=3., bg_map=fsaverage.sulc_right, view="medial",
-        output_file=op.join(output_path, f"{sub}_{modeltype}model_{cond_name}_medial-right.png")
+        threshold=3., bg_map=fsaverage.sulc_right, view="medial", darkness=None,
+        output_file=op.join(output_path, f"{sub}_{cond_name}_medial-right.png")
     )
     texture = surface.vol_to_surf(zmap_fname, fsaverage.pial_left)
     fig = plotting.plot_surf_stat_map(
         fsaverage.infl_left, texture, hemi='left',
         title='Lateral left', vmax=6, colorbar=True,
-        threshold=3., bg_map=fsaverage.sulc_left, view="lateral",
-        output_file=op.join(output_path, f"{sub}_{modeltype}model_{cond_name}_lateral-left.png")
+        threshold=3., bg_map=fsaverage.sulc_left, view="lateral", darkness=None,
+        output_file=op.join(output_path, f"{sub}_{cond_name}_lateral-left.png")
     )
     fig = plotting.plot_surf_stat_map(
         fsaverage.infl_left, texture, hemi='left',
         title='Medial left', vmax=6, colorbar=True,
-        threshold=3., bg_map=fsaverage.sulc_left, view="medial",
-        output_file=op.join(output_path, f"{sub}_{modeltype}model_{cond_name}_medial-left.png")
+        threshold=3., bg_map=fsaverage.sulc_left, view="medial", darkness=None,
+        output_file=op.join(output_path, f"{sub}_{cond_name}_medial-left.png")
     )
     
     # Assemble figure
     fig = plt.figure(figsize=(10,10))
     fig.suptitle(title)
     for idx, view in enumerate(itertools.product(["lateral", "medial"], ["left", "right"])):
-        img_fpath = op.join(output_path, f"{sub}_{modeltype}model_{cond_name}_{view[0]}-{view[1]}.png")
+        img_fpath = op.join(output_path, f"{sub}_{cond_name}_{view[0]}-{view[1]}.png")
         img = mpimg.imread(img_fpath)
         ax = fig.add_subplot(2, 2, idx+1)
         imgplot = plt.imshow(img)
@@ -110,13 +116,17 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
         plt.close(fig)
 
 
-def create_viz(sub, cond_name, modeltype,
+def create_viz(sub, cond_name,
                path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
                logger=None):
 
-    output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub)
-    os.makedirs(output_path, exist_ok=True)
+    # Base directory for this condition's subject-level viz
+    base_viz_dir = op.join(figures_path, "subject-level", cond_name)
+    
+    # Directory for intermediate components (inflated views)
+    # figures/subject-level/{cond_name}/components/{sub}/
+    components_base_dir = op.join(base_viz_dir, "components", sub)
 
     # New structure: processed/subject-level/sub-XX/z_maps/
     zmap_fname = op.join(
@@ -128,9 +138,6 @@ def create_viz(sub, cond_name, modeltype,
         if logger:
             logger.warning(f"Z-map not found: {zmap_fname}")
         return
-
-    output_path = op.join(figures_path, "subject-level", cond_name, "z_maps", sub)
-    os.makedirs(output_path, exist_ok=True)
 
     if logger:
         logger.info(f"Generating visualizations for {zmap_fname}")
@@ -150,56 +157,77 @@ def create_viz(sub, cond_name, modeltype,
     uncorrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.001, height_control='fdr')
     cluster_corrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.05, height_control='fdr', cluster_threshold=10)
     
-    # unthresholded
-    unthresholded_folder = op.join(figures_path, "subject-level", cond_name, "zmap_unthresholded")
-    os.makedirs(unthresholded_folder, exist_ok=True)
+    # -------------------------------------------------------------------------
+    # 1. Unthresholded (Raw)
+    # -------------------------------------------------------------------------
+    folder = op.join(base_viz_dir, "unthresholded")
+    os.makedirs(folder, exist_ok=True)
+    
+    # Components dir
+    comp_folder = op.join(components_base_dir, "unthresholded")
+    os.makedirs(comp_folder, exist_ok=True)
+
     plot_img_on_surf(zmap_fname, vmax=6, 
-                     title=f'{sub} {cond_name} raw map', 
-                     output_file=op.join(unthresholded_folder, f"rawsurf_{sub}_{modeltype}model{cond_name}.png"))
+                     title=f'{sub} {cond_name} raw map', darkness=None,
+                     output_file=op.join(folder, f"rawsurf_{sub}_{cond_name}.png"))
     plot_stat_map(zmap_fname, threshold=3, bg_img=bg_img, vmax=6, display_mode='x', 
                   title=f'{sub} {cond_name} raw map',
-                  output_file=op.join(unthresholded_folder, f"slices_{sub}_{modeltype}model{cond_name}.png"))
+                  output_file=op.join(folder, f"slices_{sub}_{cond_name}.png"))
     html_view = plotting.view_img(zmap_fname, threshold=3, 
                       title=f'{sub} {cond_name} raw map')
-    html_view.save_as_html(op.join(unthresholded_folder, f"image_{sub}_{modeltype}model{cond_name}.html"))
-    plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, 
+    html_view.save_as_html(op.join(folder, f"image_{sub}_{cond_name}.html"))
+    plot_fullbrain_subjlevel(zmap_fname, comp_folder, zmap=None, 
                              title=f'{sub} {cond_name} raw map',
-                             figpath=op.join(unthresholded_folder, f"inflatedsurf_{sub}_{modeltype}model{cond_name}.png"))
+                             figpath=op.join(folder, f"inflatedsurf_{sub}_{cond_name}.png"))
     
     if logger:
-        logger.debug(f"Saved unthresholded maps to {unthresholded_folder}")
+        logger.debug(f"Saved unthresholded maps to {folder}")
 
-    # thresholded, uncorrected
-    thresholded_folder = op.join(figures_path, "subject-level", cond_name, "zmap_thresholded")
-    os.makedirs(thresholded_folder, exist_ok=True)
+    # -------------------------------------------------------------------------
+    # 2. Thresholded (FDR Corrected)
+    # -------------------------------------------------------------------------
+    folder = op.join(base_viz_dir, "fdr_corrected")
+    os.makedirs(folder, exist_ok=True)
+    
+    # Components dir
+    comp_folder = op.join(components_base_dir, "fdr_corrected")
+    os.makedirs(comp_folder, exist_ok=True)
+
     plot_img_on_surf(uncorrected_map, vmax=6, 
-                     title=f'{sub} {cond_name} (FDR<0.001)', 
-                     output_file=op.join(thresholded_folder, f"rawsurf_{sub}_{modeltype}model{cond_name}.png"))
+                     title=f'{sub} {cond_name} (FDR<0.001)', darkness=None,
+                     output_file=op.join(folder, f"rawsurf_{sub}_{cond_name}.png"))
     plot_stat_map(uncorrected_map, threshold=3, bg_img=bg_img, vmax=6, display_mode='x', 
                   title=f'{sub} {cond_name} (FDR<0.001)',
-                  output_file=op.join(thresholded_folder, f"slices_{sub}_{modeltype}model{cond_name}.png"))
+                  output_file=op.join(folder, f"slices_{sub}_{cond_name}.png"))
     html_view = plotting.view_img(uncorrected_map, threshold=3, 
                       title=f'{sub} {cond_name} (FDR<0.001)')
-    html_view.save_as_html(op.join(thresholded_folder, f"image_{sub}_{modeltype}model{cond_name}.html"))
-    plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=uncorrected_map, 
+    html_view.save_as_html(op.join(folder, f"image_{sub}_{cond_name}.html"))
+    plot_fullbrain_subjlevel(zmap_fname, comp_folder, zmap=uncorrected_map, 
                              title=f'{sub} {cond_name} (FDR<0.001)',
-                             figpath=op.join(thresholded_folder, f"inflatedsurf_{sub}_{modeltype}model{cond_name}.png"))
+                             figpath=op.join(folder, f"inflatedsurf_{sub}_{cond_name}.png"))
     
-    # thresholded, cluster-corrected
-    cluster_folder = op.join(figures_path, "subject-level", cond_name, "zmap_cluster")
-    os.makedirs(cluster_folder, exist_ok=True)
+    # -------------------------------------------------------------------------
+    # 3. Cluster Corrected
+    # -------------------------------------------------------------------------
+    folder = op.join(base_viz_dir, "cluster_corrected")
+    os.makedirs(folder, exist_ok=True)
+    
+    # Components dir
+    comp_folder = op.join(components_base_dir, "cluster_corrected")
+    os.makedirs(comp_folder, exist_ok=True)
+
     plot_img_on_surf(cluster_corrected_map, vmax=6, 
-                     title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox', 
-                     output_file=op.join(cluster_folder, f"rawsurf_{sub}_{modeltype}model{cond_name}.png"))
+                     title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox', darkness=None,
+                     output_file=op.join(folder, f"rawsurf_{sub}_{cond_name}.png"))
     plot_stat_map(cluster_corrected_map, threshold=3, bg_img=bg_img, vmax=6, display_mode='x', 
                   title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox',
-                  output_file=op.join(cluster_folder, f"slices_{sub}_{modeltype}model{cond_name}.png"))
+                  output_file=op.join(folder, f"slices_{sub}_{cond_name}.png"))
     html_view = plotting.view_img(cluster_corrected_map, threshold=3, 
                       title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox')
-    html_view.save_as_html(op.join(cluster_folder, f"image_{sub}_{modeltype}model{cond_name}.html"))
-    plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=cluster_corrected_map, 
+    html_view.save_as_html(op.join(folder, f"image_{sub}_{cond_name}.html"))
+    plot_fullbrain_subjlevel(zmap_fname, comp_folder, zmap=cluster_corrected_map, 
                              title=f'{sub} {cond_name} (FDR<0.05), Clusters > 10vox',
-                             figpath=op.join(cluster_folder, f"inflatedsurf_{sub}_{modeltype}model{cond_name}.png"))
+                             figpath=op.join(folder, f"inflatedsurf_{sub}_{cond_name}.png"))
 
     if logger:
         logger.log_computation_success("Viz_subject-level", zmap_fname)
@@ -236,22 +264,30 @@ if __name__ == "__main__":
     )
     
     try:
+        # Collect all tasks first
+        tasks = []
         for sub in subjects:
             for cond_name in contrasts:
-                for modeltype in ["full", "simple", "intermediate"]:
-                    try:
-                        # New structure: processed/subject-level/sub-XX/z_maps/
-                        zmap_fname = op.join(
-                            args.data_path, "processed", "subject-level", sub, "z_maps",
-                            f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
-                        )
-                        if op.exists(zmap_fname):
-                            logger.info(f"Creating viz for {sub} {cond_name} {modeltype}")
-                            create_viz(sub, cond_name, modeltype,
-                                     path_to_data=args.data_path,
-                                     figures_path=args.figures_path,
-                                     logger=logger)
-                    except Exception as e:
-                        logger.log_computation_error(f"Viz_{sub}_{cond_name}", e)
+                zmap_fname = op.join(
+                    args.data_path, "processed", "subject-level", sub, "z_maps",
+                    f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
+                )
+                if op.exists(zmap_fname):
+                    tasks.append((sub, cond_name))
+
+        # Process tasks with progress bar
+        if not tasks:
+            print("No visualizations to generate found.")
+        else:
+            print(f"Generating {len(tasks)} visualizations...")
+            for sub, cond in tqdm(tasks, desc="Subject-level Viz"):
+                try:
+                    logger.info(f"Creating viz for {sub} {cond}")
+                    create_viz(sub, cond,
+                             path_to_data=args.data_path,
+                             figures_path=args.figures_path,
+                             logger=logger)
+                except Exception as e:
+                    logger.log_computation_error(f"Viz_{sub}_{cond}", e)
     finally:
         logger.close()

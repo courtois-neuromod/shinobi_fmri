@@ -412,28 +412,41 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None):
     return fig
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate beta correlations figure.")
+    parser.add_argument("--input",
+                       help="Path to the input pickle file (default: derived from config)")
+    parser.add_argument("--output",
+                       help="Path to save the output figure (default: derived from config)")
+    parser.add_argument("--low-level", action="store_true",
+                       help="Use correlation matrix from processed_low-level")
+
+    args = parser.parse_args()
+
     # Import config for default paths
     try:
         from shinobi_fmri.config import DATA_PATH, FIG_PATH
-        default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
-        default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
+        
+        if args.low_level:
+            default_input = os.path.join(DATA_PATH, "processed_low-level", "beta_maps_correlations.pkl")
+            default_output = os.path.join(FIG_PATH, "beta_correlations_plot_low-level.png")
+        else:
+            default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
+            default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
+            
     except ImportError:
         default_input = None
         default_output = None
 
-    parser = argparse.ArgumentParser(description="Generate beta correlations figure.")
-    parser.add_argument("--input",
-                       default=default_input,
-                       help=f"Path to the input pickle file (default: {default_input})")
-    parser.add_argument("--output",
-                       default=default_output,
-                       help=f"Path to save the output figure (default: {default_output})")
+    input_path = args.input if args.input else default_input
+    output_path = args.output if args.output else default_output
 
-    args = parser.parse_args()
-
-    if not os.path.exists(args.input):
-        print(f"Error: Input file not found at {args.input}")
+    if input_path is None:
+        print("Error: Input path not specified and config not available.")
         exit(1)
 
-    df_main, df_consistency = process_beta_correlations_data(args.input)
-    plot_beta_correlations(df_main, df_consistency, output_path=args.output)
+    if not os.path.exists(input_path):
+        print(f"Error: Input file not found at {input_path}")
+        exit(1)
+
+    df_main, df_consistency = process_beta_correlations_data(input_path)
+    plot_beta_correlations(df_main, df_consistency, output_path=output_path)
