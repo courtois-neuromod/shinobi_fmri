@@ -88,22 +88,22 @@ def parse_condition_spec(cond_spec):
     return source, condition
 
 
-def get_shinobi_zmap_path(subject, condition, data_path, use_raw_maps=False):
+def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False):
     """Get path to shinobi subject-level z-map.
 
     Args:
         subject (str): Subject ID (e.g., 'sub-01')
         condition (str): Condition name (e.g., 'Kill')
         data_path (str): Path to data directory
-        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
 
     Returns:
         str: Path to z-map file
     """
-    if use_raw_maps:
-        filename = f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-    else:
+    if use_corrected_maps:
         filename = f"{subject}_task-shinobi_contrast-{condition}_desc-corrected_stat-z.nii.gz"
+    else:
+        filename = f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
 
     return op.join(
         data_path,
@@ -184,7 +184,7 @@ def tstat_to_zstat(t_values, df):
     return z_values
 
 
-def load_zmap(source, subject, condition, hcp_task, data_path, use_raw_maps=False, logger=None):
+def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_maps=False, logger=None):
     """Load z-map for a given condition.
 
     Args:
@@ -193,17 +193,17 @@ def load_zmap(source, subject, condition, hcp_task, data_path, use_raw_maps=Fals
         condition (str): Condition name
         hcp_task (str): HCP task name (only used if source='hcp')
         data_path (str): Path to data directory
-        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
         logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image or None: Loaded z-map image, or None if not found
     """
     if source == 'shinobi':
-        path = get_shinobi_zmap_path(subject, condition, data_path, use_raw_maps)
+        path = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps)
         # Fall back to raw map if corrected doesn't exist
-        if not use_raw_maps and not op.isfile(path):
-            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_raw_maps=True)
+        if use_corrected_maps and not op.isfile(path):
+            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False)
             if op.isfile(path_raw):
                 if logger:
                     logger.debug(f"Corrected map not found, using raw map: {path_raw}")
@@ -876,9 +876,9 @@ def main():
         help='Output directory for plots (default: ./reports/figures/condition_comparison/<cond1>_vs_<cond2>/)'
     )
     parser.add_argument(
-        '--use-raw-maps',
+        '--use-corrected-maps',
         action='store_true',
-        help='Use raw uncorrected z-maps instead of cluster-corrected maps (default: use corrected maps)'
+        help='Use cluster-corrected z-maps instead of raw maps (default: use raw maps)'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -929,7 +929,7 @@ def main():
 
         logger.info(f"Processing {len(comparisons)} comparison(s)")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'raw uncorrected' if args.use_raw_maps else 'cluster-corrected'} z-maps")
+        logger.info(f"Using {'cluster-corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Threshold: |z| > {args.threshold}\n")
 
         # Process each comparison
@@ -977,8 +977,8 @@ def main():
                 logger.debug(f"Processing {subject}")
 
                 # Load z-maps
-                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, args.use_raw_maps, logger)
-                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, args.use_raw_maps, logger)
+                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, args.use_corrected_maps, logger)
+                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, args.use_corrected_maps, logger)
 
                 if img1 is None or img2 is None:
                     logger.warning(f"Skipping {subject} due to missing data")
@@ -995,7 +995,9 @@ def main():
                 subject_images[subject] = img_array
 
             # Create 4-subject panel
-            panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_panel.png")
+            # Add suffix to indicate cluster-corrected vs raw maps
+            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_{map_type}_panel.png")
             create_four_subject_panel(subject_images, panel_path, legend_img,
                                     logger=logger)
 

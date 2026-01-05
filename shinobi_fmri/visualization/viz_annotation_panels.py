@@ -239,7 +239,7 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_raw_maps=False, force=False, pbar=None, logger=None):
+def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_corrected_maps=False, low_level_confs=False, force=False, pbar=None, logger=None):
     """Create all individual brain map images for a subject and condition.
 
     This includes:
@@ -251,27 +251,22 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
         data_path (str): Path to data directory
-        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
         force (bool): If True, regenerate images even if they already exist (default: False)
         pbar (tqdm): Optional progress bar to update
         logger (AnalysisLogger): Logger instance
     """
+    # Determine output directory based on whether low-level confounds were used
+    output_dir = "processed_low-level" if low_level_confs else "processed"
+
     # Create subject-level z-map
     # New structure: processed/subject-level/sub-XX/z_maps/
-    # By default, use corrected maps; fall back to raw if not available or if use_raw_maps=True
-    if use_raw_maps:
+    # By default, use raw maps; use corrected if use_corrected_maps=True
+    if use_corrected_maps:
         sublevel_zmap_path = op.join(
             data_path,
-            "processed",
-            "subject-level",
-            subject,
-            "z_maps",
-            f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-        )
-    else:
-        sublevel_zmap_path = op.join(
-            data_path,
-            "processed",
+            output_dir,
             "subject-level",
             subject,
             "z_maps",
@@ -281,7 +276,7 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
         if not op.isfile(sublevel_zmap_path):
             sublevel_zmap_path = op.join(
                 data_path,
-                "processed",
+                output_dir,
                 "subject-level",
                 subject,
                 "z_maps",
@@ -289,6 +284,15 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
             )
             if logger and op.isfile(sublevel_zmap_path):
                 logger.debug(f"Corrected map not found, using raw map for {subject} {condition}")
+    else:
+        sublevel_zmap_path = op.join(
+            data_path,
+            output_dir,
+            "subject-level",
+            subject,
+            "z_maps",
+            f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+        )
 
     sublevel_save_path = op.join(fig_folder, f"{subject}_{condition}.png")
 
@@ -318,21 +322,11 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
 
         for session in ses_list:
             # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
-            # By default, use corrected maps; fall back to raw if not available or if use_raw_maps=True
-            if use_raw_maps:
+            # By default, use raw maps; use corrected if use_corrected_maps=True
+            if use_corrected_maps:
                 zmap_path = op.join(
                     data_path,
-                    "processed",
-                    "session-level",
-                    subject,
-                    session,
-                    "z_maps",
-                    f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-                )
-            else:
-                zmap_path = op.join(
-                    data_path,
-                    "processed",
+                    output_dir,
                     "session-level",
                     subject,
                     session,
@@ -343,7 +337,7 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
                 if not op.isfile(zmap_path):
                     zmap_path = op.join(
                         data_path,
-                        "processed",
+                        output_dir,
                         "session-level",
                         subject,
                         session,
@@ -352,6 +346,16 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_r
                     )
                     if logger and op.isfile(zmap_path):
                         logger.debug(f"Corrected map not found, using raw map for {subject} {session} {condition}")
+            else:
+                zmap_path = op.join(
+                    data_path,
+                    output_dir,
+                    "session-level",
+                    subject,
+                    session,
+                    "z_maps",
+                    f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                )
 
             save_path = op.join(fig_folder, f"{subject}_{session}_{condition}.png")
 
@@ -395,7 +399,7 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_raw_maps=False, pbar=None, logger=None):
+def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_corrected_maps=False, low_level_confs=False, pbar=None, logger=None):
     """Create a combined panel showing all subjects for one annotation.
 
     Creates a 4x9 grid showing:
@@ -407,10 +411,14 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_raw_maps
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
         data_path (str): Path to data directory
-        use_raw_maps (bool): If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
         pbar (tqdm): Optional progress bar to update
         logger (AnalysisLogger): Logger instance
     """
+    # Determine output directory based on whether low-level confounds were used
+    output_dir = "processed_low-level" if low_level_confs else "processed"
+
     images = []
 
     for idx_subj, subject in enumerate(SUBJECTS):
@@ -430,21 +438,11 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_raw_maps
         for session in ses_list:
             try:
                 # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
-                # Use corrected or raw maps based on flag
-                if use_raw_maps:
+                # Use raw maps by default; use corrected if use_corrected_maps=True
+                if use_corrected_maps:
                     zmap_path = op.join(
                         data_path,
-                        "processed",
-                        "session-level",
-                        subject,
-                        session,
-                        "z_maps",
-                        f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
-                    )
-                else:
-                    zmap_path = op.join(
-                        data_path,
-                        "processed",
+                        output_dir,
                         "session-level",
                         subject,
                         session,
@@ -455,13 +453,23 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_raw_maps
                     if not op.isfile(zmap_path):
                         zmap_path = op.join(
                             data_path,
-                            "processed",
+                            output_dir,
                             "session-level",
                             subject,
                             session,
                             "z_maps",
                             f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
                         )
+                else:
+                    zmap_path = op.join(
+                        data_path,
+                        output_dir,
+                        "session-level",
+                        subject,
+                        session,
+                        "z_maps",
+                        f"{subject}_{session}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
+                    )
 
                 if op.isfile(zmap_path):
                     img = nib.load(zmap_path).get_fdata()
@@ -658,14 +666,19 @@ def main():
         help='Skip generating PDF'
     )
     parser.add_argument(
-        '--use-raw-maps',
+        '--use-corrected-maps',
         action='store_true',
-        help='Use raw uncorrected z-maps instead of cluster-corrected maps (default: use corrected maps)'
+        help='Use cluster-corrected z-maps instead of raw maps (default: use raw maps)'
     )
     parser.add_argument(
         '--force',
         action='store_true',
         help='Force regeneration of images even if they already exist'
+    )
+    parser.add_argument(
+        '--low-level-confs',
+        action='store_true',
+        help='Use results from GLM with low-level confounds (from processed_low-level/ directory)'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -707,7 +720,8 @@ def main():
 
         logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'raw uncorrected' if args.use_raw_maps else 'cluster-corrected'} z-maps")
+        logger.info(f"Using {'cluster-corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
+        logger.info(f"Using {'low-level confounds' if args.low_level_confs else 'standard'} GLM results")
         logger.info(f"Output directory: {args.output_dir}\n")
 
         # Create output directory
@@ -742,20 +756,28 @@ def main():
                         )
                         os.makedirs(fig_folder, exist_ok=True)
                         create_all_images(subject, condition, fig_folder,
-                                        data_path=args.data_path, use_raw_maps=args.use_raw_maps,
+                                        data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                        low_level_confs=args.low_level_confs,
                                         force=args.force, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
-                save_path = op.join(args.output_dir, f"annotations_plot_{condition}.png")
+                # Add suffix to indicate cluster-corrected vs raw maps and low-level confounds
+                map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+                conf_type = "_low-level" if args.low_level_confs else ""
+                save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}{conf_type}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
                     make_annotation_plot(condition, save_path,
-                                       data_path=args.data_path, use_raw_maps=args.use_raw_maps,
+                                       data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                       low_level_confs=args.low_level_confs,
                                        pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:
-            pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
+            # Add suffix to indicate cluster-corrected vs raw maps and low-level confounds
+            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            conf_type = "_low-level" if args.low_level_confs else ""
+            pdf_path = op.join(args.output_dir, f'inflated_zmaps_by_annot_{map_type}{conf_type}.pdf')
             panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
             with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
                 create_pdf_with_images(args.output_dir, pdf_path, pbar=pbar)

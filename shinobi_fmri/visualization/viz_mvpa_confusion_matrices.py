@@ -118,7 +118,9 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
 
     # Add "Accuracy" label to colorbar if showing
     if show_colorbar and cbar_ax is not None:
-        cbar_ax.set_ylabel('Accuracy', rotation=270, labelpad=20, fontsize=12)
+        cbar_ax.set_ylabel('Accuracy', rotation=270, labelpad=20, fontsize=14)
+        # Increase colorbar tick label size
+        cbar_ax.tick_params(labelsize=12)
 
     # Add task separator lines
     n_shinobi = len(shinobi_classes)
@@ -155,7 +157,7 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
                 label.set_color(TASK_COLORS[task_name])
             else:
                 label.set_color('#333333')
-        label.set_size(9)
+        label.set_size(12)
         label.set_rotation(90)
 
     for label in ax.get_yticklabels():
@@ -172,11 +174,11 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
                 label.set_color(TASK_COLORS[task_name])
             else:
                 label.set_color('#333333')
-        label.set_size(9)
+        label.set_size(12)
 
-    ax.set_title(f"{subject}", fontweight='bold', fontsize=16, y=1.05)
-    ax.set_xlabel("Predicted Label", fontsize=12)
-    ax.set_ylabel("True Label", fontsize=12)
+    ax.set_title(f"{subject}", fontsize=18, y=1.05)
+    ax.set_xlabel("Predicted Label", fontsize=14)
+    ax.set_ylabel("True Label", fontsize=14)
 
 
 def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None):
@@ -228,7 +230,7 @@ def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None
         ncol=4,
         bbox_to_anchor=(0.5, 0.0),
         frameon=False,
-        fontsize=12
+        fontsize=14
     )
 
     # Color legend text
@@ -241,7 +243,7 @@ def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None
             text.set_fontweight('bold')
 
     # Add "Tasks" title
-    fig.text(0.5, 0.05, 'Tasks', fontweight='bold', ha='center', fontsize=14)
+    fig.text(0.5, 0.05, 'Tasks', fontweight='bold', ha='center', fontsize=16)
 
     # Layout adjustment
     plt.tight_layout(rect=[0, 0.1, 0.9, 1])

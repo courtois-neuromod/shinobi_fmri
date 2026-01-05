@@ -45,7 +45,7 @@ def parse_bids_filename(filename):
         
     return subject, contrast
 
-def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', use_raw_maps=False, overwrite=False):
+def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', use_corrected_maps=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -55,7 +55,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         cluster_extent: Minimum cluster size in voxels.
         voxel_thresh: Voxel threshold for significance.
         direction: Direction of the contrast ('both', 'pos', 'neg').
-        use_raw_maps: If True, use raw uncorrected z-maps instead of cluster-corrected maps (default: False).
+        use_corrected_maps: If True, use cluster-corrected z-maps instead of raw maps (default: False).
         overwrite: If True, overwrite existing files.
     """
 
@@ -63,7 +63,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         os.makedirs(output_dir)
 
     print(f"Scanning for z-maps in {input_dir}...")
-    print(f"Using {'raw uncorrected' if use_raw_maps else 'cluster-corrected'} z-maps")
+    print(f"Using {'cluster-corrected' if use_corrected_maps else 'raw uncorrected'} z-maps")
 
     # Check if input_dir exists
     if not op.exists(input_dir):
@@ -85,15 +85,18 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
             continue
 
         # Use corrected or raw maps based on flag
-        if use_raw_maps:
+        if use_corrected_maps:
+            # Look for corrected z-maps first
+            zmaps_list = glob.glob(op.join(zmaps_path, '*_desc-corrected_stat-z.nii.gz'))
+            # Fall back to raw maps if no corrected maps found
+            if not zmaps_list:
+                zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
+                zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
+        else:
             # Look for raw z-maps only (no desc-corrected in filename)
             zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
             # Exclude corrected maps from the list
             zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
-        else:
-            # Look for corrected z-maps first
-            zmaps_list = glob.glob(op.join(zmaps_path, '*_desc-corrected_stat-z.nii.gz'))
-            # Fall back to raw maps if no corrected maps found
             if not zmaps_list:
                 zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
                 zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
@@ -123,7 +126,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
     print("Aggregating cluster tables...")
     # Pattern: input_dir/sub-*/z_maps/*_clusters.csv
     tables_list = glob.glob(op.join(input_dir, 'sub-*', 'z_maps', '*clusters.csv'))
-    
+
     if not tables_list:
         print("No cluster tables found.")
         return
@@ -133,20 +136,20 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         try:
             df = pd.read_csv(table)
             filename = op.basename(table)
-            
+
             subject, annotation = parse_bids_filename(filename)
-            
+
             if not annotation:
                 # Fallback: try to guess or just use filename
                 annotation = filename
-            
+
             df['annotation'] = annotation
             df['subject'] = subject
-            
+
             # Select 3 biggest clusters by cluster_mean if available
             if 'cluster_mean' in df.columns:
                  df = df.sort_values(by='cluster_mean').tail(3)
-            
+
             tables_df.append(df)
         except Exception as e:
             print(f"Error reading {table}: {e}")
@@ -156,49 +159,51 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         return
 
     tables_df = pd.concat(tables_df, ignore_index=True).astype(str)
-    
+
     cols_to_drop = ['desikan_killiany', 'harvard_oxford']
     tables_df = tables_df.drop(columns=[c for c in cols_to_drop if c in tables_df.columns])
 
     def concatenate_strings(series):
         return "; ".join(series)
-        
+
     agg_dict={}
     for col in tables_df.columns:
         if col not in(['annotation', 'subject']):
             agg_dict[col] = concatenate_strings
-            
+
     tables_df_grouped = tables_df.groupby(['annotation', 'subject']).agg(agg_dict)
 
     # Format cluster info string
     req_cols = ['cluster_id', 'peak_x', 'peak_y', 'peak_z', 'cluster_mean', 'volume_mm']
     if all(col in tables_df_grouped.columns for col in req_cols):
         tables_df_grouped['cluster (id / x / y / z / mean / volume)'] = (
-            tables_df_grouped['cluster_id'] + ' / ' + 
-            tables_df_grouped['peak_x'] + ' / ' + 
-            tables_df_grouped['peak_y'] + ' / ' + 
-            tables_df_grouped['peak_z'] + ' / ' + 
-            tables_df_grouped['cluster_mean'] + ' / ' + 
+            tables_df_grouped['cluster_id'] + ' / ' +
+            tables_df_grouped['peak_x'] + ' / ' +
+            tables_df_grouped['peak_y'] + ' / ' +
+            tables_df_grouped['peak_z'] + ' / ' +
+            tables_df_grouped['cluster_mean'] + ' / ' +
             tables_df_grouped['volume_mm']
         )
         tables_df_grouped.drop(columns=req_cols, inplace=True)
 
-    output_file = op.join(output_dir, f'cluster_tables_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}.csv')
+    # Add suffix to indicate cluster-corrected vs raw maps
+    map_type = "cluster-corrected" if use_corrected_maps else "raw"
+    output_file = op.join(output_dir, f'cluster_tables_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
     print(f"Saving aggregated table to {output_file}")
     tables_df_grouped.to_csv(output_file)
-    
+
     if 'aal' in tables_df_grouped.columns:
         print("Generating occurrence table...")
-        generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction)
+        generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_corrected_maps)
 
-def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction):
+def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_corrected_maps=False):
     # Extract labels from the aggregated dataframe
     data = []
-    
+
     for (annotation, subject), content in tables_df_grouped.iterrows():
         if not isinstance(content['aal'], str):
             continue
-            
+
         for label_entry in content['aal'].split('; '):
             if '%' in label_entry:
                 try:
@@ -211,9 +216,9 @@ def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, vox
                     })
                 except IndexError:
                     continue
-    
+
     labels_df = pd.DataFrame(data)
-    
+
     if labels_df.empty:
         print("No labels found to analyze.")
         return
@@ -221,7 +226,7 @@ def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, vox
     # Count occurrences of each label
     label_counts = labels_df['label'].value_counts().reset_index()
     label_counts.columns = ['label', 'occurences']
-    
+
     # Function to summarize presence
     def get_presence(label, df, col):
         unique_vals = sorted(df[df['label'] == label][col].unique())
@@ -233,8 +238,10 @@ def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, vox
     label_counts['present in subject'] = label_counts['label'].apply(
         lambda x: get_presence(x, labels_df, 'subject')
     )
-    
-    output_file = op.join(output_dir, f'occurence_df_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}.csv')
+
+    # Add suffix to indicate cluster-corrected vs raw maps
+    map_type = "cluster-corrected" if use_corrected_maps else "raw"
+    output_file = op.join(output_dir, f'occurence_df_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
     print(f"Saving occurrence table to {output_file}")
     label_counts.to_csv(output_file, index=False)
 
@@ -246,9 +253,9 @@ if __name__ == "__main__":
     parser.add_argument("--cluster-extent", type=int, default=5, help="Minimum cluster size in voxels.")
     parser.add_argument("--voxel-thresh", type=float, default=3.0, help="Voxel threshold for significance.")
     parser.add_argument("--direction", type=str, default="both", choices=["both", "pos", "neg"], help="Direction of the contrast.")
-    parser.add_argument("--use-raw-maps", action="store_true", help="Use raw uncorrected z-maps instead of cluster-corrected maps (default: use corrected maps).")
+    parser.add_argument("--use-corrected-maps", action="store_true", help="Use cluster-corrected z-maps instead of raw maps (default: use raw maps).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing cluster files.")
 
     args = parser.parse_args()
 
-    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_raw_maps, args.overwrite)
+    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_corrected_maps, args.overwrite)
