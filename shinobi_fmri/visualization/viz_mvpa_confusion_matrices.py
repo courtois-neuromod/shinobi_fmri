@@ -130,17 +130,15 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
     ax.plot([n_shinobi, n_shinobi], [0, n_shinobi], color=SHINOBI_COLOR, linewidth=3, clip_on=False)  # right
 
     # Add task block separators for HCP tasks
-    current_pos = n_shinobi
     prev_task = None
     for idx, condition in enumerate(reordered_classes[n_shinobi:], start=n_shinobi):
         current_task = event_to_task.get(condition)
         if current_task != prev_task and prev_task is not None:
-            # Draw separator line
-            ax.axhline(y=current_pos, color='gray', linewidth=1.5, alpha=0.5)
-            ax.axvline(x=current_pos, color='gray', linewidth=1.5, alpha=0.5)
+            # Draw separator line at the boundary where new task starts
+            ax.axhline(y=idx, color='gray', linewidth=1.5, alpha=0.5)
+            ax.axvline(x=idx, color='gray', linewidth=1.5, alpha=0.5)
         if current_task != prev_task:
             prev_task = current_task
-            current_pos = idx + 1
 
     # Color tick labels
     for label in ax.get_xticklabels():

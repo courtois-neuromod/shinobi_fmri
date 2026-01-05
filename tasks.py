@@ -1062,6 +1062,7 @@ viz_collection.add_task(viz_condition_comparison, name='condition-comparison')
 viz_collection.add_task(viz_atlas_tables, name='atlas-tables')
 viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
+viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
