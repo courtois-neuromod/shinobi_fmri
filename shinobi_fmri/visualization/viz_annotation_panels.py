@@ -573,10 +573,9 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
     cbar_ax = fig.add_subplot(inner_gs[1:3, 0])
     cbar = plt.colorbar(cmap, cax=cbar_ax)
 
-    # Add |z| label above colorbar
-    cbar_ax.text(0.5, 1.05, r'$|z|$', ha='center', va='bottom', fontsize=12,
+    # Add z label above colorbar
+    cbar_ax.text(0.5, 1.05, r'$z$', ha='center', va='bottom', fontsize=12,
                  transform=cbar_ax.transAxes)
-
     # Save figure
     fig.tight_layout()
     fig.savefig(save_path, dpi=300, bbox_inches='tight')
