@@ -620,6 +620,14 @@ def main():
 
     # Configuration
     figures_path = args.figures_path
+    
+    # Adjust figures path based on low-level confounds if it's the default (contains 'figures')
+    if 'figures' in figures_path:
+        if args.low_level_confs:
+            figures_path = figures_path.replace('figures', 'figures_raw_low-level')
+        else:
+            figures_path = figures_path.replace('figures', 'figures_raw')
+
     path_to_data = args.data_path
     subjects = [args.subject] if args.subject else config.subjects
 

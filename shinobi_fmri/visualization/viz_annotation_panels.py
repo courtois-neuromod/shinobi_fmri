@@ -24,6 +24,7 @@ import os.path as op
 import argparse
 import glob
 import math
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -37,6 +38,10 @@ from reportlab.lib.pagesizes import letter, landscape
 from tqdm import tqdm
 from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
+
+# Filter specific warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="numpy", message="Warning: 'partition' will ignore the 'mask' of the MaskedArray")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="The `darkness` parameter will be deprecated")
 
 try:
     from shinobi_fmri.config import DATA_PATH, SUBJECTS
@@ -137,12 +142,11 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
             threshold=threshold,
             vmax=vmax,
             vmin=-vmax,
-            symmetric_cbar=False,
-            cmap=cmap,
-            darkness=0.7
-        )
-        
-        # Capture the figure
+                            symmetric_cbar=False,
+                            cmap=cmap,
+                            darkness=None
+                        )
+                    # Capture the figure
         fig = plt.gcf()
         fig.canvas.draw()
         
@@ -419,10 +423,22 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
     # Determine output directory based on whether low-level confounds were used
     output_dir = "processed_low-level" if low_level_confs else "processed"
 
+    # Determine base figure directory based on inputs (matching main function logic)
+    if use_corrected_maps:
+        if low_level_confs:
+            base_fig_dir = "figures_corrected_low-level"
+        else:
+            base_fig_dir = "figures_corrected"
+    else:
+        if low_level_confs:
+            base_fig_dir = "figures_raw_low-level"
+        else:
+            base_fig_dir = "figures_raw"
+
     images = []
 
     for idx_subj, subject in enumerate(SUBJECTS):
-        fig_folder = op.join(".", "reports", "figures", "full_zmap_plot", subject, condition)
+        fig_folder = op.join(".", "reports", base_fig_dir, "full_zmap_plot", subject, condition)
 
         # Find top 4 session maps based on number of voxels above threshold
         ses_dir = op.join(data_path, "shinobi", subject)
@@ -646,8 +662,8 @@ def main():
     parser.add_argument(
         '-o', '--output-dir',
         type=str,
-        default=op.join(".", "reports", "figures", "full_zmap_plot", "annotations"),
-        help='Output directory for panels and PDF'
+        default=None,
+        help='Output directory for panels and PDF (default: reports/<fig_dir>/full_zmap_plot/annotations)'
     )
     parser.add_argument(
         '--skip-individual',
@@ -692,7 +708,23 @@ def main():
     )
 
     args = parser.parse_args()
-    
+
+    # Determine base figure directory based on inputs
+    if args.use_corrected_maps:
+        if args.low_level_confs:
+            base_fig_dir = "figures_corrected_low-level"
+        else:
+            base_fig_dir = "figures_corrected"
+    else:
+        if args.low_level_confs:
+            base_fig_dir = "figures_raw_low-level"
+        else:
+            base_fig_dir = "figures_raw"
+
+    # Set default output directory if not provided
+    if args.output_dir is None:
+        args.output_dir = op.join(".", "reports", base_fig_dir, "full_zmap_plot", "annotations")
+
     # Determine verbosity
     if args.verbose == 0:
         log_level = logging.WARNING
@@ -721,6 +753,7 @@ def main():
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
         logger.info(f"Using {'cluster-corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Using {'low-level confounds' if args.low_level_confs else 'standard'} GLM results")
+        logger.info(f"Base figures directory: {base_fig_dir}")
         logger.info(f"Output directory: {args.output_dir}\n")
 
         # Create output directory
@@ -746,18 +779,18 @@ def main():
             # Generate individual images for each subject
             if not args.skip_individual:
                 with tqdm(total=total_individual_images // len(conditions),
-                        desc=f"Creating images for {condition}",
-                        unit="img") as pbar:
+                          desc=f"Creating images for {condition}",
+                          unit="img") as pbar:
                     for subject in SUBJECTS:
                         fig_folder = op.join(
-                            ".", "reports", "figures", "full_zmap_plot",
+                            ".", "reports", base_fig_dir, "full_zmap_plot",
                             subject, condition
                         )
                         os.makedirs(fig_folder, exist_ok=True)
                         create_all_images(subject, condition, fig_folder,
-                                        data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
-                                        low_level_confs=args.low_level_confs,
-                                        force=args.force, pbar=pbar, logger=logger)
+                                          data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                          low_level_confs=args.low_level_confs,
+                                          force=args.force, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
@@ -767,9 +800,9 @@ def main():
                 save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}{conf_type}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
                     make_annotation_plot(condition, save_path,
-                                       data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
-                                       low_level_confs=args.low_level_confs,
-                                       pbar=pbar, logger=logger)
+                                         data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                         low_level_confs=args.low_level_confs,
+                                         pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:
@@ -785,7 +818,7 @@ def main():
         logger.info("All done!")
 
         if not args.skip_individual:
-            logger.info(f"Individual brain maps saved to ./reports/figures/full_zmap_plot/<subject>/<condition>/")
+            logger.info(f"Individual brain maps saved to ./reports/{base_fig_dir}/full_zmap_plot/<subject>/<condition>/")
 
         if not args.skip_panels:
             logger.info(f"Annotation panels saved to {op.abspath(args.output_dir)}/")
@@ -798,7 +831,7 @@ def main():
             pdf_path = op.join(args.output_dir, 'inflated_zmaps_by_annot.pdf')
             if op.exists(pdf_path):
                 logger.info(f"PDF compilation saved to {op.abspath(pdf_path)} ({len(panel_images)} pages)")
-                
+
     finally:
         logger.close()
 

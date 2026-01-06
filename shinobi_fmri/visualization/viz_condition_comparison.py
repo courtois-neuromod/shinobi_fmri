@@ -29,6 +29,7 @@ Usage:
 import os
 import os.path as op
 import argparse
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -39,6 +40,10 @@ from PIL import Image
 from tqdm import tqdm
 from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
+
+# Filter specific warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="numpy", message="Warning: 'partition' will ignore the 'mask' of the MaskedArray")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="The `darkness` parameter will be deprecated")
 
 try:
     from shinobi_fmri.config import DATA_PATH, SUBJECTS
@@ -417,7 +422,7 @@ def plot_single_surface_view(overlay_img, hemisphere, view, cmap, threshold, dpi
         vmax=12,
         symmetric_cbar=False,
         cmap=cmap,
-        darkness=0.7
+        darkness=None
     )
 
     # Get the figure and convert to array
@@ -952,17 +957,20 @@ def main():
                 hcp_task2 = find_hcp_task(cond2, args.hcp_task)
                 logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
 
-            # Use single output directory for all panels
-            if args.output_dir:
-                output_dir = args.output_dir
-            else:
-                output_dir = op.join(".", "reports", "figures", "condition_comparison")
-            os.makedirs(output_dir, exist_ok=True)
-
-            if len(comparisons) == 1:
-                logger.info(f"Output directory: {output_dir}\n")
-
-            # Get task colors for conditions
+                # Determine base figure directory
+                base_fig_dir = "figures_corrected" if args.use_corrected_maps else "figures_raw"
+            
+                # Use single output directory for all panels
+                if args.output_dir:
+                    output_dir = args.output_dir
+                else:
+                    output_dir = op.join(".", "reports", base_fig_dir, "condition_comparison")
+                os.makedirs(output_dir, exist_ok=True)
+            
+                if len(comparisons) == 1:
+                    logger.info(f"Base figures directory: {base_fig_dir}")
+                    logger.info(f"Output directory: {output_dir}\n")
+                        # Get task colors for conditions
             color1 = get_condition_color(source1, cond1)
             color2 = get_condition_color(source2, cond2)
             logger.info(f"Using colors: {cond1}={color1}, {cond2}={color2}")

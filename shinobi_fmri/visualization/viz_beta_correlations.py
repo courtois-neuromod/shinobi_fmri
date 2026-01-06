@@ -428,10 +428,14 @@ if __name__ == "__main__":
         
         if args.low_level:
             default_input = os.path.join(DATA_PATH, "processed_low-level", "beta_maps_correlations.pkl")
-            default_output = os.path.join(FIG_PATH, "beta_correlations_plot_low-level.png")
+            # Adjust output path based on input type
+            fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw_low-level')
+            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot_low-level.png")
         else:
             default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
-            default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
+            # Adjust output path based on input type
+            fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw')
+            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot.png")
             
     except ImportError:
         default_input = None
