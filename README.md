@@ -114,8 +114,8 @@ invoke info
 The pipeline provides the following task categories:
 
 **GLM Analysis:**
-- `glm.session-level` - Session-level (second-level) GLM analysis
-- `glm.subject-level` - Subject-level (third-level) GLM analysis
+- `glm.session-level` - Session-level (second-level) GLM analysis (supports `--low-level-confs`)
+- `glm.subject-level` - Subject-level (third-level) GLM analysis (supports `--low-level-confs`)
 
 **MVPA:**
 - `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding)

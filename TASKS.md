@@ -77,6 +77,7 @@ Run subject-level (third-level) GLM analysis by combining sessions across a subj
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
+| `--low-level-confs` | flag | False | No | Use session-level maps from GLM with low-level confounds (processed_low-level/ directory) |
 
 **Common Use Cases:**
 
@@ -92,6 +93,9 @@ invoke glm.subject-level --slurm
 
 # Process specific condition across all subjects
 invoke glm.subject-level --condition JUMP
+
+# Use session-level maps from GLM with low-level confounds
+invoke glm.subject-level --subject sub-01 --condition HIT --low-level-confs
 ```
 
 ---
@@ -385,7 +389,8 @@ Generate annotation panels with subject-level and session-level brain maps for d
 | `--skip-individual` | flag | False | No | Skip generating individual brain maps |
 | `--skip-panels` | flag | False | No | Skip generating annotation panels |
 | `--skip-pdf` | flag | False | No | Skip generating PDF |
-| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
+| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
+| `--low-level-confs` | flag | False | No | Use results from GLM with low-level confounds (from processed_low-level/ directory) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -404,8 +409,11 @@ invoke viz.annotation-panels --condition HIT --skip-individual
 # Only generate individual maps (no panels or PDF)
 invoke viz.annotation-panels --condition HIT --skip-panels --skip-pdf
 
-# Use raw uncorrected z-maps instead of cluster-corrected maps
-invoke viz.annotation-panels --condition HIT --use-raw-maps
+# Use cluster-corrected z-maps instead of raw maps
+invoke viz.annotation-panels --condition HIT --use-corrected-maps
+
+# Use results from GLM with low-level confounds
+invoke viz.annotation-panels --condition HIT --low-level-confs
 
 # Process all default conditions
 invoke viz.annotation-panels
@@ -495,7 +503,7 @@ Creates surface plots comparing two conditions with three-color overlay:
 | `--cond2` | str | None | No | Second condition in format `source:condition` (e.g., `shinobi:HealthLoss` or `hcp:punishment`) |
 | `--run-all` | flag | False | No | Generate all predefined comparisons (default if no conditions specified) |
 | `--threshold` | float | 3.0 | No | Significance threshold for z-maps |
-| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
+| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 | `--output-dir` | str | `reports/figures/condition_comparison/` | No | Custom output directory |
@@ -512,8 +520,8 @@ invoke viz.condition-comparison --cond1 shinobi:Kill --cond2 hcp:reward
 # Use custom threshold
 invoke viz.condition-comparison --run-all --threshold 2.5
 
-# Use raw uncorrected z-maps instead of cluster-corrected maps
-invoke viz.condition-comparison --run-all --use-raw-maps
+# Use cluster-corrected z-maps instead of raw maps
+invoke viz.condition-comparison --run-all --use-corrected-maps
 
 # Custom output directory
 invoke viz.condition-comparison --cond1 shinobi:LEFT --cond2 shinobi:RIGHT --output-dir /custom/path
@@ -534,7 +542,7 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--cluster-extent` | int | 5 | No | Minimum cluster size in voxels |
 | `--voxel-thresh` | float | 3.0 | No | Voxel threshold for significance |
 | `--direction` | str | `both` | No | Direction of the contrast (`both`, `pos`, `neg`) |
-| `--use-raw-maps` | flag | False | No | Use raw uncorrected z-maps instead of cluster-corrected maps |
+| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
 **Common Use Cases:**
@@ -549,8 +557,8 @@ invoke viz.atlas-tables --cluster-extent 10 --voxel-thresh 2.5
 # Only positive activations
 invoke viz.atlas-tables --direction pos
 
-# Use raw uncorrected z-maps instead of cluster-corrected maps
-invoke viz.atlas-tables --use-raw-maps
+# Use cluster-corrected z-maps instead of raw maps
+invoke viz.atlas-tables --use-corrected-maps
 
 # Use custom input/output directories
 invoke viz.atlas-tables --input-dir /path/to/zmaps --output-dir /path/to/tables

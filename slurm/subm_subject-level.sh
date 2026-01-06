@@ -30,4 +30,4 @@ if [[ ! "$PYTHON_BIN" = /* ]]; then
 fi
 
 # Run the script
-"$PYTHON_BIN" shinobi_fmri/glm/compute_subject_level.py --subject $1 --condition $2
+"$PYTHON_BIN" shinobi_fmri/glm/compute_subject_level.py --subject $1 --condition $2 $3

@@ -163,7 +163,7 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
 
 
 @task
-def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
+def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None, low_level_confs=False):
     """
     Run subject-level GLM analysis.
 
@@ -174,6 +174,7 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
         verbose: Verbosity level
         log_dir: Custom log directory
+        low_level_confs: If True, use session-level maps from GLM with low-level confounds (processed_low-level/ directory)
     """
     # If no subject specified, process all subjects
     if subject is None:
@@ -192,7 +193,7 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         print(f"Processing {len(subjects)} subject(s) x {len(conditions)} condition(s) = {len(subjects)*len(conditions)} jobs...")
         for sub in subjects:
             for cond in conditions:
-                glm_subject_level(c, subject=sub, condition=cond, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir)
+                glm_subject_level(c, subject=sub, condition=cond, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
         return
 
     # Process single subject/condition
@@ -203,11 +204,14 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
+    if low_level_confs:
+        args += " --low-level-confs"
 
     if slurm:
         slurm_script = op.join(SLURM_DIR, "subm_subject-level.sh")
-        cmd = f"sbatch {slurm_script} {subjects[0]} {conditions[0]}"
-        print(f"Submitting to SLURM: {subjects[0]} {conditions[0]}")
+        low_level_flag = "--low-level-confs" if low_level_confs else ""
+        cmd = f"sbatch {slurm_script} {subjects[0]} {conditions[0]} {low_level_flag}"
+        print(f"Submitting to SLURM: {subjects[0]} {conditions[0]}{' (low-level-confs)' if low_level_confs else ''}")
     else:
         cmd = f"{PYTHON_BIN} {script} {args}"
         print(f"Running locally: {cmd}")
@@ -662,7 +666,7 @@ def viz_beta_correlations(c, input_path=None, output_path=None, low_level=False,
 
 
 @task
-def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=True, verbose=0, log_dir=None):
+def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=False, verbose=0, log_dir=None):
     """
     Generate correlation matrices for design matrix regressors.
 
@@ -672,7 +676,7 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
     Args:
         subject: Specific subject to process (default: all subjects)
         skip_generation: Skip design matrix generation, only plot from existing pickle
-        low_level_confs: Include low-level confounds (psychophysics and button presses) (default: True)
+        low_level_confs: Include low-level confounds (psychophysics and button presses) (default: False)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
     """
@@ -701,14 +705,14 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
         print(f"  Subject: {subject}")
     else:
         print(f"  Processing all subjects")
-    if not low_level_confs:
-        print(f"  WARNING: Low-level confounds excluded (use default for 2x2 plot)")
+    if low_level_confs:
+        print(f"  Including low-level confounds (psychophysics and button presses)")
 
     c.run(cmd)
 
 
 @task
-def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_raw_maps=False, verbose=0, log_dir=None, output_dir=None):
+def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_corrected_maps=False, verbose=0, log_dir=None, output_dir=None):
     """
     Generate condition comparison surface plots.
 
@@ -728,7 +732,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
         cond2: Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")
         run_all: Generate all predefined comparisons (default if no conditions specified)
         threshold: Significance threshold for z-maps (default: 3.0)
-        use_raw_maps: Use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps: Use cluster-corrected z-maps instead of raw maps (default: False, uses raw maps)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
         output_dir: Custom output directory (default: reports/figures/condition_comparison/)
@@ -752,8 +756,8 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
     if threshold != 3.0:
         cmd_parts.extend(['--threshold', str(threshold)])
 
-    if use_raw_maps:
-        cmd_parts.append('--use-raw-maps')
+    if use_corrected_maps:
+        cmd_parts.append('--use-corrected-maps')
 
     if output_dir:
         cmd_parts.extend(['--output-dir', output_dir])
@@ -778,7 +782,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
 
 @task
-def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_raw_maps=False, overwrite=False):
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -788,7 +792,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         cluster_extent: Minimum cluster size in voxels (default: 5)
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
-        use_raw_maps: Use raw uncorrected z-maps instead of cluster-corrected maps (default: False)
+        use_corrected_maps: Use cluster-corrected z-maps instead of raw maps (default: False, uses raw maps)
         overwrite: Overwrite existing cluster files
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")
@@ -804,8 +808,8 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
     cmd_parts.extend(['--voxel-thresh', str(voxel_thresh)])
     cmd_parts.extend(['--direction', direction])
 
-    if use_raw_maps:
-        cmd_parts.append('--use-raw-maps')
+    if use_corrected_maps:
+        cmd_parts.append('--use-corrected-maps')
 
     if overwrite:
         cmd_parts.append('--overwrite')

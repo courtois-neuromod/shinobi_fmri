@@ -11,6 +11,7 @@ The three-color overlay shows:
 - Purple: Significant for both conditions
 
 For each subject, creates a surface plot showing the overlay of both conditions.
+When running multiple comparisons (--run-all), creates a PDF with all comparison panels.
 
 Usage:
     # Compare shinobi Kill vs HCP Reward
@@ -21,6 +22,9 @@ Usage:
 
     # Compare two HCP conditions
     python viz_condition_comparison.py --cond1 hcp:reward --cond2 hcp:punishment
+
+    # Run all predefined comparisons and create PDF
+    python viz_condition_comparison.py --run-all
 
     # Specify HCP task explicitly
     python viz_condition_comparison.py --cond1 shinobi:Kill --cond2 hcp:reward --hcp-task gambling
@@ -37,6 +41,7 @@ import nibabel as nib
 from nilearn import plotting, image
 from nilearn.plotting.cm import _cmap_d as nilearn_cmaps
 from PIL import Image
+from reportlab.pdfgen import canvas
 from tqdm import tqdm
 from shinobi_fmri.utils.logger import AnalysisLogger
 import logging
@@ -292,14 +297,14 @@ def create_overlay_map(img1, img2, threshold=DEFAULT_THRESHOLD, logger=None):
             # img1 has lower resolution (larger voxels), resample img2 to match
             if logger:
                 logger.info(f"Resampling img2 to img1 space ({voxsize2[0]:.1f}mm -> {voxsize1[0]:.1f}mm voxels)")
-            img2_resampled = image.resample_to_img(img2, img1, interpolation='continuous')
+            img2_resampled = image.resample_to_img(img2, img1, interpolation='continuous', force_resample=True, copy_header=True)
             data2 = img2_resampled.get_fdata()
             reference_img = img1
         else:
             # img2 has lower resolution, resample img1 to match
             if logger:
                 logger.info(f"Resampling img1 to img2 space ({voxsize1[0]:.1f}mm -> {voxsize2[0]:.1f}mm voxels)")
-            img1_resampled = image.resample_to_img(img1, img2, interpolation='continuous')
+            img1_resampled = image.resample_to_img(img1, img2, interpolation='continuous', force_resample=True, copy_header=True)
             data1 = img1_resampled.get_fdata()
             reference_img = img2
     else:
@@ -833,6 +838,47 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     return legend_img
 
 
+def create_pdf_with_images(image_folder, pdf_filename, pbar=None, logger=None):
+    """Create a PDF with all panel images in a folder.
+
+    Args:
+        image_folder (str): Path to folder containing PNG images
+        pdf_filename (str): Path to output PDF file
+        pbar (tqdm): Optional progress bar to update
+        logger (AnalysisLogger): Logger instance
+    """
+    images = sorted([
+        op.join(image_folder, img)
+        for img in os.listdir(image_folder)
+        if img.endswith('.png') and 'panel' in img  # Only include panel images
+    ])
+
+    if not images:
+        msg = "Warning: No panel images found in folder"
+        if logger:
+            logger.warning(msg)
+        else:
+            print(msg)
+        return
+
+    c = canvas.Canvas(pdf_filename)
+    size = Image.open(images[0]).size
+    c.setPageSize(size)
+
+    for image_path in images:
+        c.drawImage(image_path, 0, 0, width=size[0], height=size[1])
+        c.showPage()
+        if pbar:
+            pbar.update(1)
+
+    c.save()
+
+    if logger:
+        logger.info(f"PDF created: {pdf_filename}")
+    if pbar:
+        pbar.set_description("PDF created")
+
+
 def main():
     """Main function to generate condition comparison plots."""
     parser = argparse.ArgumentParser(
@@ -884,6 +930,11 @@ def main():
         '--use-corrected-maps',
         action='store_true',
         help='Use cluster-corrected z-maps instead of raw maps (default: use raw maps)'
+    )
+    parser.add_argument(
+        '--skip-pdf',
+        action='store_true',
+        help='Skip generating PDF with all panels'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -1008,6 +1059,20 @@ def main():
             panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_{map_type}_panel.png")
             create_four_subject_panel(subject_images, panel_path, legend_img,
                                     logger=logger)
+
+        # Create PDF with all panels
+        if not args.skip_pdf and len(comparisons) > 1:
+            # Add suffix to indicate cluster-corrected vs raw maps
+            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            pdf_path = op.join(output_dir, f'condition_comparisons_{map_type}.pdf')
+            panel_images = [f for f in os.listdir(output_dir) if f.endswith('_panel.png')]
+
+            if panel_images:
+                with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
+                    create_pdf_with_images(output_dir, pdf_path, pbar=pbar, logger=logger)
+                logger.info(f"PDF saved to {op.abspath(pdf_path)} ({len(panel_images)} pages)")
+            else:
+                logger.warning("No panel images found for PDF creation")
 
         # Print summary
         logger.info("\nAll done!")
