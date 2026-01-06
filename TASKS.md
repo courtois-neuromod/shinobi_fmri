@@ -662,7 +662,7 @@ Generate publication-quality confusion matrix visualization for all subjects wit
 | `--output` | str | Auto | No | Output path for figure |
 
 **Output:**
-- `reports/figures/mvpa_confusion_matrices_s{screening}.png` - 2x2 grid of confusion matrices
+- `reports/figures_raw/mvpa_confusion_matrices_s{screening}.png` - 2x2 grid of confusion matrices
 
 **Common Use Cases:**
 

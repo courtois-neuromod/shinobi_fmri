@@ -13,6 +13,17 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import argparse
+import warnings
+
+# Suppress warnings
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+except ImportError:
+    pass
+
+warnings.filterwarnings("ignore", category=UserWarning, message="This figure includes Axes that are not compatible with tight_layout")
+
 import shinobi_fmri.config as config
 from shinobi_fmri.visualization.hcp_tasks import (
     TASK_COLORS, SHINOBI_COLOR, TASK_ICONS, SHINOBI_CONDITIONS,
@@ -262,6 +273,8 @@ if __name__ == "__main__":
                         help="Screening percentile used (default: 20)")
     parser.add_argument("--output", type=str, default=None,
                         help="Output path for figure (default: auto-generated)")
+    parser.add_argument("--no-show", action="store_true", default=False,
+                        help="Do not show the figure (default: False)")
 
     args = parser.parse_args()
 
@@ -272,7 +285,13 @@ if __name__ == "__main__":
 
     # Default output path
     if args.output is None:
-        output_dir = op.join(os.getcwd(), "reports", "figures")
+        # Adjust figures path to figures_raw as MVPA is based on uncorrected maps
+        figures_path = config.FIG_PATH
+        if 'figures' in figures_path and 'figures_' not in figures_path:
+            output_dir = figures_path.replace('figures', 'figures_raw')
+        else:
+            output_dir = op.join(os.getcwd(), "reports", "figures_raw")
+            
         os.makedirs(output_dir, exist_ok=True)
         args.output = op.join(output_dir, f"mvpa_confusion_matrices_s{args.screening}.png")
 
@@ -281,4 +300,8 @@ if __name__ == "__main__":
     print(f"Subjects: {subjects}")
 
     fig = create_confusion_matrix_figure(subjects, mvpa_results_path, args.output)
-    plt.show()
+    
+    if not args.no_show:
+        plt.show()
+    
+    plt.close(fig)

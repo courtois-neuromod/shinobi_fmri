@@ -885,11 +885,11 @@ def viz_mvpa_confusion_matrices(c, screening=20, output=None):
 
     Args:
         screening: Screening percentile used (default: 20)
-        output: Output path for figure (default: auto-generated in reports/figures/)
+        output: Output path for figure (default: auto-generated in reports/figures_raw/)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_mvpa_confusion_matrices.py")
 
-    cmd = f"{PYTHON_BIN} {script} --screening {screening}"
+    cmd = f"{PYTHON_BIN} {script} --screening {screening} --no-show"
     if output:
         cmd += f" --output {output}"
 
