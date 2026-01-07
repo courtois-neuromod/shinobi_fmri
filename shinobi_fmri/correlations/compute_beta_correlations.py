@@ -1,4 +1,4 @@
-from shinobi_fmri.config import DATA_PATH, FIG_PATH
+from shinobi_fmri.config import DATA_PATH, FIG_PATH, CONDITIONS, LOW_LEVEL_CONDITIONS, SUBJECTS as CONFIG_SUBJECTS
 import argparse
 import os
 import os.path as op
@@ -20,8 +20,9 @@ from shinobi_fmri.utils.provenance import create_metadata
 import logging
 import json
 
-CONTRASTS = ['Kill', 'HealthLoss', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'DOWN']
-SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+# Default contrasts (game conditions) - can be overridden by --low-level-confs flag
+CONTRASTS = CONDITIONS  # From config: ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
+SUBJECTS = CONFIG_SUBJECTS  # From config: ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 MODEL = "simple"
 RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
 
@@ -537,6 +538,14 @@ def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, use_low_leve
 def main():
     args = parse_args()
 
+    # Determine which conditions to use based on --low-level-confs flag
+    if args.low_level_confs:
+        contrasts = LOW_LEVEL_CONDITIONS
+        logger_prefix = "low-level features"
+    else:
+        contrasts = CONDITIONS
+        logger_prefix = "game conditions"
+
     # Determine verbosity
     if args.verbose == 0:
         log_level = logging.WARNING
@@ -559,15 +568,16 @@ def main():
         processed_dirname = "processed_low-level" if args.low_level_confs else "processed"
         results_path = op.join(DATA_PATH, processed_dirname, 'beta_maps_correlations.pkl')
 
+        log(f"Computing correlations for {logger_prefix}: {contrasts}", logger)
         log("Preparing reference geometry...", logger)
         target_affine, target_shape = get_reference_geometry(path_to_data, SUBJECTS[0])
         log("Fitting shared masker from subject masks...", logger)
         masker = build_masker(SUBJECTS, path_to_data, target_affine, target_shape)
         log("Collecting processed beta maps (session-level variants)...", logger)
-        processed_records = collect_processed_records(None, CONTRASTS, MODEL, path_to_data, args.low_level_confs)
+        processed_records = collect_processed_records(None, contrasts, MODEL, path_to_data, args.low_level_confs)
         log(f"Discovered {len(processed_records)} session-level maps.", logger)
         log("Collecting subject-level beta maps...", logger)
-        subject_records = collect_subject_level_records(CONTRASTS, path_to_data, args.low_level_confs)
+        subject_records = collect_subject_level_records(contrasts, path_to_data, args.low_level_confs)
         log(f"Discovered {len(subject_records)} subject-level maps.", logger)
         log("Collecting HCP entries...", logger)
         hcp_records = collect_hcp_records(path_to_data, SUBJECTS)

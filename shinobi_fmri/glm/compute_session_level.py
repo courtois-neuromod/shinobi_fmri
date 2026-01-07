@@ -220,7 +220,8 @@ def remove_runs_without_target_regressor(
 
 def trim_design_matrices(
     design_matrices: List[pd.DataFrame],
-    regressor_name: str
+    regressor_name: str,
+    conditions_list: List[str]
 ) -> List[pd.DataFrame]:
     """
     Remove unwanted condition regressors from design matrices.
@@ -232,6 +233,7 @@ def trim_design_matrices(
     Args:
         design_matrices: List of design matrices (one per run)
         regressor_name: Name of the regressor to keep (e.g., 'HIT')
+        conditions_list: List of all conditions in the analysis
 
     Returns:
         List of trimmed design matrices with only target regressor + confounds
@@ -240,9 +242,10 @@ def trim_design_matrices(
         Confound regressors (motion, WM, CSF, etc.) are always kept.
         Other condition regressors are removed to create orthogonal contrasts.
     """
-    regressors_to_remove = CONDS_LIST.copy()
+    regressors_to_remove = conditions_list.copy()
     if not "lvl" in regressor_name:
-        regressors_to_remove.remove(regressor_name)
+        if regressor_name in regressors_to_remove:
+            regressors_to_remove.remove(regressor_name)
 
     trimmed_design_matrices = []
     for design_matrix in design_matrices:
@@ -264,7 +267,8 @@ def make_or_load_glm(
     glm_fname: str,
     mask_resampled_global: Optional[Any] = None,
     save_glm: bool = False,
-    use_low_level_confs: bool = False
+    use_low_level_confs: bool = False,
+    conditions_list: Optional[List[str]] = None
 ) -> Tuple[Any, Any]:
     """
     Create or load a fitted GLM for session-level analysis.
@@ -281,6 +285,7 @@ def make_or_load_glm(
         mask_resampled_global: Pre-computed mask (if available)
         save_glm: Whether to save/load GLM objects (default: False)
         use_low_level_confs: Whether to include psychophysical confounds
+        conditions_list: List of all conditions in the analysis (for trimming)
 
     Returns:
         Tuple of (fitted_glm, mask_resampled)
@@ -299,8 +304,12 @@ def make_or_load_glm(
             sub, ses, run_list, path_to_data, use_low_level_confs=use_low_level_confs
         )
 
+        # Use provided conditions_list or default to game conditions
+        if conditions_list is None:
+            conditions_list = config.CONDITIONS
+
         trimmed_design_matrices = trim_design_matrices(
-            design_matrices, glm_regressors[0]
+            design_matrices, glm_regressors[0], conditions_list
         )
         fmri_imgs, trimmed_design_matrices = remove_runs_without_target_regressor(
             glm_regressors, fmri_imgs, trimmed_design_matrices
@@ -324,10 +333,16 @@ def make_or_load_glm(
     return fmri_glm, mask_resampled
 
 
-def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None):
+def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None, conditions_list=None):
     """
     Process an fMRI session for a given subject and session.
+
+    Args:
+        conditions_list: List of conditions to process (game conditions or low-level features)
     """
+    # Use provided conditions_list or default to game conditions
+    if conditions_list is None:
+        conditions_list = config.CONDITIONS
 
     def process_regressor(regressor_name, run_list_subset, n_runs_label, lvl=None):
         if lvl is None:
@@ -351,7 +366,7 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
                 if logger:
                     logger.log_computation_start(f"{regressor_output_name}", z_map_fname)
 
-                fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, use_low_level_confs=use_low_level_confs)
+                fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, use_low_level_confs=use_low_level_confs, conditions_list=conditions_list)
 
                 # Use utils.make_z_map with cluster correction (Liberal threshold for session-level)
                 utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_output_name, cluster_thresh=config.GLM_CLUSTER_THRESH_SESSION, alpha=config.GLM_ALPHA)
@@ -475,7 +490,7 @@ def main():
         logger.info(f"Created dataset_description.json in {dataset_desc_dir}")
 
     try:
-        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger)
+        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger, conditions_list=CONDS_LIST)
     finally:
         logger.close()
 
@@ -483,12 +498,24 @@ def main():
 if __name__ == "__main__":
     figures_path = config.FIG_PATH
     path_to_data = config.DATA_PATH
-    CONDS_LIST = ["HIT", "JUMP", "DOWN", "LEFT", "RIGHT", "UP", "Kill", "HealthLoss"]
-    LEVELS = []
-    additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]
+
+    # Use low-level conditions when flag is set, otherwise use game conditions
+    if args.low_level_confs:
+        CONDS_LIST = config.CONDITIONS + config.LOW_LEVEL_CONDITIONS
+        LEVELS = []  # No level interactions for low-level features
+        additional_contrasts = []
+        print("Using GAME AND LOW-LEVEL CONDITIONS as task regressors:")
+        print(f"  {CONDS_LIST}")
+    else:
+        CONDS_LIST = config.CONDITIONS
+        LEVELS = []
+        additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]
+        print("Using GAME CONDITIONS as task regressors:")
+        print(f"  {CONDS_LIST}")
+
     sub = args.subject
     ses = args.session
-    
+
     print(f"Processing : {sub} {ses}")
     print(f"Writing processed data in : {path_to_data}")
     print(f"Writing reports in : {figures_path}")

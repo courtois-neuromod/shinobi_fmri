@@ -78,28 +78,33 @@ def create_common_masker(path_to_data, subjects, logger=None):
     return masker, target_affine, target_shape
 
 
-def load_zmaps_for_subject(sub, contrasts, path_to_data, target_affine, target_shape, logger=None):
+def load_zmaps_for_subject(sub, contrasts, path_to_data, target_affine, target_shape, logger=None, low_level_confs=False):
     """
     Load z-maps for a given subject from both the main z_maps folder
     and the hcp_results folder.
+
+    Args:
+        low_level_confs: If True, load z-maps from processed_low-level/ directory
+
     Returns:
         z_maps (list of Nifti images)
         contrast_label (list of str)
         session_label (list of str)
     """
-    msg = f"[{sub}] Loading z-maps from local and HCP-based results..."
+    processed_dirname = "processed_low-level" if low_level_confs else "processed"
+    msg = f"[{sub}] Loading z-maps from {processed_dirname}/session-level..."
     if logger:
         logger.info(msg)
     else:
         print(msg)
-        
+
     z_maps = []
     contrast_label = []
     session_label = []
 
     # 1) Load from main z_maps folder (new structure: processed/session-level/sub-XX/ses-YY/z_maps/)
     # We need to search through the session-level directory for this subject
-    session_level_dir = op.join(path_to_data, "processed", "session-level", sub)
+    session_level_dir = op.join(path_to_data, processed_dirname, "session-level", sub)
 
     if op.exists(session_level_dir):
         # Iterate through all sessions for this subject
@@ -253,7 +258,19 @@ def main(args, logger=None):
 
     np.random.seed(42)  # Global base seed for reproducibility
     path_to_data = config.DATA_PATH
-    CONDS_LIST = ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'Kill', 'HealthLoss']
+
+    # Use low-level conditions when flag is set, otherwise use game conditions
+    if args.low_level_confs:
+        CONDS_LIST = config.LOW_LEVEL_CONDITIONS
+        logger_prefix = "low-level features"
+        print("Using LOW-LEVEL CONDITIONS for MVPA:")
+        print(f"  {CONDS_LIST}")
+    else:
+        CONDS_LIST = config.CONDITIONS
+        logger_prefix = "game conditions"
+        print("Using GAME CONDITIONS for MVPA:")
+        print(f"  {CONDS_LIST}")
+
     if args.subject is not None:
         subjects = [args.subject]
     else:
@@ -282,7 +299,7 @@ def main(args, logger=None):
 
             # Load subject's z-maps
             z_maps, contrast_label, session_label = load_zmaps_for_subject(
-                sub, CONDS_LIST, path_to_data, target_affine, target_shape, logger=logger
+                sub, CONDS_LIST, path_to_data, target_affine, target_shape, logger=logger, low_level_confs=args.low_level_confs
             )
 
             if not z_maps:
@@ -529,6 +546,11 @@ if __name__ == "__main__":
         "--log-dir",
         default=None,
         help="Directory for log files",
+    )
+    parser.add_argument(
+        "--low-level-confs",
+        action="store_true",
+        help="Use z-maps from GLM with low-level features as conditions (processed_low-level/ directory)",
     )
     args = parser.parse_args()
     

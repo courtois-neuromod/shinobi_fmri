@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Low-level sensory/motor feature analysis**: Complete pipeline support for analyzing brain responses to low-level visual, audio, and motor features as an alternative to game conditions
+  - **New condition set**: `luminance`, `optical_flow`, `audio_envelope`, `button_presses_count`
+  - **Configuration**: Added `low_level_conditions` list to `config.yaml` and `config.yaml.template`
+  - **GLM analysis**: Modified session-level and subject-level GLM scripts to model low-level features as task regressors (with HRF convolution) when `--low-level-confs` flag is used
+  - **HRF convolution**: Created `add_low_level_task_regressors()` function in `glm/utils.py` to properly convolve continuous sensory/motor signals with hemodynamic response function
+  - **Output separation**: Low-level analyses automatically route to `processed_low-level/` directory to avoid overwriting game condition results
+  - **MVPA support**: Updated `compute_mvpa.py` to support `--low-level-confs` flag for pattern classification on sensory features
+  - **Correlation analysis**: Updated `compute_beta_correlations.py` to process low-level feature beta maps
+  - **Visualization support**: All visualization scripts (annotation panels, condition comparisons, etc.) now work with low-level conditions via `--low-level-confs` flag
+  - **Documentation**: Added "Condition Sets" section to README explaining dual condition system and usage
+
 ### Changed
 - **Visualization naming**: Standardized all visualization scripts to follow `viz_*.py` naming pattern with underscores instead of hyphens. This improves code consistency and maintainability across the visualization module.
   - Renamed: `beta_correlations_plot.py` → `viz_beta_correlations.py`

@@ -569,6 +569,150 @@ def add_psychophysics_confounds(
 
     return confounds
 
+def add_low_level_task_regressors(
+    n_volumes: int,
+    run_events: pd.DataFrame,
+    path_to_data: str,
+    t_r: float = TR,
+    hrf_model: str = HRF_MODEL
+) -> pd.DataFrame:
+    """
+    Create HRF-convolved task regressors from low-level features.
+
+    Loads psychophysical features (luminance, optical_flow, audio_envelope)
+    and button press counts, convolves them with HRF to model BOLD response,
+    and returns them as a DataFrame of task regressors.
+
+    Args:
+        n_volumes: Number of fMRI volumes
+        run_events: DataFrame with trial_type='gym-retro_game' and 'frame' events
+        path_to_data: Root path to data directory
+        t_r: Repetition time in seconds (default: 1.49)
+        hrf_model: HRF model name (default: 'spm')
+
+    Returns:
+        DataFrame with HRF-convolved low-level feature regressors
+
+    Note:
+        Features are first downsampled to TR, then convolved with canonical HRF
+        to model hemodynamic response to sensory/motor stimulation.
+    """
+    from nilearn.glm.first_level import compute_regressor
+
+    # Initialize dictionary to store raw features
+    features = {}
+
+    # 1. Load psychophysical features (luminance, optical_flow, audio_envelope)
+    ppc_data = {}
+    for idx, row in run_events.iterrows():
+        if row["trial_type"] != "gym-retro_game":
+            continue
+        if pd.isna(row["onset"]) or pd.isna(row["stim_file"]):
+            continue
+
+        ppc_fname = op.join(
+            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_confs.npy")
+        )
+
+        if not os.path.exists(ppc_fname):
+            continue
+
+        try:
+            ppc_rep = np.load(ppc_fname, allow_pickle=True).item()
+        except Exception as e:
+            logging.warning(f"Failed to load low-level features from {ppc_fname}: {e}")
+            continue
+
+        onset = float(row["onset"])
+        onset_offset = int(round(onset / t_r))
+
+        for key, val in ppc_rep.items():
+            x = np.asarray(val, dtype=float)
+            y_tr, t_ds = downsample_to_TR(x, fs=60.0, TR=t_r)
+
+            if key not in ppc_data:
+                ppc_data[key] = np.zeros(n_volumes)
+
+            end_idx = min(onset_offset + len(y_tr), n_volumes)
+            valid_length = end_idx - onset_offset
+            if valid_length > 0:
+                ppc_data[key][onset_offset:end_idx] += y_tr[:valid_length]
+
+    # Add to features dict
+    for key, data in ppc_data.items():
+        features[key] = data
+
+    # 2. Load button press counts
+    button_presses = np.zeros(n_volumes)
+    button_columns = ['DOWN', 'LEFT', 'RIGHT', 'UP', 'C', 'Y', 'X', 'Z']
+    frame_events = run_events[run_events['trial_type'] == 'frame'].copy().reset_index(drop=True)
+
+    if len(frame_events) > 0:
+        count_press = np.zeros(n_volumes)
+        for button in button_columns:
+            if button not in frame_events.columns:
+                continue
+
+            button_states = frame_events[button].copy()
+            button_states = button_states.fillna(False)
+            if button_states.dtype == 'object':
+                button_states = button_states.replace({'False': False, 'True': True, False: False, True: True})
+            button_states = button_states.astype(bool).values
+            onsets = frame_events['onset'].values
+
+            valid_mask = pd.notna(onsets)
+            onsets = onsets[valid_mask]
+            button_states = button_states[valid_mask]
+
+            presses = np.zeros(len(button_states), dtype=bool)
+            for i in range(1, len(button_states)):
+                if not button_states[i-1] and button_states[i]:
+                    presses[i] = True
+
+            for i, onset in enumerate(onsets):
+                volume_idx = int(np.round(onset / t_r))
+                if 0 <= volume_idx < n_volumes and presses[i]:
+                    count_press[volume_idx] += 1
+
+        button_presses = count_press
+
+    features['button_presses_count'] = button_presses
+
+    # 3. Convolve each feature with HRF
+    frame_times = np.arange(n_volumes) * t_r
+    convolved_features = pd.DataFrame()
+
+    for feature_name, feature_signal in features.items():
+        # Convolve with HRF using nilearn's compute_regressor
+        # This handles HRF convolution properly
+        signal_convolved, _ = compute_regressor(
+            exp_condition=[(0, feature_signal[0])],  # Dummy event
+            hrf_model=hrf_model,
+            frame_times=frame_times,
+            oversampling=16
+        )
+
+        # Actually, compute_regressor expects events, not continuous signals
+        # For continuous signals, we need to use scipy.signal.convolve with HRF
+        from scipy.signal import convolve
+
+        # Get canonical HRF
+        hrf_length = int(30 / t_r)  # 30 seconds of HRF
+        hrf_times = np.arange(hrf_length) * t_r
+        if hrf_model == 'spm':
+            from nilearn.glm.first_level import spm_hrf
+            hrf = spm_hrf(hrf_times, t_r)
+        else:
+            from nilearn.glm.first_level import glover_hrf
+            hrf = glover_hrf(hrf_times, t_r)
+
+        # Convolve feature with HRF
+        convolved = convolve(feature_signal, hrf, mode='full')[:n_volumes]
+        convolved_features[feature_name] = convolved
+
+    return convolved_features
+
+
 def get_clean_matrix(
     fmri_fname: str,
     fmri_img: Nifti1Image,
@@ -583,9 +727,13 @@ def get_clean_matrix(
     Create a complete GLM design matrix with confounds and task regressors.
 
     Loads fMRIPrep confounds (motion, white matter, CSF, global signal),
-    optionally adds low-level psychophysical and button press confounds,
     convolves task events with HRF, and creates scrubbing regressors for
     high-motion volumes.
+
+    When use_low_level_confs=True, treats low-level features (luminance,
+    optical_flow, audio_envelope, button_presses_count) as TASK REGRESSORS
+    (convolved with HRF) instead of nuisance confounds. This allows modeling
+    the BOLD response to sensory/motor features.
 
     Args:
         fmri_fname: Path to fMRI file (for loading fMRIPrep confounds)
@@ -593,7 +741,7 @@ def get_clean_matrix(
         annotation_events: DataFrame with trial_type, onset, duration columns
         run_events: Full events DataFrame with all trial types
         path_to_data: Root path to data directory
-        use_low_level_confs: Whether to include psychophysical confounds (default: False)
+        use_low_level_confs: Whether to model low-level features as task regressors (default: False)
         t_r: Repetition time in seconds (default: 1.49)
         hrf_model: HRF model name (default: 'spm')
 
@@ -601,9 +749,12 @@ def get_clean_matrix(
         Complete design matrix with all regressors (task + confounds + scrubbing)
 
     Note:
-        Confounds include: motion (24 parameters), white matter, CSF,
-        global signal, and optionally low-level features and button presses.
-        Scrubbing regressors are added for volumes exceeding motion thresholds.
+        When use_low_level_confs=False:
+            - Confounds: motion, WM, CSF, global signal
+            - Task regressors: game conditions (HIT, JUMP, etc.)
+        When use_low_level_confs=True:
+            - Confounds: motion, WM, CSF, global signal
+            - Task regressors: low-level features (luminance, optical_flow, etc.)
     """
     import nilearn.interfaces.fmriprep
     # Load confounds
@@ -615,14 +766,12 @@ def get_clean_matrix(
         global_signal="full",
     )
 
-    if use_low_level_confs:
-        confounds = add_psychophysics_confounds(confounds, run_events, path_to_data, t_r=t_r)
-        confounds = add_button_press_confounds(confounds, run_events, t_r=t_r)
-
     # Generate design matrix
     bold_shape = fmri_img.shape
-    n_slices = bold_shape[-1]
-    frame_times = np.arange(n_slices) * t_r
+    n_volumes = bold_shape[-1]
+    frame_times = np.arange(n_volumes) * t_r
+
+    # Standard mode: use game conditions as task regressors
     design_matrix_raw = make_first_level_design_matrix(
         frame_times,
         events=annotation_events,
@@ -631,6 +780,15 @@ def get_clean_matrix(
         add_regs=confounds[0],
         add_reg_names=confounds[0].keys(),
     )
+
+    if use_low_level_confs:
+        # Add low-level features as HRF-convolved task regressors
+        low_level_regressors = add_low_level_task_regressors(
+            n_volumes, run_events, path_to_data, t_r, hrf_model
+        )
+        for col in low_level_regressors.columns:
+            if col not in design_matrix_raw.columns:
+                design_matrix_raw[col] = low_level_regressors[col]
 
     design_matrix_full = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_full

@@ -109,6 +109,37 @@ Display configuration and environment info:
 invoke info
 ```
 
+### Condition Sets
+
+The pipeline supports two distinct sets of conditions for analysis:
+
+**1. Game Conditions (Default)**
+- Button presses: `HIT`, `JUMP`, `DOWN`, `LEFT`, `RIGHT`, `UP`
+- Game events: `Kill`, `HealthLoss`
+- Models behavioral and game-event-related brain activity
+- Outputs to: `{DATA_PATH}/processed/`
+
+**2. Low-Level Sensory/Motor Features (`--low-level-confs`)**
+- Visual features: `luminance`, `optical_flow`
+- Audio: `audio_envelope`
+- Motor: `button_presses_count`
+- Models brain responses to low-level sensory and motor stimuli
+- Outputs to: `{DATA_PATH}/processed_low-level/`
+
+**Why separate condition sets?**
+- Avoids overwriting existing results when adding new analyses
+- Enables comparison between high-level (game) and low-level (sensory) processing
+- Each analysis type (GLM, MVPA, correlations, visualizations) can run on either set
+
+**How to use:**
+```bash
+# Standard game conditions
+invoke glm.session-level --subject sub-01 --session ses-001
+
+# Low-level sensory/motor features
+invoke glm.session-level --subject sub-01 --session ses-001 --low-level-confs
+```
+
 ### Available Tasks
 
 The pipeline provides the following task categories:
@@ -118,12 +149,12 @@ The pipeline provides the following task categories:
 - `glm.subject-level` - Subject-level (third-level) GLM analysis (supports `--low-level-confs`)
 
 **MVPA:**
-- `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding)
+- `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding) (supports `--low-level-confs`)
 - `mvpa.permutations` - Distributed permutation testing for significance
 - `mvpa.aggregate-permutations` - Aggregate permutation results and compute p-values
 
 **Correlation Analysis:**
-- `corr.beta` - Compute beta map correlations with HCP data
+- `corr.beta` - Compute beta map correlations with HCP data (supports `--low-level-confs`)
 - `corr.fingerprinting` - Subject identification from brain map similarity
 
 **Visualization:**

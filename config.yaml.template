@@ -25,6 +25,7 @@ analysis:
     - sub-04
     - sub-06
 
+  # Standard game conditions
   conditions:
     - HIT
     - JUMP
@@ -34,6 +35,13 @@ analysis:
     - UP
     - Kill
     - HealthLoss
+
+  # Low-level sensory/motor features (used when --low-level-confs flag is set)
+  low_level_conditions:
+    - luminance
+    - optical_flow
+    - audio_envelope
+    - button_presses_count
 
   # Behavioral analysis parameters (from shinobi_behav)
   levels:

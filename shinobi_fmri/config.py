@@ -60,6 +60,7 @@ TABLE_PATH = _config['paths']['tables']
 SUBJECTS = _config['analysis']['subjects']
 CONDITIONS = _config['analysis']['conditions']
 CONDS_LIST = CONDITIONS  # Alias for backward compatibility
+LOW_LEVEL_CONDITIONS = _config['analysis']['low_level_conditions']
 
 # Behavioral analysis parameters
 LEVELS = _config['analysis']['levels']
