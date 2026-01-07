@@ -578,7 +578,7 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         skip_individual: Skip generating individual brain maps
         skip_panels: Skip generating annotation panels
         skip_pdf: Skip generating PDF
-        use_corrected_maps: Use cluster-corrected z-maps instead of raw maps (default: False)
+        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False)
         force: Force regeneration of images even if they already exist
         low_level_confs: Use results from GLM with low-level confounds (default: False)
         verbose: Verbosity level
@@ -737,7 +737,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
         cond2: Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")
         run_all: Generate all predefined comparisons (default if no conditions specified)
         threshold: Significance threshold for z-maps (default: 3.0)
-        use_corrected_maps: Use cluster-corrected z-maps instead of raw maps (default: False, uses raw maps)
+        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
         output_dir: Custom output directory (default: reports/figures/condition_comparison/)
@@ -797,7 +797,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         cluster_extent: Minimum cluster size in voxels (default: 5)
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
-        use_corrected_maps: Use cluster-corrected z-maps instead of raw maps (default: False, uses raw maps)
+        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
         overwrite: Overwrite existing cluster files
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")

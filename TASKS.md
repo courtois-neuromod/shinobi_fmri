@@ -389,7 +389,7 @@ Generate annotation panels with subject-level and session-level brain maps for d
 | `--skip-individual` | flag | False | No | Skip generating individual brain maps |
 | `--skip-panels` | flag | False | No | Skip generating annotation panels |
 | `--skip-pdf` | flag | False | No | Skip generating PDF |
-| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
+| `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
 | `--low-level-confs` | flag | False | No | Use results from GLM with low-level confounds (from processed_low-level/ directory) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
@@ -409,7 +409,7 @@ invoke viz.annotation-panels --condition HIT --skip-individual
 # Only generate individual maps (no panels or PDF)
 invoke viz.annotation-panels --condition HIT --skip-panels --skip-pdf
 
-# Use cluster-corrected z-maps instead of raw maps
+# Use corrected z-maps instead of raw maps
 invoke viz.annotation-panels --condition HIT --use-corrected-maps
 
 # Use results from GLM with low-level confounds
@@ -503,7 +503,7 @@ Creates surface plots comparing two conditions with three-color overlay:
 | `--cond2` | str | None | No | Second condition in format `source:condition` (e.g., `shinobi:HealthLoss` or `hcp:punishment`) |
 | `--run-all` | flag | False | No | Generate all predefined comparisons (default if no conditions specified) |
 | `--threshold` | float | 3.0 | No | Significance threshold for z-maps |
-| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
+| `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 | `--output-dir` | str | `reports/figures/condition_comparison/` | No | Custom output directory |
@@ -520,7 +520,7 @@ invoke viz.condition-comparison --cond1 shinobi:Kill --cond2 hcp:reward
 # Use custom threshold
 invoke viz.condition-comparison --run-all --threshold 2.5
 
-# Use cluster-corrected z-maps instead of raw maps
+# Use corrected z-maps instead of raw maps
 invoke viz.condition-comparison --run-all --use-corrected-maps
 
 # Custom output directory
@@ -542,7 +542,7 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--cluster-extent` | int | 5 | No | Minimum cluster size in voxels |
 | `--voxel-thresh` | float | 3.0 | No | Voxel threshold for significance |
 | `--direction` | str | `both` | No | Direction of the contrast (`both`, `pos`, `neg`) |
-| `--use-corrected-maps` | flag | False | No | Use cluster-corrected z-maps instead of raw maps (default: raw maps) |
+| `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
 **Common Use Cases:**
@@ -557,7 +557,7 @@ invoke viz.atlas-tables --cluster-extent 10 --voxel-thresh 2.5
 # Only positive activations
 invoke viz.atlas-tables --direction pos
 
-# Use cluster-corrected z-maps instead of raw maps
+# Use corrected z-maps instead of raw maps
 invoke viz.atlas-tables --use-corrected-maps
 
 # Use custom input/output directories

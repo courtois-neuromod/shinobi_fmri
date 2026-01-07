@@ -33,7 +33,7 @@ Contrast:
 Outputs:
   - Beta maps: Subject-level effect sizes (mean across sessions)
   - Z-maps: Uncorrected F-test z-scores
-  - Corrected Z-maps: Cluster-corrected statistical maps
+  - Corrected Z-maps: Corrected statistical maps
   - HTML reports: Interactive visualizations with glass brains
   - Metadata JSON: Complete provenance tracking with session list
 

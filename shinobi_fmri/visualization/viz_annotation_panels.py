@@ -255,7 +255,7 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_c
         condition (str): Condition/annotation name
         fig_folder (str): Path to save the images
         data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
         low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
         force (bool): If True, regenerate images even if they already exist (default: False)
         pbar (tqdm): Optional progress bar to update
@@ -415,7 +415,7 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
         condition (str): Condition/annotation name
         save_path (str): Path to save the combined panel
         data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
         low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
         pbar (tqdm): Optional progress bar to update
         logger (AnalysisLogger): Logger instance
@@ -683,7 +683,7 @@ def main():
     parser.add_argument(
         '--use-corrected-maps',
         action='store_true',
-        help='Use cluster-corrected z-maps instead of raw maps (default: use raw maps)'
+        help='Use corrected z-maps instead of raw maps (default: use raw maps)'
     )
     parser.add_argument(
         '--force',
@@ -751,7 +751,7 @@ def main():
 
         logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'cluster-corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
+        logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Using {'low-level confounds' if args.low_level_confs else 'standard'} GLM results")
         logger.info(f"Base figures directory: {base_fig_dir}")
         logger.info(f"Output directory: {args.output_dir}\n")
@@ -794,8 +794,8 @@ def main():
 
             # Create combined annotation panel
             if not args.skip_panels:
-                # Add suffix to indicate cluster-corrected vs raw maps and low-level confounds
-                map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+                # Add suffix to indicate corrected vs raw maps and low-level confounds
+                map_type = "corrected" if args.use_corrected_maps else "raw"
                 conf_type = "_low-level" if args.low_level_confs else ""
                 save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}{conf_type}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
@@ -806,8 +806,8 @@ def main():
 
         # Create PDF with all panels
         if not args.skip_pdf:
-            # Add suffix to indicate cluster-corrected vs raw maps and low-level confounds
-            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            # Add suffix to indicate corrected vs raw maps and low-level confounds
+            map_type = "corrected" if args.use_corrected_maps else "raw"
             conf_type = "_low-level" if args.low_level_confs else ""
             pdf_path = op.join(args.output_dir, f'inflated_zmaps_by_annot_{map_type}{conf_type}.pdf')
             panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]

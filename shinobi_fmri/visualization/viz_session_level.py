@@ -209,13 +209,13 @@ def create_viz(sub, ses, cond_name,
                              figpath=op.join(folder, f"inflatedsurf_{sub}_{ses}_{cond_name}.png"))
     
     # -------------------------------------------------------------------------
-    # 3. Cluster Corrected
+    # 3. Corrected
     # -------------------------------------------------------------------------
-    folder = op.join(base_viz_dir, "cluster_corrected")
+    folder = op.join(base_viz_dir, "corrected")
     os.makedirs(folder, exist_ok=True)
 
     # Components dir
-    comp_folder = op.join(components_base_dir, "cluster_corrected")
+    comp_folder = op.join(components_base_dir, "corrected")
     os.makedirs(comp_folder, exist_ok=True)
 
     plot_img_on_surf(cluster_corrected_map, vmax=6, 

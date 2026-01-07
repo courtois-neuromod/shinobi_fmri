@@ -105,7 +105,7 @@ def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=Fals
         subject (str): Subject ID (e.g., 'sub-01')
         condition (str): Condition name (e.g., 'Kill')
         data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
 
     Returns:
         str: Path to z-map file
@@ -203,7 +203,7 @@ def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_map
         condition (str): Condition name
         hcp_task (str): HCP task name (only used if source='hcp')
         data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use cluster-corrected z-maps instead of raw maps (default: False)
+        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
         logger (AnalysisLogger): Logger instance
 
     Returns:
@@ -929,7 +929,7 @@ def main():
     parser.add_argument(
         '--use-corrected-maps',
         action='store_true',
-        help='Use cluster-corrected z-maps instead of raw maps (default: use raw maps)'
+        help='Use corrected z-maps instead of raw maps (default: use raw maps)'
     )
     parser.add_argument(
         '--skip-pdf',
@@ -985,7 +985,7 @@ def main():
 
         logger.info(f"Processing {len(comparisons)} comparison(s)")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'cluster-corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
+        logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Threshold: |z| > {args.threshold}\n")
 
         # Process each comparison
@@ -1054,16 +1054,16 @@ def main():
                 subject_images[subject] = img_array
 
             # Create 4-subject panel
-            # Add suffix to indicate cluster-corrected vs raw maps
-            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            # Add suffix to indicate corrected vs raw maps
+            map_type = "corrected" if args.use_corrected_maps else "raw"
             panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_{map_type}_panel.png")
             create_four_subject_panel(subject_images, panel_path, legend_img,
                                     logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf and len(comparisons) > 1:
-            # Add suffix to indicate cluster-corrected vs raw maps
-            map_type = "cluster-corrected" if args.use_corrected_maps else "raw"
+            # Add suffix to indicate corrected vs raw maps
+            map_type = "corrected" if args.use_corrected_maps else "raw"
             pdf_path = op.join(output_dir, f'condition_comparisons_{map_type}.pdf')
             panel_images = [f for f in os.listdir(output_dir) if f.endswith('_panel.png')]
 

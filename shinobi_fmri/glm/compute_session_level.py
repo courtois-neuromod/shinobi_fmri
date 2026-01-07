@@ -27,7 +27,7 @@ Statistical Inference:
 
 Outputs:
   - Beta maps: Session-level effect sizes
-  - Z-maps: Uncorrected and cluster-corrected statistical maps
+  - Z-maps: Uncorrected and corrected statistical maps
   - HTML reports: Interactive visualizations
   - Metadata JSON: Complete provenance tracking
   - Dataset description: BIDS-compliant metadata
