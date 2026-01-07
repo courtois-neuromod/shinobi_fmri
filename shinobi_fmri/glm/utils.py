@@ -21,7 +21,7 @@ from nibabel import Nifti1Image
 from nilearn import image
 from nilearn.image import clean_img
 from nilearn.glm.first_level import make_first_level_design_matrix, FirstLevelModel
-from nilearn.glm import cluster_level_inference
+from nilearn.glm import threshold_stats_img
 from shinobi_fmri import config
 
 # GLM parameters from config
@@ -693,7 +693,7 @@ def make_z_map(
     """
     Compute and save statistical maps for a GLM contrast.
 
-    Computes beta (effect size), z-score, and cluster-corrected z-maps
+    Computes beta (effect size), z-score, and FDR-corrected z-maps
     for a specified regressor. Also generates an HTML report with
     statistical results and visualizations.
 
@@ -703,9 +703,8 @@ def make_z_map(
         report_fname: Output path for HTML report
         fmri_glm: Fitted FirstLevelModel object
         regressor_name: Name of regressor/contrast to compute
-        cluster_thresh: Z-score threshold for cluster detection (default: 2.3)
-                       Set to None to skip cluster correction
-        alpha: Family-wise error rate for cluster correction (default: 0.05)
+        cluster_thresh: Ignored for FDR (kept for API compatibility)
+        alpha: False Discovery Rate (FDR) q-value (default: 0.05)
 
     Returns:
         Uncorrected z-score map as Nifti1Image
@@ -717,13 +716,12 @@ def make_z_map(
         Statistical inference:
         - Beta maps: Raw parameter estimates (effect sizes)
         - Z-maps: F-test z-scores (uncorrected)
-        - Corrected maps: Cluster-level FWE correction at specified alpha
-        - Cluster correction uses height threshold + extent test
-
+        - Corrected maps: Voxel-wise FDR correction at specified alpha
+        
         Output files:
         - {base}_stat-z.nii.gz: Uncorrected z-map
         - {base}_stat-beta.nii.gz: Beta (effect size) map
-        - {base}_desc-corrected_stat-z.nii.gz: Cluster-corrected z-map
+        - {base}_desc-corrected_stat-z.nii.gz: FDR-corrected z-map
         - {base}_report.html: Interactive visualization
     """
     # Check if regressor exists in the design matrix
@@ -741,35 +739,32 @@ def make_z_map(
     )
     z_map.to_filename(z_map_fname)
 
-    # Compute and save cluster-corrected Z-map
-    # NOTE: cluster_level_inference returns a p-value map, we need to threshold it
-    # to get a proper z-map with original z-values in significant clusters
+    # Compute and save FDR-corrected Z-map
     if cluster_thresh is not None:
         try:
-            # Get cluster-level FWE-corrected p-value map
-            p_map = cluster_level_inference(z_map, threshold=cluster_thresh, alpha=alpha)
-            p_data = p_map.get_fdata()
-            z_data = z_map.get_fdata()
-
-            # Create thresholded z-map: keep original z-values only for voxels in significant clusters
-            sig_mask = (p_data > 0) & (p_data < alpha)
-            thresholded_z = np.zeros_like(z_data)
-            thresholded_z[sig_mask] = z_data[sig_mask]
+            # Apply FDR correction
+            thresholded_z_img, threshold_value = threshold_stats_img(
+                z_map,
+                alpha=alpha,
+                height_control='fdr',
+                cluster_threshold=0
+            )
 
             # Save properly thresholded z-map
             corrected_fname = z_map_fname.replace('_stat-z.nii.gz', '_desc-corrected_stat-z.nii.gz')
-            corrected_img = Nifti1Image(thresholded_z, z_map.affine, z_map.header)
-            corrected_img.to_filename(corrected_fname)
+            thresholded_z_img.to_filename(corrected_fname)
 
-            # Log success (basic, since this function doesn't have logger)
-            n_sig_voxels = np.sum(sig_mask)
+            # Log success
+            thresholded_data = thresholded_z_img.get_fdata()
+            n_sig_voxels = np.count_nonzero(thresholded_data)
+            
             if n_sig_voxels > 0:
-                print(f"  FWE correction: {n_sig_voxels} voxels survive")
+                print(f"  FDR correction: {n_sig_voxels} voxels survive (q < {alpha})")
             else:
-                print(f"  FWE correction: No significant clusters")
+                print(f"  FDR correction: No significant voxels (q < {alpha})")
 
         except Exception as e:
-            print(f"Warning: Failed to compute cluster correction for {regressor_name}: {e}")
+            print(f"Warning: Failed to compute FDR correction for {regressor_name}: {e}")
 
     # Get report
     report = fmri_glm.generate_report(

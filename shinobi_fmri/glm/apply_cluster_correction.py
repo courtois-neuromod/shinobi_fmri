@@ -1,30 +1,26 @@
 #!/usr/bin/env python
 """
-Apply cluster-level FWE correction to existing z-maps.
+Apply FDR correction to existing z-maps.
 
-This script takes raw uncorrected z-maps and applies cluster-level family-wise
-error (FWE) correction, saving properly thresholded z-maps where only voxels
-in significant clusters retain their original z-values.
-
-Unlike the original cluster_level_inference output (which returns p-value maps),
-this script saves actual z-score maps for easy visualization.
+This script takes raw uncorrected z-maps and applies voxel-wise False Discovery
+Rate (FDR) correction, saving properly thresholded z-maps where only significant
+voxels retain their original z-values.
 
 Statistical Method:
-  - Uses nilearn's cluster_level_inference for FWE correction
-  - Cluster-forming threshold: configurable (default from config)
-  - Family-wise error rate: alpha (default: 0.05)
-  - Only clusters with p < alpha survive correction
+  - Uses nilearn's threshold_stats_img for FDR correction
+  - Height control: FDR
+  - Alpha: False Discovery Rate (default: 0.05)
+  - Returns actual Z-threshold used
 
 Output:
   - Thresholded z-maps: *_desc-corrected_stat-z.nii.gz
-  - Contains original z-values for voxels in FWE-significant clusters
+  - Contains original z-values for voxels significant at FDR < alpha
   - Zero elsewhere
 
 Usage:
     python apply_cluster_correction.py --level subject
     python apply_cluster_correction.py --level session --subject sub-01
-    python apply_cluster_correction.py --level session --subject sub-01 --session ses-001
-    python apply_cluster_correction.py --threshold 2.3 --alpha 0.05 --overwrite
+    python apply_cluster_correction.py --alpha 0.05 --overwrite
 """
 
 import os
@@ -34,7 +30,7 @@ import glob
 import logging
 import numpy as np
 import nibabel as nib
-from nilearn.glm import cluster_level_inference
+from nilearn.glm import threshold_stats_img
 from tqdm import tqdm
 from shinobi_fmri import config
 from shinobi_fmri.utils.logger import AnalysisLogger
@@ -49,13 +45,13 @@ def apply_cluster_correction_to_map(
     logger=None
 ):
     """
-    Apply cluster-level FWE correction to a single z-map.
+    Apply FDR correction to a single z-map.
 
     Args:
         raw_zmap_path: Path to raw uncorrected z-map
         corrected_zmap_path: Path to save corrected z-map
-        threshold: Cluster-forming threshold (z-score)
-        alpha: Family-wise error rate for cluster correction
+        threshold: Ignored for FDR (kept for API compatibility)
+        alpha: False Discovery Rate (FDR) q-value (e.g. 0.05)
         overwrite: Overwrite existing corrected maps
         logger: Logger instance
 
@@ -77,36 +73,30 @@ def apply_cluster_correction_to_map(
     try:
         # Load raw z-map
         z_map = nib.load(raw_zmap_path)
-        z_data = z_map.get_fdata()
 
-        # Apply cluster-level inference
-        # This returns a p-value map where:
-        #   - 0 = voxel not in any cluster
-        #   - >0 = cluster-level FWE-corrected p-value
-        p_map = cluster_level_inference(z_map, threshold=threshold, alpha=alpha)
-        p_data = p_map.get_fdata()
-
-        # Create thresholded z-map
-        # Keep original z-values only for voxels in significant clusters (p < alpha)
-        sig_mask = (p_data > 0) & (p_data < alpha)
-        thresholded_z = np.zeros_like(z_data)
-        thresholded_z[sig_mask] = z_data[sig_mask]
-
+        # Apply FDR correction
+        # threshold_stats_img returns the thresholded image and the threshold value used
+        thresholded_z_img, threshold_value = threshold_stats_img(
+            z_map,
+            alpha=alpha,
+            height_control='fdr',
+            cluster_threshold=0 # Pure FDR (voxel-wise)
+        )
+        
         # Save thresholded z-map
-        corrected_img = nib.Nifti1Image(thresholded_z, z_map.affine, z_map.header)
-        corrected_img.to_filename(corrected_zmap_path)
+        thresholded_z_img.to_filename(corrected_zmap_path)
 
         # Log statistics
-        n_sig_voxels = np.sum(sig_mask)
+        # Check non-zero voxels
+        thresholded_data = thresholded_z_img.get_fdata()
+        n_sig_voxels = np.count_nonzero(thresholded_data)
+        
         if logger:
             if n_sig_voxels > 0:
-                max_z = np.max(np.abs(thresholded_z))
-                logger.info(f"✓ {op.basename(corrected_zmap_path)}: {n_sig_voxels} voxels survive (max |z|={max_z:.2f})")
+                max_z = np.max(np.abs(thresholded_data))
+                logger.info(f"✓ {op.basename(corrected_zmap_path)}: {n_sig_voxels} voxels survive FDR q<{alpha} (Z > {threshold_value:.2f}, max |z|={max_z:.2f})")
             else:
-                # Get minimum cluster p-value to report
-                cluster_ps = p_data[p_data > 0]
-                min_p = np.min(cluster_ps) if len(cluster_ps) > 0 else 1.0
-                logger.warning(f"✗ {op.basename(corrected_zmap_path)}: No significant clusters (min p={min_p:.3f})")
+                logger.warning(f"✗ {op.basename(corrected_zmap_path)}: No voxels survive FDR q<{alpha}")
 
         return True
 
@@ -327,19 +317,14 @@ def main():
 
     try:
         logger.info("="*70)
-        logger.info("CLUSTER-LEVEL FWE CORRECTION")
+        logger.info("FDR CORRECTION")
         logger.info("="*70)
         logger.info(f"Level: {args.level}")
-        logger.info(f"Alpha: {args.alpha}")
+        logger.info(f"Alpha (FDR q): {args.alpha}")
 
-        # Display thresholds
-        if args.level in ["subject", "both"]:
-            thresh_subj = args.threshold if args.threshold else config.GLM_CLUSTER_THRESH_SUBJECT
-            logger.info(f"Subject-level threshold: {thresh_subj}")
-
-        if args.level in ["session", "both"]:
-            thresh_sess = args.threshold if args.threshold else config.GLM_CLUSTER_THRESH_SESSION
-            logger.info(f"Session-level threshold: {thresh_sess}")
+        # Display thresholds (Ignored for FDR but logged for record if passed)
+        if args.threshold:
+             logger.info(f"Note: --threshold {args.threshold} is ignored for FDR calculation.")
 
         logger.info("="*70)
 

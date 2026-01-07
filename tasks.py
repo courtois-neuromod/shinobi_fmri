@@ -876,6 +876,101 @@ def viz_within_subject_correlations(c, verbose=0, log_dir=None):
 
 
 @task
+def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None, low_level_confs=False, verbose=0, log_dir=None, output_dir=None):
+    """
+    Generate raw volume slice comparisons (corrected vs uncorrected maps).
+
+    Creates orthogonal slice plots and histograms comparing corrected and
+    uncorrected z-maps with no interpolation, for investigating raw data.
+
+    By default (no arguments), processes all subjects and all conditions at subject-level.
+
+    Args:
+        subject: Subject ID (e.g., sub-01) - if None, process all subjects
+        session: Session ID (e.g., ses-004) - if provided, uses session-level instead of subject-level
+        condition: Condition/contrast name (e.g., HIT, Kill) - if None, process all conditions
+        coords: Slice coordinates as "x,y,z" (e.g., "45,55,35") - optional, uses center of mass if not provided
+        low_level_confs: Use results from GLM with low-level confounds (default: False)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+        output_dir: Custom output directory (default: ./reports/figures/volume_slices/)
+
+    Examples:
+        # Process all subjects and conditions (subject-level)
+        invoke viz.volume-slices
+
+        # Process specific subject, all conditions
+        invoke viz.volume-slices --subject sub-01
+
+        # Process specific subject and condition
+        invoke viz.volume-slices --subject sub-01 --condition HIT
+
+        # Process specific session
+        invoke viz.volume-slices --subject sub-01 --session ses-004 --condition HIT
+    """
+    # If no subject specified, process all subjects
+    if subject is None:
+        subjects = SUBJECTS
+    else:
+        subjects = [subject]
+
+    # If no condition specified, process all conditions
+    if condition is None:
+        conditions = CONDITIONS
+    else:
+        conditions = [condition]
+
+    # If processing multiple subjects/conditions, iterate
+    if len(subjects) > 1 or len(conditions) > 1:
+        total = len(subjects) * len(conditions)
+        print(f"\n{'='*60}")
+        print(f"Generating volume slice comparisons")
+        print(f"Processing {len(subjects)} subject(s) x {len(conditions)} condition(s) = {total} comparisons")
+        print(f"{'='*60}\n")
+
+        for sub in subjects:
+            for cond in conditions:
+                viz_volume_slices(c, subject=sub, session=session, condition=cond, coords=coords,
+                                low_level_confs=low_level_confs, verbose=verbose,
+                                log_dir=log_dir, output_dir=output_dir)
+
+        print(f"\n{'='*60}")
+        print(f"All volume slice comparisons complete!")
+        print(f"Output directory: {output_dir if output_dir else './reports/figures/volume_slices/'}")
+        print(f"{'='*60}\n")
+        return
+
+    # Process single subject/condition
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_volume_slices.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    cmd_parts.extend(['--subject', subjects[0]])
+    cmd_parts.extend(['--condition', conditions[0]])
+
+    if session:
+        cmd_parts.extend(['--session', session])
+    if coords:
+        cmd_parts.extend(['--coords', coords])
+    if low_level_confs:
+        cmd_parts.append('--low-level-confs')
+    if output_dir:
+        cmd_parts.extend(['--output-dir', output_dir])
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    level = "session-level" if session else "subject-level"
+    print(f"[{subjects[0]} / {conditions[0]}] Generating volume slice comparison ({level})...")
+
+    c.run(cmd)
+
+
+@task
 def viz_mvpa_confusion_matrices(c, screening=20, output=None):
     """
     Plot MVPA confusion matrices for all subjects.
@@ -1076,6 +1171,7 @@ viz_collection.add_task(viz_condition_comparison, name='condition-comparison')
 viz_collection.add_task(viz_atlas_tables, name='atlas-tables')
 viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
+viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
 namespace.add_collection(viz_collection)
 
