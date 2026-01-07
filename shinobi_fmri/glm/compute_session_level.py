@@ -175,9 +175,10 @@ def load_session(sub, ses, run_list, path_to_data, use_low_level_confs=False):
             sub, ses, run, path_to_data
         )
         
-        design_matrix_clean, fmri_img, mask_resampled = utils.load_run(
+        load_run_result = utils.load_run(
             fmri_fname, mask_fname, events_fname, path_to_data, CONDS_LIST, use_low_level_confs=use_low_level_confs
         )
+        design_matrix_clean, fmri_img, mask_resampled = load_run_result
         design_matrices.append(design_matrix_clean)
         fmri_imgs.append(fmri_img)
     return fmri_imgs, design_matrices, mask_resampled, anat_fname

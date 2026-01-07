@@ -111,7 +111,7 @@ def validate_events_file(events_path: str, required_columns: Optional[List[str]]
         required_columns = ['onset', 'duration']
 
     try:
-        events = pd.read_csv(events_path, sep='\t')
+        events = pd.read_csv(events_path, sep='\t', low_memory=False)
     except Exception as e:
         raise ValueError(
             f"Failed to load events file: {events_path}\n"
@@ -597,8 +597,6 @@ def add_low_level_task_regressors(
         Features are first downsampled to TR, then convolved with canonical HRF
         to model hemodynamic response to sensory/motor stimulation.
     """
-    from nilearn.glm.first_level import compute_regressor
-
     # Initialize dictionary to store raw features
     features = {}
 
@@ -683,28 +681,16 @@ def add_low_level_task_regressors(
     convolved_features = pd.DataFrame()
 
     for feature_name, feature_signal in features.items():
-        # Convolve with HRF using nilearn's compute_regressor
-        # This handles HRF convolution properly
-        signal_convolved, _ = compute_regressor(
-            exp_condition=[(0, feature_signal[0])],  # Dummy event
-            hrf_model=hrf_model,
-            frame_times=frame_times,
-            oversampling=16
-        )
-
-        # Actually, compute_regressor expects events, not continuous signals
-        # For continuous signals, we need to use scipy.signal.convolve with HRF
+        # For continuous signals, use scipy.signal.convolve with HRF
         from scipy.signal import convolve
 
-        # Get canonical HRF
-        hrf_length = int(30 / t_r)  # 30 seconds of HRF
-        hrf_times = np.arange(hrf_length) * t_r
+        # Get canonical HRF (30 seconds duration)
         if hrf_model == 'spm':
             from nilearn.glm.first_level import spm_hrf
-            hrf = spm_hrf(hrf_times, t_r)
+            hrf = spm_hrf(t_r, oversampling=1, time_length=30.0)
         else:
             from nilearn.glm.first_level import glover_hrf
-            hrf = glover_hrf(hrf_times, t_r)
+            hrf = glover_hrf(t_r, oversampling=1, time_length=30.0)
 
         # Convolve feature with HRF
         convolved = convolve(feature_signal, hrf, mode='full')[:n_volumes]
