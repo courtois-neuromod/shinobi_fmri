@@ -243,7 +243,7 @@ Expected filename pattern: *contrast-{condition}*stat-z.nii.gz
                 z_map,
                 alpha=config.GLM_ALPHA,
                 height_control='fdr',
-                cluster_threshold=0
+                cluster_threshold=10
             )
 
             # Save properly thresholded z-map

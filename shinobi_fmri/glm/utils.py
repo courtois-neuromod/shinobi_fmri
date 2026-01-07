@@ -905,7 +905,7 @@ def make_z_map(
                 z_map,
                 alpha=alpha,
                 height_control='fdr',
-                cluster_threshold=0
+                cluster_threshold=10
             )
 
             # Save properly thresholded z-map

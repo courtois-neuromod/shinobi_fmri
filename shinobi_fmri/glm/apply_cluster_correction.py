@@ -80,7 +80,7 @@ def apply_cluster_correction_to_map(
             z_map,
             alpha=alpha,
             height_control='fdr',
-            cluster_threshold=5,
+            cluster_threshold=10,
         )
         
         # Save thresholded z-map

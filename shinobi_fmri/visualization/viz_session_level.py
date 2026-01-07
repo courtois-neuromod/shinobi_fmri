@@ -156,7 +156,7 @@ def create_viz(sub, ses, cond_name,
         logger.info(f"Generating visualizations for {zmap_fname}")
 
     # compute thresholds
-    uncorrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.001, height_control='fdr')
+    uncorrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.001, height_control=None)
     cluster_corrected_map, threshold = threshold_stats_img(zmap_fname, alpha=.05, height_control='fdr', cluster_threshold=10)
     
     # -------------------------------------------------------------------------
