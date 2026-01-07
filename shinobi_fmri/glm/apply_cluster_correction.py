@@ -80,7 +80,7 @@ def apply_cluster_correction_to_map(
             z_map,
             alpha=alpha,
             height_control='fdr',
-            cluster_threshold=0 # Pure FDR (voxel-wise)
+            cluster_threshold=5,
         )
         
         # Save thresholded z-map
@@ -112,6 +112,7 @@ def process_subject_level(
     threshold=None,
     alpha=0.05,
     overwrite=False,
+    low_level_confs=False,
     logger=None
 ):
     """
@@ -123,6 +124,7 @@ def process_subject_level(
         threshold: Cluster-forming threshold (use config default if None)
         alpha: FWE alpha level
         overwrite: Overwrite existing files
+        low_level_confs: Use results from GLM with low-level confounds
         logger: Logger instance
     """
     if threshold is None:
@@ -131,14 +133,17 @@ def process_subject_level(
     # Get subjects to process
     subjects = [subject] if subject else config.SUBJECTS
 
+    processed_dir = "processed_low-level" if low_level_confs else "processed"
+
     if logger:
         logger.info(f"Processing subject-level z-maps (threshold={threshold}, alpha={alpha})")
+        logger.info(f"Directory: {processed_dir}")
 
     total_processed = 0
     total_success = 0
 
     for subj in subjects:
-        zmaps_dir = op.join(data_path, "processed", "subject-level", subj, "z_maps")
+        zmaps_dir = op.join(data_path, processed_dir, "subject-level", subj, "z_maps")
         if not op.exists(zmaps_dir):
             if logger:
                 logger.warning(f"Directory not found: {zmaps_dir}")
@@ -172,6 +177,7 @@ def process_session_level(
     threshold=None,
     alpha=0.05,
     overwrite=False,
+    low_level_confs=False,
     logger=None
 ):
     """
@@ -184,6 +190,7 @@ def process_session_level(
         threshold: Cluster-forming threshold (use config default if None)
         alpha: FWE alpha level
         overwrite: Overwrite existing files
+        low_level_confs: Use results from GLM with low-level confounds
         logger: Logger instance
     """
     if threshold is None:
@@ -192,14 +199,17 @@ def process_session_level(
     # Get subjects to process
     subjects = [subject] if subject else config.SUBJECTS
 
+    processed_dir = "processed_low-level" if low_level_confs else "processed"
+
     if logger:
         logger.info(f"Processing session-level z-maps (threshold={threshold}, alpha={alpha})")
+        logger.info(f"Directory: {processed_dir}")
 
     total_processed = 0
     total_success = 0
 
     for subj in subjects:
-        subj_dir = op.join(data_path, "processed", "session-level", subj)
+        subj_dir = op.join(data_path, processed_dir, "session-level", subj)
         if not op.exists(subj_dir):
             if logger:
                 logger.warning(f"Directory not found: {subj_dir}")
@@ -287,6 +297,11 @@ def main():
         help="Overwrite existing corrected z-maps"
     )
     parser.add_argument(
+        "--low-level-confs",
+        action="store_true",
+        help="Use results from GLM with low-level confounds (processed_low-level/ directory)"
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="count",
         default=0,
@@ -322,6 +337,9 @@ def main():
         logger.info(f"Level: {args.level}")
         logger.info(f"Alpha (FDR q): {args.alpha}")
 
+        if args.low_level_confs:
+            logger.info("Using low-level confounds (processed_low-level/)")
+
         # Display thresholds (Ignored for FDR but logged for record if passed)
         if args.threshold:
              logger.info(f"Note: --threshold {args.threshold} is ignored for FDR calculation.")
@@ -336,6 +354,7 @@ def main():
                 args.threshold,
                 args.alpha,
                 args.overwrite,
+                args.low_level_confs,
                 logger
             )
 
@@ -347,6 +366,7 @@ def main():
                 args.threshold,
                 args.alpha,
                 args.overwrite,
+                args.low_level_confs,
                 logger
             )
 

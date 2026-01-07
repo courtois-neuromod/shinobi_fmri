@@ -220,7 +220,7 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
 
 
 @task
-def glm_apply_cluster_correction(c, level="both", subject=None, session=None, threshold=None, alpha=0.05, overwrite=False, verbose=0, log_dir=None):
+def glm_apply_cluster_correction(c, level="both", subject=None, session=None, threshold=None, alpha=0.05, overwrite=False, low_level_confs=False, verbose=0, log_dir=None):
     """
     Apply cluster-level FWE correction to existing z-maps.
 
@@ -239,6 +239,7 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
         threshold: Cluster-forming threshold (default: from config - 2.3 for subject/session)
         alpha: Family-wise error rate (default: 0.05)
         overwrite: Overwrite existing corrected z-maps
+        low_level_confs: Use results from GLM with low-level confounds (processed_low-level/ directory)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
     """
@@ -256,6 +257,8 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
         cmd_parts.extend(["--alpha", str(alpha)])
     if overwrite:
         cmd_parts.append("--overwrite")
+    if low_level_confs:
+        cmd_parts.append("--low-level-confs")
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
     if log_dir:
@@ -263,6 +266,8 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
 
     cmd = ' '.join(cmd_parts)
     print(f"Applying cluster-level FWE correction ({level}-level)...")
+    if low_level_confs:
+        print(f"  Using low-level confounds (processed_low-level/)")
     c.run(cmd)
 
 
