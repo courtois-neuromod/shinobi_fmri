@@ -334,16 +334,21 @@ def make_or_load_glm(
     return fmri_glm, mask_resampled
 
 
-def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None, conditions_list=None):
+def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None, conditions_list=None, levels_list=None):
     """
     Process an fMRI session for a given subject and session.
 
     Args:
         conditions_list: List of conditions to process (game conditions or low-level features)
+        levels_list: List of levels for interaction terms (optional)
     """
     # Use provided conditions_list or default to game conditions
     if conditions_list is None:
         conditions_list = config.CONDITIONS
+
+    # Use provided levels_list or default to empty (unless specified in config)
+    if levels_list is None:
+        levels_list = []
 
     def process_regressor(regressor_name, run_list_subset, n_runs_label, lvl=None):
         if lvl is None:
@@ -442,11 +447,11 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
             print(f"Processing {sub} {ses} with {n_runs} run(s): {run_list_subset}")
             print(f"{'='*60}\n")
 
-        for regressor_name in CONDS_LIST + LEVELS:
+        for regressor_name in conditions_list + levels_list:
             process_regressor(regressor_name, run_list_subset, n_runs_label)
 
-        for lvl in LEVELS:
-            for regressor_name in CONDS_LIST:
+        for lvl in levels_list:
+            for regressor_name in conditions_list:
                 process_regressor(regressor_name, run_list_subset, n_runs_label, lvl)
 
     return
@@ -491,7 +496,7 @@ def main():
         logger.info(f"Created dataset_description.json in {dataset_desc_dir}")
 
     try:
-        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger, conditions_list=CONDS_LIST)
+        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger, conditions_list=CONDS_LIST, levels_list=LEVELS)
     finally:
         logger.close()
 
