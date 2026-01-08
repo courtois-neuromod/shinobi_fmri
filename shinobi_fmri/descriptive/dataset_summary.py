@@ -16,11 +16,13 @@ import os.path as op
 import argparse
 import pandas as pd
 import nibabel as nib
+import json
 from glob import glob
 from typing import Dict, List, Tuple
 import logging
 
 import shinobi_fmri.config as config
+from shinobi_fmri.utils.logger import AnalysisLogger
 
 
 def count_events_by_type(events_df: pd.DataFrame) -> Dict[str, int]:
@@ -42,9 +44,9 @@ def get_run_summary(
     ses: str,
     run: str,
     data_path: str
-) -> Dict:
+) -> List[Dict]:
     """
-    Extract summary statistics for a single run.
+    Extract summary statistics for a single run, potentially splitting into multiple levels.
 
     Args:
         sub: Subject ID (e.g., 'sub-01')
@@ -53,7 +55,7 @@ def get_run_summary(
         data_path: Root data directory path
 
     Returns:
-        Dictionary with run summary statistics
+        List of dictionaries with run/level summary statistics
     """
     run_padded = f"{int(run):02d}"
 
@@ -62,17 +64,23 @@ def get_run_summary(
         data_path, "shinobi.fmriprep", sub, ses, "func",
         f"{sub}_{ses}_task-shinobi_run-{run}_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
     )
+    # Use simpler events file for level splitting
     events_path = op.join(
-        data_path, "shinobi_released", "shinobi", sub, ses, "func",
+        data_path, "shinobi", sub, ses, "func",
+        f"{sub}_{ses}_task-shinobi_run-{run_padded}_events.tsv"
+    )
+    # Annotated events for detailed event counts
+    annotated_events_path = op.join(
+        data_path, "shinobi", sub, ses, "func",
         f"{sub}_{ses}_task-shinobi_run-{run_padded}_desc-annotated_events.tsv"
     )
 
-    summary = {
+    base_summary = {
         'subject': sub,
         'session': ses,
         'run': run_padded,
         'fmri_exists': op.exists(fmri_path),
-        'events_exists': op.exists(events_path),
+        'events_exists': op.exists(annotated_events_path),
         'n_volumes': None,
         'n_HIT': 0,
         'n_JUMP': 0,
@@ -88,14 +96,14 @@ def get_run_summary(
     if op.exists(fmri_path):
         try:
             img = nib.load(fmri_path)
-            summary['n_volumes'] = img.shape[-1]
+            base_summary['n_volumes'] = img.shape[-1]
         except Exception as e:
             print(f"Warning: Could not load {fmri_path}: {e}")
 
-    # Count events
-    if op.exists(events_path):
+    # Count detailed events from annotated file (aggregated per run)
+    if op.exists(annotated_events_path):
         try:
-            events = pd.read_csv(events_path, sep='\t')
+            events = pd.read_csv(annotated_events_path, sep='\t')
             event_counts = count_events_by_type(events)
 
             # Extract counts for specific conditions
@@ -106,27 +114,88 @@ def get_run_summary(
                 for key in event_counts.keys():
                     if key.endswith(f'_{condition}') or key.endswith(f'-{condition}'):
                         count += event_counts[key]
-                summary[f'n_{condition}'] = count
+                base_summary[f'n_{condition}'] = count
 
         except Exception as e:
-            print(f"Warning: Could not process events {events_path}: {e}")
+            print(f"Warning: Could not process events {annotated_events_path}: {e}")
 
-    return summary
+    # Split into levels based on simple events file
+    summaries = []
+    
+    if op.exists(events_path):
+        try:
+            level_events = pd.read_csv(events_path, sep='\t')
+            
+            # Iterate over each played level in this run
+            for _, row in level_events.iterrows():
+                level_summary = base_summary.copy()
+                
+                # Extract level info
+                raw_level = str(row['level'])
+                # Map 1-0 -> Level 1, 4-1 -> Level 4, etc.
+                if raw_level.startswith('1-'):
+                    level_name = "Level 1"
+                elif raw_level.startswith('4-'):
+                    level_name = "Level 4"
+                elif raw_level.startswith('5-'):
+                    level_name = "Level 5"
+                else:
+                    level_name = raw_level # Fallback
+                
+                level_summary['level'] = level_name
+                level_summary['level_raw'] = raw_level
+                level_summary['duration'] = row['duration']
+                
+                # Determine Cleared status from JSON sidecar
+                stim_file = row.get('stim_file')
+                level_summary['cleared'] = False # Default
+                
+                if stim_file and isinstance(stim_file, str) and stim_file != "Missing file":
+                    # Path is relative to shinobi root
+                    json_path = op.join(data_path, "shinobi", stim_file.replace(".bk2", ".json"))
+                    if op.exists(json_path):
+                        try:
+                            with open(json_path) as jf:
+                                data = json.load(jf)
+                                level_summary['cleared'] = bool(data.get('cleared', False))
+                        except Exception as e:
+                            # logging handled by caller/verbose check usually
+                            pass
+                            
+                summaries.append(level_summary)
+                
+        except Exception as e:
+            print(f"Warning: Could not process level events {events_path}: {e}")
+            # Fallback if processing fails: add base summary with empty level info
+            summaries.append(base_summary)
+    else:
+        # If no events file, just return base summary
+        summaries.append(base_summary)
+        
+    return summaries
 
 
-def generate_dataset_summary(data_path: str, output_csv: str = None, verbose: bool = False) -> pd.DataFrame:
+def generate_dataset_summary(
+    data_path: str,
+    output_csv: str = None,
+    verbose: bool = False,
+    logger: AnalysisLogger = None
+) -> pd.DataFrame:
     """
     Generate complete dataset summary table.
 
     Args:
         data_path: Root data directory
         output_csv: Optional path to save CSV output
-        verbose: Print progress information
+        verbose: Print progress information (deprecated, use logger instead)
+        logger: AnalysisLogger instance for logging
 
     Returns:
         DataFrame with one row per run containing summary statistics
     """
-    if verbose:
+    if logger:
+        logger.info(f"Scanning dataset in: {data_path}")
+    elif verbose:
         print(f"Scanning dataset in: {data_path}")
 
     # Find all fMRI files
@@ -136,7 +205,9 @@ def generate_dataset_summary(data_path: str, output_csv: str = None, verbose: bo
     )
     fmri_files = sorted(glob(fmri_pattern))
 
-    if verbose:
+    if logger:
+        logger.info(f"Found {len(fmri_files)} fMRI runs")
+    elif verbose:
         print(f"Found {len(fmri_files)} fMRI runs")
 
     summaries = []
@@ -150,11 +221,14 @@ def generate_dataset_summary(data_path: str, output_csv: str = None, verbose: bo
         run_part = [p for p in parts if p.startswith('run-')][0]
         run = run_part.split('-')[1]  # Extract run number
 
-        if verbose:
+        if logger:
+            logger.debug(f"Processing {sub} {ses} run-{run}")
+        elif verbose:
             print(f"Processing {sub} {ses} run-{run}")
 
-        summary = get_run_summary(sub, ses, run, data_path)
-        summaries.append(summary)
+        # get_run_summary now returns a list of dicts (one per level attempt)
+        run_summaries = get_run_summary(sub, ses, run, data_path)
+        summaries.extend(run_summaries)
 
     # Create DataFrame
     df = pd.DataFrame(summaries)
@@ -163,30 +237,52 @@ def generate_dataset_summary(data_path: str, output_csv: str = None, verbose: bo
     df = df.sort_values(['subject', 'session', 'run']).reset_index(drop=True)
 
     # Add summary statistics
-    if verbose:
-        print("\n" + "="*60)
-        print("DATASET SUMMARY")
-        print("="*60)
-        print(f"Total runs: {len(df)}")
-        print(f"Subjects: {df['subject'].nunique()}")
-        print(f"Sessions: {df['session'].nunique()}")
-        print(f"Runs with fMRI: {df['fmri_exists'].sum()}")
-        print(f"Runs with events: {df['events_exists'].sum()}")
-        print(f"Mean volumes per run: {df['n_volumes'].mean():.1f} ± {df['n_volumes'].std():.1f}")
+    if logger or verbose:
+        summary_lines = [
+            "=" * 60,
+            "DATASET SUMMARY",
+            "=" * 60,
+            f"Total level attempts: {len(df)}",
+            f"Subjects: {df['subject'].nunique()}",
+            f"Sessions: {df['session'].nunique()}",
+            f"Runs with fMRI: {df['fmri_exists'].sum()}", # This is now duplicated per level, so it counts level attempts with fMRI
+            f"Runs with events: {df['events_exists'].sum()}",
+        ]
+        
+        if 'n_volumes' in df.columns:
+             # Dedup for volume stats
+             unique_runs = df.drop_duplicates(subset=['subject', 'session', 'run'])
+             summary_lines.append(f"Mean volumes per run: {unique_runs['n_volumes'].mean():.1f} ± {unique_runs['n_volumes'].std():.1f}")
+
+        summary_lines.append("")
+        summary_lines.append("Event counts across dataset:")
 
         # Event statistics
         event_cols = [c for c in df.columns if c.startswith('n_') and c not in ['n_volumes']]
-        print("\nEvent counts across dataset:")
+        # Event counts are also duplicated per level attempt because they come from the run-level annotated file
+        # We need to take them from unique runs only to avoid overcounting
+        unique_runs_df = df.drop_duplicates(subset=['subject', 'session', 'run'])
+        
         for col in event_cols:
-            total = df[col].sum()
-            mean_per_run = df[col].mean()
-            print(f"  {col[2:]}: {total} total ({mean_per_run:.1f} per run)")
-        print("="*60)
+            total = unique_runs_df[col].sum()
+            mean_per_run = unique_runs_df[col].mean()
+            summary_lines.append(f"  {col[2:]}: {total} total ({mean_per_run:.1f} per run)")
+        summary_lines.append("=" * 60)
+
+        if logger:
+            for line in summary_lines:
+                if line:
+                    logger.info(line)
+        else:
+            print("\n" + "\n".join(summary_lines))
 
     # Save to CSV if requested
     if output_csv:
+        os.makedirs(op.dirname(output_csv), exist_ok=True)
         df.to_csv(output_csv, index=False)
-        if verbose:
+        if logger:
+            logger.info(f"Saved to: {output_csv}")
+        elif verbose:
             print(f"\nSaved to: {output_csv}")
 
     return df
@@ -196,13 +292,19 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Shinobi dataset summary table")
     parser.add_argument(
         "-o", "--output",
-        default="dataset_summary.csv",
-        help="Output CSV file path (default: dataset_summary.csv)"
+        default=None,
+        help="Output CSV file path (default: {DATA_PATH}/processed/descriptive/dataset_summary.csv)"
     )
     parser.add_argument(
         "-v", "--verbose",
-        action="store_true",
-        help="Print detailed progress and summary statistics"
+        action="count",
+        default=0,
+        help="Increase verbosity level (0=WARNING, 1=INFO, 2=DEBUG). Can be repeated: -v, -vv"
+    )
+    parser.add_argument(
+        "--log-dir",
+        default=None,
+        help="Custom directory for log files (default: ./logs/)"
     )
     parser.add_argument(
         "--data-path",
@@ -215,16 +317,32 @@ def main():
     # Use data path from args or config
     data_path = args.data_path if args.data_path else config.DATA_PATH
 
+    # Set default output path
+    if args.output is None:
+        args.output = op.join(data_path, "processed", "descriptive", "dataset_summary.csv")
+
+    # Setup logger
+    verbosity_map = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
+    logger = AnalysisLogger(
+        log_name="dataset_summary",
+        verbosity=verbosity_map.get(args.verbose, logging.DEBUG),
+        log_dir=args.log_dir
+    )
+
     # Generate summary
     df = generate_dataset_summary(
         data_path=data_path,
         output_csv=args.output,
-        verbose=args.verbose
+        verbose=False,  # Use logger instead
+        logger=logger
     )
 
-    if not args.verbose:
+    # Brief summary if not verbose
+    if args.verbose == 0:
         print(f"Generated summary for {len(df)} runs")
         print(f"Saved to: {args.output}")
+
+    logger.close()
 
 
 if __name__ == "__main__":

@@ -1144,6 +1144,60 @@ def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False
 
 
 # =============================================================================
+# Descriptive Statistics Tasks
+# =============================================================================
+
+@task
+def descriptive_viz(c, data_path=None, output=None, csv_path=None, force=False, verbose=0, log_dir=None):
+    """
+    Generate descriptive statistics visualization figure with dataset summary.
+
+    Creates publication-ready 3-panel figure:
+    - Panel A: Events by subject and condition (grouped bar chart, spans top row)
+    - Panel B: Session/run availability matrix (heatmap, bottom left)
+    - Panel C: Volume counts distribution (box plot, bottom right)
+
+    Automatically generates CSV summary if it doesn't exist.
+
+    Args:
+        data_path: Override data path from config
+        output: Output figure path (default: {FIG_PATH}/descriptive_stats.png)
+        csv_path: Path to dataset_summary.csv (default: auto-detect or generate)
+        force: Force regeneration of both CSV and figure
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+
+    Examples:
+        # Generate figure (auto-generates CSV if needed)
+        invoke descriptive.viz --verbose 1
+
+        # Force regeneration of both CSV and figure
+        invoke descriptive.viz --force --verbose 1
+
+        # Use custom output path
+        invoke descriptive.viz --output reports/figures/custom.png
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "descriptive", "viz_descriptive_stats.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+    if data_path:
+        cmd_parts.extend(["--data-path", data_path])
+    if output:
+        cmd_parts.extend(["--output", output])
+    if csv_path:
+        cmd_parts.extend(["--csv-path", csv_path])
+    if force:
+        cmd_parts.append("--force")
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    c.run(cmd)
+
+
+# =============================================================================
 # Build Task Collections
 # =============================================================================
 
@@ -1181,6 +1235,7 @@ viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
 viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
+viz_collection.add_task(descriptive_viz, name='descriptive')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks

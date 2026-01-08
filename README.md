@@ -169,6 +169,9 @@ The pipeline provides the following task categories:
 - `viz.within-subject-correlations` - Within-subject condition correlation analysis and heatmaps
 - `viz.mvpa-confusion-matrices` - MVPA confusion matrices with task grouping
 
+**Descriptive Statistics:**
+- `descriptive.viz` - Generate 3-panel figure with dataset summary (events, sessions, volumes)
+
 **Pipelines:**
 - `pipeline.full` - Complete pipeline for a subject/session
 - `pipeline.subject` - Complete subject-level pipeline
@@ -184,6 +187,9 @@ invoke corr.beta --slurm --chunk-size 100 --verbose 1
 
 # Generate visualizations for all subjects
 invoke viz.session-level
+
+# Generate descriptive statistics figure (auto-generates CSV if needed)
+invoke descriptive.viz --verbose 1
 
 # Run complete pipeline
 invoke pipeline.full --subject sub-01 --session ses-001

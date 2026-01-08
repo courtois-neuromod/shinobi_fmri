@@ -9,6 +9,7 @@ This document provides detailed documentation for all available analysis tasks i
 - [MVPA Tasks](#mvpa-tasks)
 - [Correlation Analysis Tasks](#correlation-analysis-tasks)
 - [Visualization Tasks](#visualization-tasks)
+- [Descriptive Statistics Tasks](#descriptive-statistics-tasks)
 - [Pipeline Tasks](#pipeline-tasks)
 - [Setup and Utility Tasks](#setup-and-utility-tasks)
 
@@ -683,6 +684,53 @@ invoke viz.mvpa-confusion-matrices --output reports/my_figure.png
 - Color-coded labels by task
 - Visual separation between Shinobi and HCP task blocks
 - Shared colorbar and legend showing all tasks
+
+---
+
+## Descriptive Statistics Tasks
+
+### `descriptive.viz`
+
+Generate descriptive statistics visualization figure with dataset summary.
+
+Creates publication-ready 3-panel figure:
+- **Panel A:** Events by subject and condition (grouped bar chart, spans top row)
+- **Panel B:** Session/run availability matrix (heatmap, bottom left)
+- **Panel C:** Volume counts distribution (box plot, bottom right)
+
+Automatically generates CSV summary if it doesn't exist.
+
+**Arguments:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--data-path` | str | `{DATA_PATH}` | Path to data directory |
+| `--output` | str | `{FIG_PATH}/descriptive_stats.png` | Output figure path |
+| `--csv-path` | str | Auto-detect | Path to dataset_summary.csv |
+| `--force` | flag | False | Force regeneration of both CSV and figure |
+| `--verbose` | int | 0 | Verbosity level (0-2) |
+| `--log-dir` | str | None | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Generate figure (auto-generates CSV if needed)
+invoke descriptive.viz --verbose 1
+
+# Force regeneration of both CSV and figure
+invoke descriptive.viz --force --verbose 1
+
+# Use custom output path
+invoke descriptive.viz --output reports/figures/custom.png
+
+# Use existing custom CSV file
+invoke descriptive.viz --csv-path /path/to/custom_summary.csv
+```
+
+**Output:**
+
+- **CSV:** `{DATA_PATH}/processed/descriptive/dataset_summary.csv` - Dataset summary with one row per run containing subject, session, run identifiers, fMRI and events file availability, number of volumes, and event counts for each condition
+- **Figure:** `{FIG_PATH}/descriptive_stats.png` - Publication-ready PNG figure (300 DPI) with 3 panels showing events by subject/condition, session availability, and volume distribution
 
 ---
 
