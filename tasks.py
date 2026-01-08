@@ -22,13 +22,14 @@ load_dotenv()
 
 # Import configuration
 try:
-    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
+    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, LOW_LEVEL_CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
 except ImportError:
     # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
     FIG_PATH = os.getenv("SHINOBI_FIG_PATH", "reports/figures")
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
     CONDITIONS = ['HIT', 'JUMP', 'DOWN', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
+    LOW_LEVEL_CONDITIONS = ['luminance', 'optical_flow', 'audio_envelope', 'button_presses_count']
     PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")
     SLURM_PYTHON_BIN = os.getenv("SHINOBI_SLURM_PYTHON_BIN", "python")
 
@@ -185,6 +186,8 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
     # If no condition specified, process all conditions
     if condition is None:
         conditions = CONDITIONS
+        if low_level_confs:
+            conditions = conditions + LOW_LEVEL_CONDITIONS
     else:
         conditions = [condition]
 
