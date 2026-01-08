@@ -388,7 +388,10 @@ def downsample_to_TR(
     # Average within bins using bincount
     sums = np.bincount(bin_idx, weights=signal)
     counts = np.bincount(bin_idx)
-    ds = sums / counts  # bin means
+
+    # Avoid division by zero - replace empty bins with 0
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ds = np.divide(sums, counts, out=np.zeros_like(sums), where=counts!=0)
 
     # Time of each downsampled point (bin centers)
     t_ds = (np.arange(len(ds)) + 0.5) * TR
@@ -626,6 +629,13 @@ def add_low_level_task_regressors(
 
         for key, val in ppc_rep.items():
             x = np.asarray(val, dtype=float)
+
+            # Clean source data - replace NaN/Inf with 0
+            if np.any(~np.isfinite(x)):
+                n_invalid = np.sum(~np.isfinite(x))
+                logging.debug(f"Source data for '{key}' has {n_invalid} NaN/Inf values in {ppc_fname} - replacing with 0")
+                x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+
             y_tr, t_ds = downsample_to_TR(x, fs=60.0, TR=t_r)
 
             if key not in ppc_data:
@@ -681,6 +691,13 @@ def add_low_level_task_regressors(
     convolved_features = pd.DataFrame()
 
     for feature_name, feature_signal in features.items():
+        # Clean feature signal before convolution
+        # Replace NaN and Inf with 0
+        if np.any(~np.isfinite(feature_signal)):
+            n_invalid = np.sum(~np.isfinite(feature_signal))
+            logging.warning(f"Feature '{feature_name}' has {n_invalid} NaN/Inf values - replacing with 0")
+            feature_signal = np.nan_to_num(feature_signal, nan=0.0, posinf=0.0, neginf=0.0)
+
         # For continuous signals, use scipy.signal.convolve with HRF
         from scipy.signal import convolve
 
@@ -694,6 +711,13 @@ def add_low_level_task_regressors(
 
         # Convolve feature with HRF
         convolved = convolve(feature_signal, hrf, mode='full')[:n_volumes]
+
+        # Ensure convolved signal is also clean
+        if np.any(~np.isfinite(convolved)):
+            n_invalid = np.sum(~np.isfinite(convolved))
+            logging.warning(f"Convolved feature '{feature_name}' has {n_invalid} NaN/Inf values after HRF convolution - replacing with 0")
+            convolved = np.nan_to_num(convolved, nan=0.0, posinf=0.0, neginf=0.0)
+
         convolved_features[feature_name] = convolved
 
     return convolved_features
