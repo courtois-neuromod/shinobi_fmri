@@ -691,11 +691,18 @@ def add_low_level_task_regressors(
     convolved_features = pd.DataFrame()
 
     for feature_name, feature_signal in features.items():
+        # Log statistics before cleaning
+        n_nonzero = np.sum(feature_signal != 0)
+        n_invalid_pre = np.sum(~np.isfinite(feature_signal))
+
         # Clean feature signal before convolution
         # Replace NaN and Inf with 0
         if np.any(~np.isfinite(feature_signal)):
-            n_invalid = np.sum(~np.isfinite(feature_signal))
-            logging.warning(f"Feature '{feature_name}' has {n_invalid} NaN/Inf values - replacing with 0")
+            logging.warning(
+                f"Feature '{feature_name}' BEFORE convolution: "
+                f"{n_invalid_pre}/{n_volumes} NaN/Inf, "
+                f"{n_nonzero} non-zero - replacing NaN/Inf with 0"
+            )
             feature_signal = np.nan_to_num(feature_signal, nan=0.0, posinf=0.0, neginf=0.0)
 
         # For continuous signals, use scipy.signal.convolve with HRF
@@ -715,7 +722,10 @@ def add_low_level_task_regressors(
         # Ensure convolved signal is also clean
         if np.any(~np.isfinite(convolved)):
             n_invalid = np.sum(~np.isfinite(convolved))
-            logging.warning(f"Convolved feature '{feature_name}' has {n_invalid} NaN/Inf values after HRF convolution - replacing with 0")
+            logging.warning(
+                f"Convolved feature '{feature_name}' AFTER convolution: "
+                f"{n_invalid}/{n_volumes} NaN/Inf - replacing with 0"
+            )
             convolved = np.nan_to_num(convolved, nan=0.0, posinf=0.0, neginf=0.0)
 
         convolved_features[feature_name] = convolved
@@ -798,7 +808,9 @@ def get_clean_matrix(
         )
         for col in low_level_regressors.columns:
             if col not in design_matrix_raw.columns:
-                design_matrix_raw[col] = low_level_regressors[col]
+                # Use .values to avoid pandas index alignment issues
+                # (design_matrix_raw has frame_times index, low_level_regressors has integer index)
+                design_matrix_raw[col] = low_level_regressors[col].values
 
     design_matrix_full = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_full
@@ -834,6 +846,24 @@ def make_and_fit_glm(
         - 16 parallel jobs for efficiency
         - Standardize: False (data pre-standardized)
     """
+    # Validate and clean design matrices before fitting
+    cleaned_design_matrices = []
+    for i, dm in enumerate(design_matrices):
+        dm_cleaned = dm.copy()
+
+        # Check for NaN/Inf values in each column
+        for col in dm_cleaned.columns:
+            col_data = dm_cleaned[col].values
+            if np.any(~np.isfinite(col_data)):
+                n_invalid = np.sum(~np.isfinite(col_data))
+                logging.warning(
+                    f"Design matrix {i}, column '{col}': {n_invalid}/{len(col_data)} "
+                    f"values are NaN/Inf - replacing with 0"
+                )
+                dm_cleaned[col] = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+        cleaned_design_matrices.append(dm_cleaned)
+
     fmri_glm = FirstLevelModel(
         t_r=t_r,
         noise_model=config.GLM_NOISE_MODEL,
@@ -846,7 +876,7 @@ def make_and_fit_glm(
         mask_img=mask_resampled,
         minimize_memory=False,
     )
-    fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=design_matrices)
+    fmri_glm = fmri_glm.fit(fmri_imgs, design_matrices=cleaned_design_matrices)
     return fmri_glm
 
 def make_z_map(

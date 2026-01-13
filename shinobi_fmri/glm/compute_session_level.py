@@ -57,11 +57,16 @@ from shinobi_fmri.utils.provenance import create_metadata, save_sidecar_metadata
 from shinobi_fmri.glm import utils
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-# Suppress informational warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Suppress informational warnings that don't indicate problems
 warnings.filterwarnings('ignore', message='.*imgs are being resampled to the mask_img resolution.*')
 warnings.filterwarnings('ignore', message='.*Mean values of 0 observed.*')
 warnings.filterwarnings('ignore', message='.*design matrices are supplied.*')
-warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Suppress expected nilearn warnings for multi-run session-level GLM
+warnings.filterwarnings('ignore', message='.*The same contrast will be used for all.*')
+warnings.filterwarnings('ignore', message='.*Running approximate fixed effects on F statistics.*')
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

@@ -69,6 +69,10 @@ from nibabel import Nifti1Image
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 
+# Suppress expected nilearn warnings for multi-session subject-level GLM
+warnings.filterwarnings('ignore', message='.*The same contrast will be used for all.*')
+warnings.filterwarnings('ignore', message='.*Running approximate fixed effects on F statistics.*')
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s",
