@@ -282,7 +282,7 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
 def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                        screening=20, n_jobs=-1, slurm=False,
                        skip_decoder=False, skip_permutations=False, skip_aggregate=False,
-                       verbose=0, log_dir=None):
+                       low_level_confs=False, verbose=0, log_dir=None):
     """
     Run complete session-level MVPA pipeline: decoder + permutations + aggregation.
 
@@ -298,6 +298,7 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
         skip_decoder: Skip decoder step (run only permutations/aggregation)
         skip_permutations: Skip permutation testing
         skip_aggregate: Skip aggregation step
+        low_level_confs: Use z-maps from GLM with low-level features (processed_low-level/ directory)
         verbose: Verbosity level
         log_dir: Custom log directory
 
@@ -313,6 +314,9 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
 
         # Run only permutations and aggregation (decoder already done)
         invoke mvpa.session-level --subject sub-01 --skip-decoder --slurm
+
+        # Use low-level features (luminance, optical flow, audio, button presses)
+        invoke mvpa.session-level --subject sub-01 --low-level-confs --slurm
     """
     # Determine subjects to process
     if subject is None:
@@ -335,7 +339,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
             if not skip_decoder:
                 decoder_script = op.join(SLURM_DIR, "subm_mvpa_ses-level.sh")
                 # Use --parsable to get just the job ID
-                cmd = f"sbatch --parsable {decoder_script} {sub} {screening} {n_jobs}"
+                low_level_flag = "true" if low_level_confs else "false"
+                cmd = f"sbatch --parsable {decoder_script} {sub} {screening} {n_jobs} {low_level_flag}"
                 print(f"[1/3] Submitting decoder job for {sub}...")
                 result = c.run(cmd, hide=True)
                 decoder_job_id = result.stdout.strip()
@@ -349,11 +354,12 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                 n_jobs_needed = (n_permutations + perms_per_job - 1) // perms_per_job
 
                 perm_script = op.join(SLURM_DIR, "subm_mvpa_permutation.sh")
+                low_level_flag = "true" if low_level_confs else "false"
                 for job_idx in range(n_jobs_needed):
                     perm_start = job_idx * perms_per_job
                     perm_end = min((job_idx + 1) * perms_per_job, n_permutations)
 
-                    cmd = f"sbatch --parsable {perm_script} {sub} {n_permutations} {perm_start} {perm_end} {screening} {n_jobs}"
+                    cmd = f"sbatch --parsable {perm_script} {sub} {n_permutations} {perm_start} {perm_end} {screening} {n_jobs} {low_level_flag}"
                     result = c.run(cmd, hide=True)
                     perm_job_id = result.stdout.strip()
                     perm_job_ids.append(perm_job_id)
@@ -393,6 +399,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                     args += f" -{'v' * verbose}"
                 if log_dir:
                     args += f" --log-dir {log_dir}"
+                if low_level_confs:
+                    args += " --low-level-confs"
                 cmd = f"{PYTHON_BIN} {script} {args}"
                 c.run(cmd)
                 print(f"  ✓ Decoder complete")
@@ -407,6 +415,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                     args += f" -{'v' * verbose}"
                 if log_dir:
                     args += f" --log-dir {log_dir}"
+                if low_level_confs:
+                    args += " --low-level-confs"
                 cmd = f"{PYTHON_BIN} {script} {args}"
                 c.run(cmd)
                 print(f"  ✓ Permutations complete")

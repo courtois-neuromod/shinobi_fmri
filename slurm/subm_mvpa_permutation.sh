@@ -15,6 +15,7 @@
 # $4 = perm_end (ending index for this job)
 # $5 = screening (percentile)
 # $6 = n_jobs (CPUs)
+# $7 = low_level_confs (true/false, default: false)
 
 SUBJECT=$1
 N_PERM=$2
@@ -22,6 +23,7 @@ PERM_START=$3
 PERM_END=$4
 SCREENING=${5:-20}
 N_JOBS=${6:-40}
+LOW_LEVEL_CONFS=${7:-false}
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
@@ -47,22 +49,22 @@ fi
 echo "=========================================="
 echo "MVPA Permutation Testing"
 echo "=========================================="
-echo "Subject:      $SUBJECT"
-echo "Permutations: $PERM_START to $((PERM_END-1)) (out of $N_PERM total)"
-echo "Screening:    $SCREENING%"
-echo "CPUs:         $N_JOBS"
-echo "Python:       $PYTHON_BIN"
+echo "Subject:          $SUBJECT"
+echo "Permutations:     $PERM_START to $((PERM_END-1)) (out of $N_PERM total)"
+echo "Screening:        $SCREENING%"
+echo "CPUs:             $N_JOBS"
+echo "Low-level confs:  $LOW_LEVEL_CONFS"
+echo "Python:           $PYTHON_BIN"
 echo "=========================================="
 
+# Build command arguments
+CMD_ARGS="--subject $SUBJECT --n-permutations $N_PERM --perm-start $PERM_START --perm-end $PERM_END --screening $SCREENING --n-jobs $N_JOBS -v"
+if [ "$LOW_LEVEL_CONFS" = "true" ]; then
+    CMD_ARGS="$CMD_ARGS --low-level-confs"
+fi
+
 # Run permutation test
-"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py \
-    --subject $SUBJECT \
-    --n-permutations $N_PERM \
-    --perm-start $PERM_START \
-    --perm-end $PERM_END \
-    --screening $SCREENING \
-    --n-jobs $N_JOBS \
-    -v
+"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py $CMD_ARGS
 
 echo "=========================================="
 echo "Permutation job completed"

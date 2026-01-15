@@ -12,10 +12,12 @@
 # $1 = subject (e.g., sub-01)
 # $2 = screening (percentile, default: 20)
 # $3 = n_jobs (CPUs, default: 40)
+# $4 = low_level_confs (true/false, default: false)
 
 SUBJECT=$1
 SCREENING=${2:-20}
 N_JOBS=${3:-40}
+LOW_LEVEL_CONFS=${4:-false}
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
@@ -41,18 +43,21 @@ fi
 echo "=========================================="
 echo "MVPA Session-Level Decoder"
 echo "=========================================="
-echo "Subject:   $SUBJECT"
-echo "Screening: $SCREENING%"
-echo "CPUs:      $N_JOBS"
-echo "Python:    $PYTHON_BIN"
+echo "Subject:          $SUBJECT"
+echo "Screening:        $SCREENING%"
+echo "CPUs:             $N_JOBS"
+echo "Low-level confs:  $LOW_LEVEL_CONFS"
+echo "Python:           $PYTHON_BIN"
 echo "=========================================="
 
+# Build command arguments
+CMD_ARGS="--subject $SUBJECT --screening $SCREENING --n-jobs $N_JOBS -v"
+if [ "$LOW_LEVEL_CONFS" = "true" ]; then
+    CMD_ARGS="$CMD_ARGS --low-level-confs"
+fi
+
 # Run MVPA decoder
-"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py \
-    --subject $SUBJECT \
-    --screening $SCREENING \
-    --n-jobs $N_JOBS \
-    -v
+"$PYTHON_BIN" shinobi_fmri/mvpa/compute_mvpa.py $CMD_ARGS
 
 echo "=========================================="
 echo "Decoder completed"

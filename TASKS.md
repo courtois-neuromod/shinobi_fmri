@@ -187,6 +187,7 @@ The task automatically:
 | `--skip-decoder` | flag | False | No | Skip decoder step (run only permutations/aggregation) |
 | `--skip-permutations` | flag | False | No | Skip permutation testing |
 | `--skip-aggregate` | flag | False | No | Skip aggregation step |
+| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level features (processed_low-level/ directory) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -214,6 +215,9 @@ invoke mvpa.session-level --subject sub-01 --skip-decoder --skip-permutations
 
 # Custom screening with full pipeline on SLURM
 invoke mvpa.session-level --screening 10 --n-permutations 1000 --slurm
+
+# Use low-level features instead of game conditions
+invoke mvpa.session-level --subject sub-01 --low-level-confs --slurm
 ```
 
 **How Job Dependencies Work (SLURM Mode):**
