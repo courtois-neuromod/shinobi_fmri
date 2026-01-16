@@ -334,6 +334,7 @@ Generate visualizations for session-level GLM results.
 | `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, process all |
 | `--condition` | str | None | No | Condition/contrast name. If None, process all |
 | `--slurm` | flag | False | No | Submit to SLURM cluster |
+| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -345,6 +346,9 @@ invoke viz.session-level --subject sub-01 --condition HIT --verbose 1
 
 # Process all subjects/conditions
 invoke viz.session-level
+
+# Use low-level confounds GLM results
+invoke viz.session-level --low-level-confs
 
 # Submit to SLURM
 invoke viz.session-level --slurm
@@ -361,6 +365,7 @@ Generate visualizations for subject-level GLM results.
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `--slurm` | flag | False | No | Submit to SLURM cluster |
+| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -369,6 +374,9 @@ Generate visualizations for subject-level GLM results.
 ```bash
 # Generate subject-level visualizations
 invoke viz.subject-level --verbose 1
+
+# Use low-level confounds GLM results
+invoke viz.subject-level --low-level-confs
 
 # Submit to SLURM
 invoke viz.subject-level --slurm
@@ -495,10 +503,21 @@ Creates surface plots comparing two conditions with three-color overlay:
 - **Purple**: Significant for both conditions
 
 **Predefined comparisons (when using `--run-all`):**
+
+*Original comparisons (4):*
 - Kill vs reward (shinobi vs HCP gambling)
 - HealthLoss vs punishment (shinobi vs HCP gambling)
 - RIGHT vs JUMP (shinobi vs shinobi)
 - LEFT vs HIT (shinobi vs shinobi)
+
+*Low-level feature comparisons (6):*
+- All pairwise comparisons between: luminance, optical_flow, audio_envelope, button_presses_count
+
+*Low-level vs Shinobi annotation comparisons (8):*
+- Kill vs each of the 4 low-level features
+- RIGHT vs each of the 4 low-level features
+
+**Total: 18 comparisons when using `--run-all`**
 
 **Arguments:**
 
@@ -508,25 +527,46 @@ Creates surface plots comparing two conditions with three-color overlay:
 | `--cond2` | str | None | No | Second condition in format `source:condition` (e.g., `shinobi:HealthLoss` or `hcp:punishment`) |
 | `--run-all` | flag | False | No | Generate all predefined comparisons (default if no conditions specified) |
 | `--threshold` | float | 3.0 | No | Significance threshold for z-maps |
-| `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
+| `--use-raw-maps` | flag | False | No | Use raw (uncorrected) z-maps instead of corrected maps (default: corrected maps) |
+| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
-| `--output-dir` | str | `reports/figures/condition_comparison/` | No | Custom output directory |
+| `--output-dir` | str | See below | No | Custom output directory |
+
+**Output Directory Logic:**
+
+**By default, corrected maps are used.** The output directory is automatically determined:
+- `--low-level-confs` (corrected by default): `reports/figures_corrected_low-level/condition_comparison/`
+- Default (no flags, corrected maps): `reports/figures_corrected/condition_comparison/`
+- `--use-raw-maps` + `--low-level-confs`: `reports/figures_raw_low-level/condition_comparison/`
+- `--use-raw-maps` only: `reports/figures_raw/condition_comparison/`
 
 **Common Use Cases:**
 
 ```bash
-# Generate all predefined comparisons
+# Generate all predefined comparisons (uses corrected maps by default, outputs to figures_corrected/)
 invoke viz.condition-comparison --run-all --verbose 1
 
-# Compare two specific conditions
+# Compare two specific conditions (corrected maps by default)
 invoke viz.condition-comparison --cond1 shinobi:Kill --cond2 hcp:reward
 
 # Use custom threshold
 invoke viz.condition-comparison --run-all --threshold 2.5
 
-# Use corrected z-maps instead of raw maps
-invoke viz.condition-comparison --run-all --use-corrected-maps
+# Use low-level confounds GLM results (corrected maps by default, outputs to figures_corrected_low-level/)
+invoke viz.condition-comparison --run-all --low-level-confs
+
+# Compare specific low-level features (corrected by default)
+invoke viz.condition-comparison --cond1 shinobi:luminance --cond2 shinobi:optical_flow --low-level-confs
+
+# Compare low-level feature with annotation (corrected by default)
+invoke viz.condition-comparison --cond1 shinobi:audio_envelope --cond2 shinobi:Kill --low-level-confs
+
+# Use RAW (uncorrected) maps instead (outputs to figures_raw/)
+invoke viz.condition-comparison --run-all --use-raw-maps
+
+# Use raw maps with low-level confounds (outputs to figures_raw_low-level/)
+invoke viz.condition-comparison --run-all --use-raw-maps --low-level-confs
 
 # Custom output directory
 invoke viz.condition-comparison --cond1 shinobi:LEFT --cond2 shinobi:RIGHT --output-dir /custom/path
@@ -548,6 +588,7 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--voxel-thresh` | float | 3.0 | No | Voxel threshold for significance |
 | `--direction` | str | `both` | No | Direction of the contrast (`both`, `pos`, `neg`) |
 | `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
+| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
 **Common Use Cases:**
@@ -564,6 +605,9 @@ invoke viz.atlas-tables --direction pos
 
 # Use corrected z-maps instead of raw maps
 invoke viz.atlas-tables --use-corrected-maps
+
+# Use low-level confounds GLM results
+invoke viz.atlas-tables --low-level-confs
 
 # Use custom input/output directories
 invoke viz.atlas-tables --input-dir /path/to/zmaps --output-dir /path/to/tables
@@ -626,6 +670,7 @@ Computes how maps from different conditions correlate with each other within eac
 
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
+| `--low-level-confs` | flag | False | No | Use correlation data from processed_low-level/ directory |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -640,6 +685,9 @@ Computes how maps from different conditions correlate with each other within eac
 ```bash
 # Compute and visualize within-subject condition correlations
 invoke viz.within-subject-correlations --verbose 1
+
+# Use low-level confounds correlation data
+invoke viz.within-subject-correlations --low-level-confs
 
 # With custom log directory
 invoke viz.within-subject-correlations --log-dir ./logs/viz_correlations
@@ -664,6 +712,7 @@ Generate publication-quality confusion matrix visualization for all subjects wit
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `--screening` | int | 20 | No | Screening percentile used |
+| `--low-level-confs` | flag | False | No | Use MVPA results from processed_low-level/ directory |
 | `--output` | str | Auto | No | Output path for figure |
 
 **Output:**
@@ -677,6 +726,9 @@ invoke viz.mvpa-confusion-matrices
 
 # Custom screening percentile
 invoke viz.mvpa-confusion-matrices --screening 10
+
+# Use low-level confounds MVPA results
+invoke viz.mvpa-confusion-matrices --low-level-confs
 
 # Custom output location
 invoke viz.mvpa-confusion-matrices --output reports/my_figure.png

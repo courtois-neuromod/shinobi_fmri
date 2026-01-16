@@ -510,7 +510,7 @@ def fingerprinting(c, verbose=0, log_dir=None):
 # =============================================================================
 
 @task
-def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, log_dir=None):
+def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
     """
     Generate session-level visualizations.
 
@@ -520,15 +520,18 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
         slurm: If True, submit to SLURM cluster
         verbose: Verbosity level
         log_dir: Custom log directory
+        low_level_confs: Use z-maps from GLM with low-level confounds
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_session_level.py")
-    
+
     args = ""
     if subject:
         args += f" --subject {subject}"
     if condition:
         args += f" --contrast {condition}"
-        
+    if low_level_confs:
+        args += " --low-level-confs"
+
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:
@@ -547,7 +550,7 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
 
 
 @task
-def viz_subject_level(c, slurm=False, verbose=0, log_dir=None):
+def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
     """
     Generate subject-level visualizations.
 
@@ -555,10 +558,13 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None):
         slurm: If True, submit to SLURM cluster
         verbose: Verbosity level
         log_dir: Custom log directory
+        low_level_confs: Use z-maps from GLM with low-level confounds
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_subject_level.py")
-    
+
     args = ""
+    if low_level_confs:
+        args += " --low-level-confs"
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:
@@ -730,7 +736,7 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
 
 
 @task
-def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_corrected_maps=False, verbose=0, log_dir=None, output_dir=None):
+def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_raw_maps=False, low_level_confs=False, verbose=0, log_dir=None, output_dir=None):
     """
     Generate condition comparison surface plots.
 
@@ -739,21 +745,21 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
     - Red: Significant only for condition 2
     - Purple: Significant for both conditions
 
-    By default (--run-all), generates all predefined comparisons:
-    - Kill vs reward (shinobi vs HCP gambling)
-    - HealthLoss vs punishment (shinobi vs HCP gambling)
-    - RIGHT vs JUMP (shinobi vs shinobi)
-    - LEFT vs HIT (shinobi vs shinobi)
+    By default (--run-all), generates all predefined comparisons (18 total):
+    - 4 original comparisons (Shinobi vs HCP and Shinobi vs Shinobi)
+    - 6 low-level feature comparisons (all pairwise)
+    - 8 low-level vs Shinobi annotation comparisons (Kill and RIGHT vs 4 low-level features)
 
     Args:
         cond1: First condition in format "source:condition" (e.g., "shinobi:Kill" or "hcp:reward")
         cond2: Second condition in format "source:condition" (e.g., "shinobi:HealthLoss" or "hcp:punishment")
         run_all: Generate all predefined comparisons (default if no conditions specified)
         threshold: Significance threshold for z-maps (default: 3.0)
-        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
+        use_raw_maps: Use raw (uncorrected) z-maps instead of corrected maps (default: False, uses corrected maps)
+        low_level_confs: Use z-maps from GLM with low-level confounds
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
-        output_dir: Custom output directory (default: reports/figures/condition_comparison/)
+        output_dir: Custom output directory (auto-determined based on flags if not specified)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_condition_comparison.py")
 
@@ -774,8 +780,11 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
     if threshold != 3.0:
         cmd_parts.extend(['--threshold', str(threshold)])
 
-    if use_corrected_maps:
-        cmd_parts.append('--use-corrected-maps')
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
+
+    if low_level_confs:
+        cmd_parts.append('--low-level-confs')
 
     if output_dir:
         cmd_parts.extend(['--output-dir', output_dir])
@@ -800,7 +809,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
 
 @task
-def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, overwrite=False):
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, low_level_confs=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -811,6 +820,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
         use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
+        low_level_confs: Use z-maps from GLM with low-level confounds
         overwrite: Overwrite existing cluster files
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")
@@ -828,6 +838,9 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
 
     if use_corrected_maps:
         cmd_parts.append('--use-corrected-maps')
+
+    if low_level_confs:
+        cmd_parts.append('--low-level-confs')
 
     if overwrite:
         cmd_parts.append('--overwrite')
@@ -866,7 +879,7 @@ def viz_fingerprinting(c, verbose=0, log_dir=None):
 
 
 @task
-def viz_within_subject_correlations(c, verbose=0, log_dir=None):
+def viz_within_subject_correlations(c, low_level_confs=False, verbose=0, log_dir=None):
     """
     Compute and visualize within-subject condition correlations.
 
@@ -875,6 +888,7 @@ def viz_within_subject_correlations(c, verbose=0, log_dir=None):
     condition specificity.
 
     Args:
+        low_level_confs: Use correlation data from processed_low-level/ directory
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -882,6 +896,8 @@ def viz_within_subject_correlations(c, verbose=0, log_dir=None):
 
     cmd_parts = [PYTHON_BIN, script]
 
+    if low_level_confs:
+        cmd_parts.append('--low-level-confs')
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
     if log_dir:
@@ -989,7 +1005,7 @@ def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None
 
 
 @task
-def viz_mvpa_confusion_matrices(c, screening=20, output=None):
+def viz_mvpa_confusion_matrices(c, screening=20, low_level_confs=False, output=None):
     """
     Plot MVPA confusion matrices for all subjects.
 
@@ -998,11 +1014,14 @@ def viz_mvpa_confusion_matrices(c, screening=20, output=None):
 
     Args:
         screening: Screening percentile used (default: 20)
+        low_level_confs: Use MVPA results from processed_low-level/ directory
         output: Output path for figure (default: auto-generated in reports/figures_raw/)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_mvpa_confusion_matrices.py")
 
     cmd = f"{PYTHON_BIN} {script} --screening {screening} --no-show"
+    if low_level_confs:
+        cmd += " --low-level-confs"
     if output:
         cmd += f" --output {output}"
 

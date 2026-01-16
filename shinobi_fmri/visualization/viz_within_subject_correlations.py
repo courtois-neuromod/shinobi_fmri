@@ -5,6 +5,7 @@ Computes and visualizes how maps from different conditions correlate with each o
 within individuals, showing condition specificity.
 """
 
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -693,13 +694,38 @@ def plot_condition_specificity_matrix(subject_results, output_path):
 
 def main():
     """Compute correlations and generate all visualizations."""
+    parser = argparse.ArgumentParser(description="Within-subject condition correlation analysis")
+    parser.add_argument(
+        "--low-level-confs",
+        action="store_true",
+        help="Use correlation data from processed_low-level/ directory"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity level (e.g. -v for INFO, -vv for DEBUG)",
+    )
+    parser.add_argument(
+        "--log-dir",
+        default=None,
+        help="Directory for log files",
+    )
+    args = parser.parse_args()
+
     print("="*60)
     print("WITHIN-SUBJECT CONDITION CORRELATION ANALYSIS")
     print("="*60)
 
     # Paths
-    processed_dir = Path(DATA_PATH) / 'processed'
+    processed_dir_name = "processed_low-level" if args.low_level_confs else "processed"
+    processed_dir = Path(DATA_PATH) / processed_dir_name
     correlation_file = processed_dir / 'beta_maps_correlations.pkl'
+
+    if args.low_level_confs:
+        print(f"\nUsing low-level confounds data from {processed_dir_name}/")
+    else:
+        print(f"\nUsing standard data from {processed_dir_name}/")
 
     # Load data
     print("\nLoading correlation data...")

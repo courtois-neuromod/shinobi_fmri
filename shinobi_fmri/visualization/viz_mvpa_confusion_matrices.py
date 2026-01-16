@@ -275,12 +275,15 @@ if __name__ == "__main__":
                         help="Output path for figure (default: auto-generated)")
     parser.add_argument("--no-show", action="store_true", default=False,
                         help="Do not show the figure (default: False)")
+    parser.add_argument("--low-level-confs", action="store_true",
+                        help="Use MVPA results from processed_low-level/ directory")
 
     args = parser.parse_args()
 
     # Setup paths
     path_to_data = config.DATA_PATH
-    mvpa_results_path = op.join(path_to_data, "processed", f"mvpa_results_s{args.screening}")
+    processed_dir = "processed_low-level" if args.low_level_confs else "processed"
+    mvpa_results_path = op.join(path_to_data, processed_dir, f"mvpa_results_s{args.screening}")
     subjects = config.SUBJECTS
 
     # Default output path

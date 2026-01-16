@@ -287,7 +287,9 @@ def main(args, logger=None):
 
     for sub in subjects:
         try:
-            mvpa_results_path = op.join(path_to_data, "processed", f"mvpa_results_s{screening_percentile}")
+            # Use processed_low-level directory when low-level-confs flag is set
+            processed_dir = "processed_low-level" if args.low_level_confs else "processed"
+            mvpa_results_path = op.join(path_to_data, processed_dir, f"mvpa_results_s{screening_percentile}")
             os.makedirs(mvpa_results_path, exist_ok=True)
             decoder_fname = f"{sub}_decoder.pkl"
             decoder_pkl_path = op.join(mvpa_results_path, decoder_fname)

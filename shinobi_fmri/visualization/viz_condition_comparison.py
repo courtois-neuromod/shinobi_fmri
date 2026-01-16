@@ -51,11 +51,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module="numpy", message=
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="The `darkness` parameter will be deprecated")
 
 try:
-    from shinobi_fmri.config import DATA_PATH, SUBJECTS
+    from shinobi_fmri.config import DATA_PATH, SUBJECTS, LOW_LEVEL_CONDITIONS
 except ImportError:
     print("Warning: config not found. Using defaults.")
     DATA_PATH = "/home/hyruuk/scratch/data"
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
+    LOW_LEVEL_CONDITIONS = ['luminance', 'optical_flow', 'audio_envelope', 'button_presses_count']
 
 
 # Default significance threshold
@@ -98,7 +99,7 @@ def parse_condition_spec(cond_spec):
     return source, condition
 
 
-def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False):
+def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False, low_level_confs=False):
     """Get path to shinobi subject-level z-map.
 
     Args:
@@ -106,6 +107,7 @@ def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=Fals
         condition (str): Condition name (e.g., 'Kill')
         data_path (str): Path to data directory
         use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
+        low_level_confs (bool): If True, use z-maps from processed_low-level/ directory (default: False)
 
     Returns:
         str: Path to z-map file
@@ -115,9 +117,10 @@ def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=Fals
     else:
         filename = f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
 
+    processed_dir = "processed_low-level" if low_level_confs else "processed"
     return op.join(
         data_path,
-        "processed",
+        processed_dir,
         "subject-level",
         subject,
         "z_maps",
@@ -194,7 +197,7 @@ def tstat_to_zstat(t_values, df):
     return z_values
 
 
-def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_maps=False, logger=None):
+def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_maps=False, low_level_confs=False, logger=None):
     """Load z-map for a given condition.
 
     Args:
@@ -204,16 +207,17 @@ def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_map
         hcp_task (str): HCP task name (only used if source='hcp')
         data_path (str): Path to data directory
         use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
+        low_level_confs (bool): If True, use z-maps from processed_low-level/ directory (default: False)
         logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image or None: Loaded z-map image, or None if not found
     """
     if source == 'shinobi':
-        path = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps)
+        path = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps, low_level_confs)
         # Fall back to raw map if corrected doesn't exist
         if use_corrected_maps and not op.isfile(path):
-            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False)
+            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False, low_level_confs=low_level_confs)
             if op.isfile(path_raw):
                 if logger:
                     logger.debug(f"Corrected map not found, using raw map: {path_raw}")
@@ -927,9 +931,9 @@ def main():
         help='Output directory for plots (default: ./reports/figures/condition_comparison/<cond1>_vs_<cond2>/)'
     )
     parser.add_argument(
-        '--use-corrected-maps',
+        '--use-raw-maps',
         action='store_true',
-        help='Use corrected z-maps instead of raw maps (default: use raw maps)'
+        help='Use raw (uncorrected) z-maps instead of corrected maps (default: use corrected maps)'
     )
     parser.add_argument(
         '--skip-pdf',
@@ -947,8 +951,16 @@ def main():
         default=None,
         help='Directory for log files'
     )
+    parser.add_argument(
+        '--low-level-confs',
+        action='store_true',
+        help='Use z-maps from GLM with low-level confounds (processed_low-level/ directory)'
+    )
 
     args = parser.parse_args()
+
+    # Corrected maps are used by default (use --use-raw-maps to override)
+    use_corrected_maps = not args.use_raw_maps
 
     # Validate arguments
     if args.run_all and (args.cond1 or args.cond2):
@@ -974,18 +986,32 @@ def main():
     try:
         # Define comparison pairs
         if args.run_all:
+            # Original comparisons (Shinobi vs HCP and Shinobi vs Shinobi)
             comparisons = [
                 ('shinobi:Kill', 'hcp:reward'),
                 ('shinobi:HealthLoss', 'hcp:punishment'),
                 ('shinobi:RIGHT', 'shinobi:JUMP'),
                 ('shinobi:LEFT', 'shinobi:HIT'),
             ]
+
+            # Low-level features
+            low_level_features = LOW_LEVEL_CONDITIONS
+
+            # Add low-level vs low-level comparisons (6 comparisons)
+            for i, feat1 in enumerate(low_level_features):
+                for feat2 in low_level_features[i+1:]:
+                    comparisons.append((f'shinobi:{feat1}', f'shinobi:{feat2}'))
+
+            # Add Kill and RIGHT vs low-level comparisons (8 comparisons: 2 annotations × 4 low-level)
+            for annot in ['Kill', 'RIGHT']:
+                for feat in low_level_features:
+                    comparisons.append((f'shinobi:{annot}', f'shinobi:{feat}'))
         else:
             comparisons = [(args.cond1, args.cond2)]
 
         logger.info(f"Processing {len(comparisons)} comparison(s)")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
+        logger.info(f"Using {'corrected' if use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Threshold: |z| > {args.threshold}\n")
 
         # Process each comparison
@@ -1008,20 +1034,28 @@ def main():
                 hcp_task2 = find_hcp_task(cond2, args.hcp_task)
                 logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
 
-                # Determine base figure directory
-                base_fig_dir = "figures_corrected" if args.use_corrected_maps else "figures_raw"
-            
-                # Use single output directory for all panels
-                if args.output_dir:
-                    output_dir = args.output_dir
-                else:
-                    output_dir = op.join(".", "reports", base_fig_dir, "condition_comparison")
-                os.makedirs(output_dir, exist_ok=True)
-            
-                if len(comparisons) == 1:
-                    logger.info(f"Base figures directory: {base_fig_dir}")
-                    logger.info(f"Output directory: {output_dir}\n")
-                        # Get task colors for conditions
+            # Determine base figure directory based on both flags
+            if use_corrected_maps and args.low_level_confs:
+                base_fig_dir = "figures_corrected_low-level"
+            elif use_corrected_maps:
+                base_fig_dir = "figures_corrected"
+            elif args.low_level_confs:
+                base_fig_dir = "figures_raw_low-level"
+            else:
+                base_fig_dir = "figures_raw"
+
+            # Use single output directory for all panels
+            if args.output_dir:
+                output_dir = args.output_dir
+            else:
+                output_dir = op.join(".", "reports", base_fig_dir, "condition_comparison")
+            os.makedirs(output_dir, exist_ok=True)
+
+            if len(comparisons) == 1:
+                logger.info(f"Base figures directory: {base_fig_dir}")
+                logger.info(f"Output directory: {output_dir}\n")
+
+            # Get task colors for conditions
             color1 = get_condition_color(source1, cond1)
             color2 = get_condition_color(source2, cond2)
             logger.info(f"Using colors: {cond1}={color1}, {cond2}={color2}")
@@ -1036,8 +1070,8 @@ def main():
                 logger.debug(f"Processing {subject}")
 
                 # Load z-maps
-                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, args.use_corrected_maps, logger)
-                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, args.use_corrected_maps, logger)
+                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, use_corrected_maps, args.low_level_confs, logger)
+                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, use_corrected_maps, args.low_level_confs, logger)
 
                 if img1 is None or img2 is None:
                     logger.warning(f"Skipping {subject} due to missing data")
@@ -1055,7 +1089,7 @@ def main():
 
             # Create 4-subject panel
             # Add suffix to indicate corrected vs raw maps
-            map_type = "corrected" if args.use_corrected_maps else "raw"
+            map_type = "corrected" if use_corrected_maps else "raw"
             panel_path = op.join(output_dir, f"{cond1}_vs_{cond2}_{map_type}_panel.png")
             create_four_subject_panel(subject_images, panel_path, legend_img,
                                     logger=logger)
@@ -1063,7 +1097,7 @@ def main():
         # Create PDF with all panels
         if not args.skip_pdf and len(comparisons) > 1:
             # Add suffix to indicate corrected vs raw maps
-            map_type = "corrected" if args.use_corrected_maps else "raw"
+            map_type = "corrected" if use_corrected_maps else "raw"
             pdf_path = op.join(output_dir, f'condition_comparisons_{map_type}.pdf')
             panel_images = [f for f in os.listdir(output_dir) if f.endswith('_panel.png')]
 

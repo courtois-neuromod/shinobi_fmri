@@ -58,6 +58,11 @@ parser.add_argument(
     default=None,
     help="Directory for log files",
 )
+parser.add_argument(
+    "--low-level-confs",
+    action="store_true",
+    help="Use z-maps from GLM with low-level confounds (processed_low-level/ directory)",
+)
 args = parser.parse_args()
 
 
@@ -119,18 +124,21 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
 def create_viz(sub, cond_name,
                path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
+               low_level_confs=False,
                logger=None):
 
     # Base directory for this condition's subject-level viz
     base_viz_dir = op.join(figures_path, "subject-level", cond_name)
-    
+
     # Directory for intermediate components (inflated views)
     # figures/subject-level/{cond_name}/components/{sub}/
     components_base_dir = op.join(base_viz_dir, "components", sub)
 
     # New structure: processed/subject-level/sub-XX/z_maps/
+    # Use processed_low-level if low_level_confs flag is set
+    processed_dir = "processed_low-level" if low_level_confs else "processed"
     zmap_fname = op.join(
-        path_to_data, "processed", "subject-level", sub, "z_maps",
+        path_to_data, processed_dir, "subject-level", sub, "z_maps",
         f"{sub}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
     )
 
@@ -286,6 +294,7 @@ if __name__ == "__main__":
                     create_viz(sub, cond,
                              path_to_data=args.data_path,
                              figures_path=args.figures_path,
+                             low_level_confs=args.low_level_confs,
                              logger=logger)
                 except Exception as e:
                     logger.log_computation_error(f"Viz_{sub}_{cond}", e)
