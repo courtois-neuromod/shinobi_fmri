@@ -18,7 +18,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from shinobi_fmri.config import DATA_PATH, FIG_PATH
 from shinobi_fmri.visualization.hcp_tasks import (
-    get_condition_label, get_condition_color, is_shinobi_condition
+    get_condition_label, get_condition_color, is_shinobi_condition,
+    get_all_shinobi_conditions
 )
 
 
@@ -168,14 +169,29 @@ def aggregate_across_subjects(subject_results, unique_conditions):
     return avg_df
 
 
-def separate_shinobi_hcp_conditions(conditions):
-    """Separate Shinobi and HCP conditions, grouping HCP by task."""
+def separate_shinobi_hcp_conditions(conditions, include_low_level=False):
+    """
+    Separate Shinobi and HCP conditions, grouping HCP by task.
+
+    Parameters
+    ----------
+    conditions : list
+        List of all condition names
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions
+
+    Returns
+    -------
+    tuple
+        (shinobi_conditions, hcp_conditions)
+    """
     from shinobi_fmri.visualization.hcp_tasks import EVENTS_TASK_DICT, get_event_to_task_mapping
 
-    shinobi_conds = ['DOWN', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'UP', 'HealthLoss', 'Kill']
+    # Get all Shinobi conditions (including low-level if specified)
+    all_shinobi = get_all_shinobi_conditions(include_low_level=include_low_level)
 
     # Filter Shinobi conditions that are in the data
-    shinobi_conds = [c for c in shinobi_conds if c in conditions]
+    shinobi_conds = [c for c in all_shinobi if c in conditions]
 
     # Group HCP conditions by task
     event_to_task = get_event_to_task_mapping()
@@ -199,7 +215,7 @@ def separate_shinobi_hcp_conditions(conditions):
     return shinobi_conds, hcp_conds
 
 
-def color_condition_labels(ax, conditions, axis='both'):
+def color_condition_labels(ax, conditions, axis='both', include_low_level=False):
     """
     Color tick labels based on condition type (Shinobi or HCP task).
 
@@ -211,27 +227,44 @@ def color_condition_labels(ax, conditions, axis='both'):
         List of condition names (without icons) in order
     axis : str
         Which axis to color: 'x', 'y', or 'both'
+    include_low_level : bool
+        If True, consider low-level features as Shinobi conditions
     """
     if axis in ['x', 'both']:
         for i, (label, cond) in enumerate(zip(ax.get_xticklabels(), conditions)):
             color = get_condition_color(cond)
             label.set_color(color)
-            if is_shinobi_condition(cond):
+            if is_shinobi_condition(cond, include_low_level=include_low_level):
                 label.set_fontweight('bold')
 
     if axis in ['y', 'both']:
         for i, (label, cond) in enumerate(zip(ax.get_yticklabels(), conditions)):
             color = get_condition_color(cond)
             label.set_color(color)
-            if is_shinobi_condition(cond):
+            if is_shinobi_condition(cond, include_low_level=include_low_level):
                 label.set_fontweight('bold')
 
 
-def plot_subject_heatmap(corr_matrix, subject, output_path):
-    """Plot heatmap for a single subject with Shinobi/HCP separation."""
+def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=False):
+    """
+    Plot heatmap for a single subject with Shinobi/HCP separation.
 
+    Parameters
+    ----------
+    corr_matrix : DataFrame
+        Correlation matrix
+    subject : str
+        Subject ID
+    output_path : Path
+        Output directory
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions
+    """
     # Reorder conditions: Shinobi first, then HCP
-    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(corr_matrix.index.tolist())
+    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(
+        corr_matrix.index.tolist(),
+        include_low_level=include_low_level
+    )
     ordered_conds = shinobi_conds + hcp_conds
 
     # Add icons to condition labels
@@ -261,7 +294,7 @@ def plot_subject_heatmap(corr_matrix, subject, output_path):
     )
 
     # Color tick labels
-    color_condition_labels(ax, ordered_conds, axis='both')
+    color_condition_labels(ax, ordered_conds, axis='both', include_low_level=include_low_level)
 
     # Add separating lines between Shinobi and HCP, and between HCP tasks
     from shinobi_fmri.visualization.hcp_tasks import EVENTS_TASK_DICT, get_event_to_task_mapping
@@ -301,11 +334,24 @@ def plot_subject_heatmap(corr_matrix, subject, output_path):
     plt.close()
 
 
-def plot_average_heatmap(avg_matrix, output_path):
-    """Plot average heatmap across subjects."""
+def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
+    """
+    Plot average heatmap across subjects.
 
+    Parameters
+    ----------
+    avg_matrix : DataFrame
+        Average correlation matrix
+    output_path : Path
+        Output directory
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions
+    """
     # Reorder conditions
-    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(avg_matrix.index.tolist())
+    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(
+        avg_matrix.index.tolist(),
+        include_low_level=include_low_level
+    )
     ordered_conds = shinobi_conds + hcp_conds
 
     # Add icons to condition labels
@@ -335,7 +381,7 @@ def plot_average_heatmap(avg_matrix, output_path):
     )
 
     # Color tick labels
-    color_condition_labels(ax, ordered_conds, axis='both')
+    color_condition_labels(ax, ordered_conds, axis='both', include_low_level=include_low_level)
 
     # Add separating lines between Shinobi and HCP, and between HCP tasks
     from shinobi_fmri.visualization.hcp_tasks import EVENTS_TASK_DICT, get_event_to_task_mapping
@@ -374,10 +420,21 @@ def plot_average_heatmap(avg_matrix, output_path):
     plt.close()
 
 
-def plot_same_vs_different_comparison(subject_results, corr_data, output_path):
+def plot_same_vs_different_comparison(subject_results, corr_data, output_path, include_low_level=False):
     """
     Plot comparison of same-condition vs different-condition correlations (left),
     and same-subject vs different-subjects correlations by task (right).
+
+    Parameters
+    ----------
+    subject_results : dict
+        Within-subject correlation results
+    corr_data : dict
+        Raw correlation data
+    output_path : Path
+        Output directory
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions
     """
     # Left panel data: same vs different conditions (within-subject)
     data_for_plot_left = []
@@ -424,7 +481,7 @@ def plot_same_vs_different_comparison(subject_results, corr_data, output_path):
     event_to_task = get_event_to_task_mapping()
 
     # Define tasks to analyze
-    shinobi_conditions = ['DOWN', 'HIT', 'JUMP', 'LEFT', 'RIGHT', 'UP', 'HealthLoss', 'Kill']
+    shinobi_conditions = get_all_shinobi_conditions(include_low_level=include_low_level)
     tasks_to_analyze = ['Shinobi'] + list(EVENTS_TASK_DICT.keys())
 
     for task in tasks_to_analyze:
@@ -596,15 +653,27 @@ def plot_same_vs_different_comparison(subject_results, corr_data, output_path):
             print(f"  Difference: {same_subj.mean() - diff_subj.mean():.3f}")
 
 
-def plot_condition_specificity_matrix(subject_results, output_path):
+def plot_condition_specificity_matrix(subject_results, output_path, include_low_level=False):
     """
     Plot a matrix showing condition specificity for each subject.
     Specificity = (same-condition correlation) - (mean different-condition correlation)
+
+    Parameters
+    ----------
+    subject_results : dict
+        Within-subject correlation results
+    output_path : Path
+        Output directory
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions
     """
     all_conditions = list(subject_results[list(subject_results.keys())[0]]['correlation_matrix'].index)
 
     # Separate Shinobi and HCP
-    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(all_conditions)
+    shinobi_conds, hcp_conds = separate_shinobi_hcp_conditions(
+        all_conditions,
+        include_low_level=include_low_level
+    )
     ordered_conds = shinobi_conds + hcp_conds
 
     # Add icons to condition labels
@@ -659,7 +728,7 @@ def plot_condition_specificity_matrix(subject_results, output_path):
     )
 
     # Color tick labels
-    color_condition_labels(ax, ordered_conds, axis='y')
+    color_condition_labels(ax, ordered_conds, axis='y', include_low_level=include_low_level)
 
     # Add separating lines between Shinobi and HCP, and between HCP tasks
     from shinobi_fmri.visualization.hcp_tasks import get_event_to_task_mapping
@@ -756,20 +825,21 @@ def main():
         plot_subject_heatmap(
             subject_results[subject]['correlation_matrix'],
             subject,
-            output_path
+            output_path,
+            include_low_level=args.low_level_confs
         )
 
     # Average heatmap
     print("\n2. Average heatmap...")
-    plot_average_heatmap(avg_matrix, output_path)
+    plot_average_heatmap(avg_matrix, output_path, include_low_level=args.low_level_confs)
 
     # Same vs different comparison
     print("\n3. Same vs different condition comparison...")
-    plot_same_vs_different_comparison(subject_results, corr_data, output_path)
+    plot_same_vs_different_comparison(subject_results, corr_data, output_path, include_low_level=args.low_level_confs)
 
     # Condition specificity matrix
     print("\n4. Condition specificity matrix...")
-    plot_condition_specificity_matrix(subject_results, output_path)
+    plot_condition_specificity_matrix(subject_results, output_path, include_low_level=args.low_level_confs)
 
     print("\n" + "="*60)
     print("ANALYSIS COMPLETE")

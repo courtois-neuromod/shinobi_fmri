@@ -17,7 +17,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from visualization.hcp_tasks import (
     TASK_ICONS, TASK_COLORS, SHINOBI_COLOR,
-    get_event_to_task_mapping, get_task_label
+    get_event_to_task_mapping, get_task_label,
+    get_all_shinobi_conditions
 )
 
 def process_beta_correlations_data(pickle_path):
@@ -182,16 +183,28 @@ def process_beta_correlations_data(pickle_path):
     
     return plot_df, consistency_df
 
-def plot_beta_correlations(plot_df, consistency_df, output_path=None):
+def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_low_level=False):
     """
     Generates the combined figure.
+
+    Parameters
+    ----------
+    plot_df : DataFrame
+        Main correlation data
+    consistency_df : DataFrame
+        Consistency analysis data
+    output_path : str, optional
+        Path to save figure
+    include_low_level : bool
+        If True, include low-level features as Shinobi conditions (default: False)
     """
     plot_df = plot_df.copy()
     plot_df['r'] = pd.to_numeric(plot_df['r'], errors='coerce')
     plot_df = plot_df.dropna(subset=['r'])
 
     # --- Setup Colors and Logic ---
-    highlight_events = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'Inter']
+    # Get all Shinobi conditions (including low-level if specified)
+    highlight_events = get_all_shinobi_conditions(include_low_level=include_low_level) + ['Inter']
 
     # Use centralized HCP task configuration
     highlight_color = SHINOBI_COLOR
@@ -453,4 +466,4 @@ if __name__ == "__main__":
         exit(1)
 
     df_main, df_consistency = process_beta_correlations_data(input_path)
-    plot_beta_correlations(df_main, df_consistency, output_path=output_path)
+    plot_beta_correlations(df_main, df_consistency, output_path=output_path, include_low_level=args.low_level)

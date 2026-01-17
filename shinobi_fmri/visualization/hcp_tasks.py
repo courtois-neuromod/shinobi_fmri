@@ -46,6 +46,9 @@ EVENTS_TASK_DICT = {
 # Shinobi conditions (no HCP task association)
 SHINOBI_CONDITIONS = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'UP', 'Inter']
 
+# Low-level features (Shinobi task sensory/motor confounds)
+LOW_LEVEL_CONDITIONS = ['luminance', 'optical_flow', 'audio_envelope', 'button_presses_count']
+
 def get_event_to_task_mapping():
     """Get mapping from event/condition name to task name."""
     return {event: task for task, events in EVENTS_TASK_DICT.items() for event in events}
@@ -133,6 +136,40 @@ def get_task_label(task_name):
     else:
         return task_name
 
-def is_shinobi_condition(condition_name):
-    """Check if a condition is from Shinobi dataset."""
+def is_shinobi_condition(condition_name, include_low_level=False):
+    """
+    Check if a condition is from Shinobi dataset.
+
+    Parameters
+    ----------
+    condition_name : str
+        Name of the condition
+    include_low_level : bool
+        If True, also consider low-level features as Shinobi conditions
+
+    Returns
+    -------
+    bool
+        True if condition is from Shinobi dataset
+    """
+    if include_low_level:
+        return condition_name in SHINOBI_CONDITIONS or condition_name in LOW_LEVEL_CONDITIONS
     return condition_name in SHINOBI_CONDITIONS
+
+def get_all_shinobi_conditions(include_low_level=False):
+    """
+    Get list of all Shinobi conditions.
+
+    Parameters
+    ----------
+    include_low_level : bool
+        If True, include low-level features
+
+    Returns
+    -------
+    list
+        List of Shinobi condition names
+    """
+    if include_low_level:
+        return SHINOBI_CONDITIONS + LOW_LEVEL_CONDITIONS
+    return SHINOBI_CONDITIONS.copy()

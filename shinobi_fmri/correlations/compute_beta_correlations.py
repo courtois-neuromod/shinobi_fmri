@@ -540,8 +540,9 @@ def main():
 
     # Determine which conditions to use based on --low-level-confs flag
     if args.low_level_confs:
-        contrasts = LOW_LEVEL_CONDITIONS
-        logger_prefix = "low-level features"
+        # Include BOTH game conditions AND low-level features
+        contrasts = CONDITIONS + LOW_LEVEL_CONDITIONS
+        logger_prefix = "game conditions + low-level features"
     else:
         contrasts = CONDITIONS
         logger_prefix = "game conditions"
