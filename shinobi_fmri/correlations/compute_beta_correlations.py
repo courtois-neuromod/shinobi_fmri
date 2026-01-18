@@ -30,7 +30,7 @@ RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute cross-dataset correlation matrix.")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity level.")
-    parser.add_argument("--chunk-size", type=int, default=100, help="Number of map indices handled by this job (default: 100).")
+    parser.add_argument("--chunk-size", type=int, default=None, help="Number of map indices handled by this job (default: None = all).")
     parser.add_argument("--chunk-start", type=int, default=0, help="Explicit map index to start chunk from.")
     parser.add_argument("--n-jobs", type=int, default=40, help="Parallel workers for correlation computation.")
     parser.add_argument("--backend", choices=["threading", "loky"], default="loky", help="Joblib backend.")
@@ -503,9 +503,9 @@ def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, use_low_leve
         log(msg, logger)
 
         try:
-            # Pass log_dir, verbosity, and low-level-confs flag to the SLURM script
+            # Pass log_dir, verbosity, low-level-confs flag AND chunk_size to the SLURM script
             result = subprocess.run(
-                ["sbatch", slurm_script, str(chunk_start), log_dir or "", verbose_flag, low_level_flag],
+                ["sbatch", slurm_script, str(chunk_start), log_dir or "", verbose_flag, low_level_flag, str(chunk_size)],
                 capture_output=True,
                 text=True,
                 check=True
@@ -593,7 +593,9 @@ def main():
         # If --slurm flag is provided, submit batch jobs and exit
         if args.slurm:
             total_maps = len(records)
-            submit_slurm_chunks(total_maps, args.chunk_size, args.log_dir, log_level, args.low_level_confs, logger)
+            # Default to 100 maps per chunk if not specified for SLURM jobs
+            chunk_size = args.chunk_size if args.chunk_size is not None else 100
+            submit_slurm_chunks(total_maps, chunk_size, args.log_dir, log_level, args.low_level_confs, logger)
             return
         # Initialize output file if it doesn't exist
         existing = load_existing_dict(results_path)

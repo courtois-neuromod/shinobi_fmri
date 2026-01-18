@@ -441,13 +441,13 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
 # =============================================================================
 
 @task
-def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
+def beta_correlations(c, chunk_start=0, chunk_size=None, n_jobs=-1, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
     """
     Compute beta map correlations with HCP data.
 
     Args:
         chunk_start: Starting index for chunked processing (only used if not in slurm batch mode)
-        chunk_size: Number of maps per chunk (default: 100)
+        chunk_size: Number of maps per chunk (default: None = all)
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
         slurm: If True, automatically submit all chunks as SLURM jobs
         verbose: Verbosity level
@@ -456,7 +456,10 @@ def beta_correlations(c, chunk_start=0, chunk_size=100, n_jobs=-1, slurm=False, 
     """
     script = op.join(SHINOBI_FMRI_DIR, "correlations", "compute_beta_correlations.py")
 
-    args = f"--chunk-size {chunk_size} --n-jobs {n_jobs}"
+    args = f"--n-jobs {n_jobs}"
+    if chunk_size is not None:
+        args += f" --chunk-size {chunk_size}"
+    
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:

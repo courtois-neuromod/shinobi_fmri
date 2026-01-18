@@ -11,7 +11,7 @@ CHUNK_START=${1:-0}
 LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
 LOW_LEVEL_FLAG=${4:-}
-CHUNK_SIZE=100
+CHUNK_SIZE=${5:-100}
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
