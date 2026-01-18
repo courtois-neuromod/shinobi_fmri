@@ -19,6 +19,7 @@ from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.utils.provenance import create_metadata
 import logging
 import json
+import re
 
 # Default contrasts (game conditions) - can be overridden by --low-level-confs flag
 CONTRASTS = CONDITIONS  # From config: ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
@@ -128,9 +129,12 @@ def collect_processed_records(base_dir, contrasts, model, path_to_data, use_low_
 
                     # Parse contrast from filename
                     # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-beta.nii.gz
+                    # Use regex to handle conditions with underscores (e.g., audio_envelope)
                     try:
-                        contrast_part = [p for p in fname.split("_") if "contrast-" in p][0]
-                        contrast = contrast_part.replace("contrast-", "")
+                        match = re.search(r'contrast-(.+?)_stat-beta\.nii\.gz', fname)
+                        if not match:
+                            continue
+                        contrast = match.group(1)
 
                         if contrast not in contrasts:
                             continue
@@ -191,9 +195,12 @@ def collect_subject_level_records(contrasts, path_to_data, use_low_level_confs=F
 
             # Parse contrast from filename
             # Format: sub-XX_task-shinobi_contrast-CONDITION_stat-beta.nii.gz
+            # Use regex to handle conditions with underscores (e.g., audio_envelope)
             try:
-                contrast_part = [p for p in fname.split("_") if "contrast-" in p][0]
-                contrast = contrast_part.replace("contrast-", "")
+                match = re.search(r'contrast-(.+?)_stat-beta\.nii\.gz', fname)
+                if not match:
+                    continue
+                contrast = match.group(1)
 
                 if contrast not in contrasts:
                     continue
