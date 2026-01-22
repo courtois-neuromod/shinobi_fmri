@@ -247,6 +247,80 @@ def summarize_sources(records):
     return ", ".join(f"{src}: {counts[src]}" for src in sorted(counts)) if counts else "no sources"
 
 
+def print_detailed_breakdown(records, logger=None):
+    """Print a detailed breakdown of collected maps by category and subject."""
+    from collections import defaultdict
+
+    # Organize by source and subject
+    by_source = defaultdict(lambda: defaultdict(list))
+    by_subject = defaultdict(int)
+    by_condition = defaultdict(int)
+
+    for record in records:
+        source = record['source']
+        subj = record['subj']
+        cond = record['cond']
+        by_source[source][subj].append(record)
+        by_subject[subj] += 1
+        by_condition[cond] += 1
+
+    # Print header
+    msg = "\n" + "="*80
+    log(msg, logger)
+    msg = "DETAILED MAP COLLECTION BREAKDOWN"
+    log(msg, logger)
+    msg = "="*80
+    log(msg, logger)
+
+    # Summary by source category
+    msg = "\nMAPS BY CATEGORY:"
+    log(msg, logger)
+    total = 0
+    for source in sorted(by_source.keys()):
+        count = sum(len(maps) for maps in by_source[source].values())
+        total += count
+        msg = f"  {source:30s}: {count:4d} maps"
+        log(msg, logger)
+    msg = f"  {'TOTAL':30s}: {total:4d} maps"
+    log(msg, logger)
+
+    # Detailed breakdown by source and subject
+    msg = "\nDETAILED BREAKDOWN BY SOURCE AND SUBJECT:"
+    log(msg, logger)
+    for source in sorted(by_source.keys()):
+        msg = f"\n  {source}:"
+        log(msg, logger)
+        for subj in sorted(by_source[source].keys()):
+            maps = by_source[source][subj]
+            conditions = set(m['cond'] for m in maps)
+            msg = f"    {subj}: {len(maps):3d} maps ({len(conditions):2d} conditions)"
+            log(msg, logger)
+            if logger and logger.verbosity <= logging.INFO:
+                # Show first few conditions as examples
+                example_conds = sorted(list(conditions))[:5]
+                if len(conditions) > 5:
+                    example_conds.append(f"... +{len(conditions)-5} more")
+                msg = f"           Conditions: {', '.join(example_conds)}"
+                log(msg, logger)
+
+    # Summary by subject (across all sources)
+    msg = "\nMAPS BY SUBJECT (all sources):"
+    log(msg, logger)
+    for subj in sorted(by_subject.keys()):
+        msg = f"  {subj}: {by_subject[subj]:4d} maps"
+        log(msg, logger)
+
+    # Summary by condition (across all sources)
+    msg = "\nMAPS BY CONDITION (all sources):"
+    log(msg, logger)
+    for cond in sorted(by_condition.keys()):
+        msg = f"  {cond:30s}: {by_condition[cond]:4d} maps"
+        log(msg, logger)
+
+    msg = "="*80 + "\n"
+    log(msg, logger)
+
+
 def ensure_output_file(path, records, existing, logger=None):
     if existing:
         return existing
@@ -595,7 +669,9 @@ def main():
             log("No maps found.", logger)
             return
         log(f"Total available maps: {len(records)}", logger)
-        log(f"Breakdown by source: {summarize_sources(records)}", logger)
+
+        # Print detailed breakdown of collected maps
+        print_detailed_breakdown(records, logger)
 
         # If --slurm flag is provided, submit batch jobs and exit
         if args.slurm:
