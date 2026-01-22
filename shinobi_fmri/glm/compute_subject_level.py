@@ -55,6 +55,7 @@ import os
 import os.path as op
 from typing import Optional, List
 import pandas as pd
+import numpy as np
 import warnings
 import argparse
 import logging
