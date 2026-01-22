@@ -295,13 +295,12 @@ def print_detailed_breakdown(records, logger=None):
             conditions = set(m['cond'] for m in maps)
             msg = f"    {subj}: {len(maps):3d} maps ({len(conditions):2d} conditions)"
             log(msg, logger)
-            if logger and logger.verbosity <= logging.INFO:
-                # Show first few conditions as examples
-                example_conds = sorted(list(conditions))[:5]
-                if len(conditions) > 5:
-                    example_conds.append(f"... +{len(conditions)-5} more")
-                msg = f"           Conditions: {', '.join(example_conds)}"
-                log(msg, logger)
+            # Show first few conditions as examples
+            example_conds = sorted(list(conditions))[:6]
+            if len(conditions) > 6:
+                example_conds.append(f"... +{len(conditions)-6} more")
+            msg = f"           Conditions: {', '.join(example_conds)}"
+            log(msg, logger)
 
     # Summary by subject (across all sources)
     msg = "\nMAPS BY SUBJECT (all sources):"
