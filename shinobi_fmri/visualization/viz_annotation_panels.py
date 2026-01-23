@@ -243,26 +243,13 @@ def plot_inflated_zmap(img, save_path=None, title=None, colorbar=True, vmax=6, t
     plt.close(fig)
 
 
-def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_corrected_maps=False, low_level_confs=False, force=False, pbar=None, logger=None):
+def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_corrected_maps=False, force=False, pbar=None, logger=None):
     """Create all individual brain map images for a subject and condition.
-
-    This includes:
-    - One subject-level z-map
-    - Multiple session-level z-maps (one per session)
-
-    Args:
-        subject (str): Subject ID (e.g., 'sub-01')
-        condition (str): Condition/annotation name
-        fig_folder (str): Path to save the images
-        data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
-        low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
-        force (bool): If True, regenerate images even if they already exist (default: False)
-        pbar (tqdm): Optional progress bar to update
-        logger (AnalysisLogger): Logger instance
-    """
-    # Determine output directory based on whether low-level confounds were used
-    output_dir = "processed_low-level" if low_level_confs else "processed"
+    
+    Low-level features (luminance, optical_flow, etc.) are always included.
+    The source is always the 'processed/' directory.
+    # Always use processed directory (low-level features are now default)
+    output_dir = "processed"
 
     # Create subject-level z-map
     # New structure: processed/subject-level/sub-XX/z_maps/
@@ -403,37 +390,19 @@ def create_blank_image(save_path, fig_folder):
     missing_img.save(save_path)
 
 
-def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_corrected_maps=False, low_level_confs=False, pbar=None, logger=None):
+def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_corrected_maps=False, pbar=None, logger=None):
     """Create a combined panel showing all subjects for one annotation.
 
-    Creates a 4x9 grid showing:
-    - 4 subjects (in 2x2 arrangement)
-    - For each subject: 1 subject-level map + top 4 session-level maps
-    - Colorbar on the right
+    Low-level features are always included.
+    Source is always the 'processed/' directory.
+    # Always use processed directory (low-level features are now default)
+    output_dir = "processed"
 
-    Args:
-        condition (str): Condition/annotation name
-        save_path (str): Path to save the combined panel
-        data_path (str): Path to data directory
-        use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
-        low_level_confs (bool): If True, use results from GLM with low-level confounds (default: False)
-        pbar (tqdm): Optional progress bar to update
-        logger (AnalysisLogger): Logger instance
-    """
-    # Determine output directory based on whether low-level confounds were used
-    output_dir = "processed_low-level" if low_level_confs else "processed"
-
-    # Determine base figure directory based on inputs (matching main function logic)
+    # Determine base figure directory based on corrected flag
     if use_corrected_maps:
-        if low_level_confs:
-            base_fig_dir = "figures_corrected_low-level"
-        else:
-            base_fig_dir = "figures_corrected"
+        base_fig_dir = "figures_corrected"
     else:
-        if low_level_confs:
-            base_fig_dir = "figures_raw_low-level"
-        else:
-            base_fig_dir = "figures_raw"
+        base_fig_dir = "figures_raw"
 
     images = []
 
@@ -691,9 +660,9 @@ def main():
         help='Force regeneration of images even if they already exist'
     )
     parser.add_argument(
-        '--low-level-confs',
+        '--exclude-low-level',
         action='store_true',
-        help='Use results from GLM with low-level confounds (from processed_low-level/ directory)'
+        help='Exclude low-level features from visualization (default: False, low-level features included)'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -709,17 +678,11 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine base figure directory based on inputs
+    # Determine base figure directory based on corrected flag
     if args.use_corrected_maps:
-        if args.low_level_confs:
-            base_fig_dir = "figures_corrected_low-level"
-        else:
-            base_fig_dir = "figures_corrected"
+        base_fig_dir = "figures_corrected"
     else:
-        if args.low_level_confs:
-            base_fig_dir = "figures_raw_low-level"
-        else:
-            base_fig_dir = "figures_raw"
+        base_fig_dir = "figures_raw"
 
     # Set default output directory if not provided
     if args.output_dir is None:
@@ -747,12 +710,15 @@ def main():
         elif args.conditions:
             conditions = [c.strip() for c in args.conditions.split(',')]
         else:
-            conditions = DEFAULT_CONDITIONS
+            from shinobi_fmri.config import CONDITIONS as GAME_CONDITIONS, LOW_LEVEL_CONDITIONS
+            conditions = GAME_CONDITIONS + LOW_LEVEL_CONDITIONS
+            if args.exclude_low_level:
+                conditions = GAME_CONDITIONS
 
         logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
         logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
-        logger.info(f"Using {'low-level confounds' if args.low_level_confs else 'standard'} GLM results")
+        logger.info(f"Including low-level features: {not args.exclude_low_level}")
         logger.info(f"Base figures directory: {base_fig_dir}")
         logger.info(f"Output directory: {args.output_dir}\n")
 
@@ -789,27 +755,23 @@ def main():
                         os.makedirs(fig_folder, exist_ok=True)
                         create_all_images(subject, condition, fig_folder,
                                           data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
-                                          low_level_confs=args.low_level_confs,
                                           force=args.force, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
-                # Add suffix to indicate corrected vs raw maps and low-level confounds
+                # Add suffix to indicate corrected vs raw maps
                 map_type = "corrected" if args.use_corrected_maps else "raw"
-                conf_type = "_low-level" if args.low_level_confs else ""
-                save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}{conf_type}.png")
+                save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
                     make_annotation_plot(condition, save_path,
                                          data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
-                                         low_level_confs=args.low_level_confs,
                                          pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:
-            # Add suffix to indicate corrected vs raw maps and low-level confounds
+            # Add suffix to indicate corrected vs raw maps
             map_type = "corrected" if args.use_corrected_maps else "raw"
-            conf_type = "_low-level" if args.low_level_confs else ""
-            pdf_path = op.join(args.output_dir, f'inflated_zmaps_by_annot_{map_type}{conf_type}.pdf')
+            pdf_path = op.join(args.output_dir, f'inflated_zmaps_by_annot_{map_type}.pdf')
             panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
             with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:
                 create_pdf_with_images(args.output_dir, pdf_path, pbar=pbar)

@@ -249,9 +249,9 @@ def main():
         help='Output directory for plots (default: ./reports/figures/volume_slices/)'
     )
     parser.add_argument(
-        '--low-level-confs',
+        '--exclude-low-level',
         action='store_true',
-        help='Use results from GLM with low-level confounds'
+        help='Exclude low-level features from visualization (default: False, low-level features included)'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -293,8 +293,8 @@ def main():
     )
 
     try:
-        # Determine output directory
-        output_dir = "processed_low-level" if args.low_level_confs else "processed"
+        # Always use processed directory (low-level features are now default)
+        output_dir = "processed"
 
         if args.output_dir is None:
             args.output_dir = op.join(".", "reports", "figures", "volume_slices")

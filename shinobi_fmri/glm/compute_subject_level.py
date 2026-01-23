@@ -100,19 +100,13 @@ parser.add_argument(
     default=None,
     help="Directory for log files",
 )
-parser.add_argument(
-    "--low-level-confs",
-    action="store_true",
-    help="Use session-level maps from GLM with low-level confounds (processed_low-level/ directory)",
-)
 args = parser.parse_args()
 
 def process_subject(
     sub: str,
     condition: str,
     path_to_data: str,
-    logger: Optional[AnalysisLogger] = None,
-    low_level_confs: bool = False
+    logger: Optional[AnalysisLogger] = None
 ) -> Optional[Nifti1Image]:
     """
     Perform subject-level GLM analysis by combining session-level z-maps.
@@ -126,22 +120,23 @@ def process_subject(
         condition: Contrast/condition name (e.g., 'HIT', 'Kill', 'DOWNXlvl5')
         path_to_data: Root path to data directory
         logger: Optional logger instance for tracking progress
-        low_level_confs: If True, use session-level maps from processed_low-level/
 
     Returns:
         Subject-level z-map as Nifti1Image, or None if processing failed
 
     Note:
-        Input: Session-level z-maps from processed/session-level/ (or processed_low-level/session-level/)
-        Output: Subject-level maps in processed/subject-level/ (or processed_low-level/subject-level/)
+        Input: Session-level z-maps from processed/session-level/
+        Output: Subject-level maps in processed/subject-level/
 
+        Low-level features (luminance, optical_flow, etc.) are always included.
         The analysis uses SecondLevelModel with an intercept-only design,
         equivalent to a one-sample t-test across sessions. Conservative
         cluster correction (Z > 3.1) is applied for family-wise error control.
     """
     # Read session-level z-maps from the new structure
     # We look for session-level (all runs) z-maps for this subject
-    processed_dirname = "processed_low-level" if low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dirname = "processed"
     session_level_dir = op.join(path_to_data, processed_dirname, "session-level", sub)
 
     if not op.exists(session_level_dir):
@@ -320,7 +315,7 @@ Expected filename pattern: *contrast-{condition}*stat-z.nii.gz
 
 
 def main(logger=None):
-    process_subject(sub, condition, path_to_data, logger=logger, low_level_confs=args.low_level_confs)
+    process_subject(sub, condition, path_to_data, logger=logger)
 
 if __name__ == "__main__":
     figures_path = config.FIG_PATH
@@ -349,8 +344,8 @@ if __name__ == "__main__":
     logger.info(f"Writing processed data in : {path_to_data}")
     logger.info(f"Writing reports in : {figures_path}")
 
-    # Create dataset_description.json for processed outputs
-    processed_dirname = "processed_low-level" if args.low_level_confs else "processed"
+    # Create dataset_description.json for processed outputs (low-level features now default)
+    processed_dirname = "processed"
     dataset_desc_dir = op.join(path_to_data, processed_dirname, "subject-level")
     if not op.exists(op.join(dataset_desc_dir, "dataset_description.json")):
         create_dataset_description(

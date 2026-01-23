@@ -119,25 +119,28 @@ The pipeline supports two distinct sets of conditions for analysis:
 - Models behavioral and game-event-related brain activity
 - Outputs to: `{DATA_PATH}/processed/`
 
-**2. Low-Level Sensory/Motor Features (`--low-level-confs`)**
+**2. Low-Level Sensory/Motor Features (Included by Default)**
 - Visual features: `luminance`, `optical_flow`
 - Audio: `audio_envelope`
 - Motor: `button_presses_count`
+- **Now included BY DEFAULT** in all GLM and MVPA analyses
 - Models brain responses to low-level sensory and motor stimuli
-- Outputs to: `{DATA_PATH}/processed_low-level/`
+- All outputs go to: `{DATA_PATH}/processed/`
 
-**Why separate condition sets?**
-- Avoids overwriting existing results when adding new analyses
-- Enables comparison between high-level (game) and low-level (sensory) processing
-- Each analysis type (GLM, MVPA, correlations, visualizations) can run on either set
+**Why include low-level features?**
+- Game conditions capture high-level cognitive/motor processes (navigation, combat)
+- Low-level features capture basic sensory/motor variance (visual, audio, button presses)
+- Including both enables better modeling and comparison between high-level and low-level processing
+- Low-level features act as controls for sensory/motor confounds
 
 **How to use:**
 ```bash
-# Standard game conditions
+# Both game conditions and low-level features (default)
 invoke glm.session-level --subject sub-01 --session ses-001
 
-# Low-level sensory/motor features
-invoke glm.session-level --subject sub-01 --session ses-001 --low-level-confs
+# Exclude low-level features (MVPA/visualization only)
+invoke mvpa.session-level --subject sub-01 --no-low-level
+invoke viz.annotation-panels --condition HIT --no-low-level
 ```
 
 ### Available Tasks
@@ -145,16 +148,16 @@ invoke glm.session-level --subject sub-01 --session ses-001 --low-level-confs
 The pipeline provides the following task categories:
 
 **GLM Analysis:**
-- `glm.session-level` - Session-level (second-level) GLM analysis (supports `--low-level-confs`)
-- `glm.subject-level` - Subject-level (third-level) GLM analysis (supports `--low-level-confs`)
+- `glm.session-level` - Session-level (second-level) GLM analysis (includes low-level features by default)
+- `glm.subject-level` - Subject-level (third-level) GLM analysis (includes low-level features by default)
 
 **MVPA:**
-- `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding) (supports `--low-level-confs`)
+- `mvpa.session-level` - Multi-Voxel Pattern Analysis (classification/decoding) (includes low-level features by default; use `--no-low-level` to exclude)
 - `mvpa.permutations` - Distributed permutation testing for significance
 - `mvpa.aggregate-permutations` - Aggregate permutation results and compute p-values
 
 **Correlation Analysis:**
-- `corr.beta` - Compute beta map correlations with HCP data (supports `--low-level-confs`)
+- `corr.beta` - Compute beta map correlations with HCP data (includes low-level features by default)
 - `corr.fingerprinting` - Subject identification from brain map similarity
 
 **Visualization:**

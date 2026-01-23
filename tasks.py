@@ -111,9 +111,11 @@ def get_all_runs(data_path):
 # =============================================================================
 
 @task
-def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None, low_level_confs=False):
+def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
     """
     Run session-level GLM analysis.
+
+    Low-level features are now always included by default.
 
     Args:
         subject: Subject ID (e.g., sub-01) - if None, process all subjects
@@ -122,14 +124,13 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
         verbose: Verbosity level
         log_dir: Custom log directory
-        low_level_confs: If True, include low-level confounds and button-press rate in design matrix
     """
     # If no subject specified, process all subjects/sessions
     if subject is None:
         sub_ses_pairs = get_subject_sessions(DATA_PATH)
         print(f"Processing {len(sub_ses_pairs)} sessions for all subjects...")
         for sub, ses in sub_ses_pairs:
-            glm_session_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
+            glm_session_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir)
         return
 
     # If subject specified but no session, process all sessions for that subject
@@ -137,7 +138,7 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
         sub_ses_pairs = get_subject_sessions(DATA_PATH, subject=subject)
         print(f"Processing {len(sub_ses_pairs)} sessions for {subject}...")
         for sub, ses in sub_ses_pairs:
-            glm_session_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
+            glm_session_level(c, subject=sub, session=ses, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir)
         return
 
     # Process single subject/session
@@ -148,14 +149,11 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
-    if low_level_confs:
-        args += " --low-level-confs"
 
     if slurm:
         slurm_script = op.join(SLURM_DIR, "subm_session-level.sh")
-        low_level_flag = "--low-level-confs" if low_level_confs else ""
-        cmd = f"sbatch {slurm_script} {subject} {session} {low_level_flag}"
-        print(f"Submitting to SLURM: {subject} {session}{' (low-level-confs)' if low_level_confs else ''}")
+        cmd = f"sbatch {slurm_script} {subject} {session}"
+        print(f"Submitting to SLURM: {subject} {session}")
     else:
         cmd = f"{PYTHON_BIN} {script} {args}"
         print(f"Running locally: {cmd}")
@@ -164,9 +162,11 @@ def glm_session_level(c, subject=None, session=None, slurm=False, n_jobs=-1, ver
 
 
 @task
-def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None, low_level_confs=False):
+def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, verbose=0, log_dir=None):
     """
     Run subject-level GLM analysis.
+
+    Low-level features are now always included by default.
 
     Args:
         subject: Subject ID (e.g., sub-01) - if None, process all subjects
@@ -175,7 +175,6 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         n_jobs: Number of parallel jobs (default: -1 = all CPU cores)
         verbose: Verbosity level
         log_dir: Custom log directory
-        low_level_confs: If True, use session-level maps from GLM with low-level confounds (processed_low-level/ directory)
     """
     # If no subject specified, process all subjects
     if subject is None:
@@ -183,11 +182,9 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
     else:
         subjects = [subject]
 
-    # If no condition specified, process all conditions
+    # If no condition specified, process all conditions (now always including low-level)
     if condition is None:
-        conditions = CONDITIONS
-        if low_level_confs:
-            conditions = conditions + LOW_LEVEL_CONDITIONS
+        conditions = CONDITIONS + LOW_LEVEL_CONDITIONS
     else:
         conditions = [condition]
 
@@ -196,7 +193,7 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         print(f"Processing {len(subjects)} subject(s) x {len(conditions)} condition(s) = {len(subjects)*len(conditions)} jobs...")
         for sub in subjects:
             for cond in conditions:
-                glm_subject_level(c, subject=sub, condition=cond, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir, low_level_confs=low_level_confs)
+                glm_subject_level(c, subject=sub, condition=cond, slurm=slurm, n_jobs=n_jobs, verbose=verbose, log_dir=log_dir)
         return
 
     # Process single subject/condition
@@ -207,14 +204,11 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
-    if low_level_confs:
-        args += " --low-level-confs"
 
     if slurm:
         slurm_script = op.join(SLURM_DIR, "subm_subject-level.sh")
-        low_level_flag = "--low-level-confs" if low_level_confs else ""
-        cmd = f"sbatch {slurm_script} {subjects[0]} {conditions[0]} {low_level_flag}"
-        print(f"Submitting to SLURM: {subjects[0]} {conditions[0]}{' (low-level-confs)' if low_level_confs else ''}")
+        cmd = f"sbatch {slurm_script} {subjects[0]} {conditions[0]}"
+        print(f"Submitting to SLURM: {subjects[0]} {conditions[0]}")
     else:
         cmd = f"{PYTHON_BIN} {script} {args}"
         print(f"Running locally: {cmd}")
@@ -223,9 +217,11 @@ def glm_subject_level(c, subject=None, condition=None, slurm=False, n_jobs=-1, v
 
 
 @task
-def glm_apply_cluster_correction(c, level="both", subject=None, session=None, threshold=None, alpha=0.05, overwrite=False, low_level_confs=False, verbose=0, log_dir=None):
+def glm_apply_cluster_correction(c, level="both", subject=None, session=None, threshold=None, alpha=0.05, overwrite=False, verbose=0, log_dir=None):
     """
     Apply cluster-level FWE correction to existing z-maps.
+
+    Low-level features are now always included by default.
 
     Takes raw uncorrected z-maps and applies cluster-level family-wise error
     correction, saving properly thresholded z-maps (not p-value maps).
@@ -242,7 +238,6 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
         threshold: Cluster-forming threshold (default: from config - 2.3 for subject/session)
         alpha: Family-wise error rate (default: 0.05)
         overwrite: Overwrite existing corrected z-maps
-        low_level_confs: Use results from GLM with low-level confounds (processed_low-level/ directory)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
     """
@@ -260,8 +255,6 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
         cmd_parts.extend(["--alpha", str(alpha)])
     if overwrite:
         cmd_parts.append("--overwrite")
-    if low_level_confs:
-        cmd_parts.append("--low-level-confs")
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
     if log_dir:
@@ -269,8 +262,6 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
 
     cmd = ' '.join(cmd_parts)
     print(f"Applying cluster-level FWE correction ({level}-level)...")
-    if low_level_confs:
-        print(f"  Using low-level confounds (processed_low-level/)")
     c.run(cmd)
 
 
@@ -282,7 +273,7 @@ def glm_apply_cluster_correction(c, level="both", subject=None, session=None, th
 def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                        screening=20, n_jobs=-1, slurm=False,
                        skip_decoder=False, skip_permutations=False, skip_aggregate=False,
-                       low_level_confs=False, verbose=0, log_dir=None):
+                       exclude_low_level=False, verbose=0, log_dir=None):
     """
     Run complete session-level MVPA pipeline: decoder + permutations + aggregation.
 
@@ -298,12 +289,12 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
         skip_decoder: Skip decoder step (run only permutations/aggregation)
         skip_permutations: Skip permutation testing
         skip_aggregate: Skip aggregation step
-        low_level_confs: Use z-maps from GLM with low-level features (processed_low-level/ directory)
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level
         log_dir: Custom log directory
 
     Examples:
-        # Run full pipeline locally for one subject
+        # Run full pipeline locally for one subject (with low-level features)
         invoke mvpa.session-level --subject sub-01
 
         # Run full pipeline on SLURM for all subjects
@@ -315,8 +306,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
         # Run only permutations and aggregation (decoder already done)
         invoke mvpa.session-level --subject sub-01 --skip-decoder --slurm
 
-        # Use low-level features (luminance, optical flow, audio, button presses)
-        invoke mvpa.session-level --subject sub-01 --low-level-confs --slurm
+        # Exclude low-level features (luminance, optical flow, audio, button presses)
+        invoke mvpa.session-level --subject sub-01 --exclude-low-level --slurm
     """
     # Determine subjects to process
     if subject is None:
@@ -339,8 +330,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
             if not skip_decoder:
                 decoder_script = op.join(SLURM_DIR, "subm_mvpa_ses-level.sh")
                 # Use --parsable to get just the job ID
-                low_level_flag = "true" if low_level_confs else "false"
-                cmd = f"sbatch --parsable {decoder_script} {sub} {screening} {n_jobs} {low_level_flag}"
+                exclude_low_level_flag = "true" if exclude_low_level else "false"
+                cmd = f"sbatch --parsable {decoder_script} {sub} {screening} {n_jobs} {exclude_low_level_flag}"
                 print(f"[1/3] Submitting decoder job for {sub}...")
                 result = c.run(cmd, hide=True)
                 decoder_job_id = result.stdout.strip()
@@ -354,12 +345,12 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                 n_jobs_needed = (n_permutations + perms_per_job - 1) // perms_per_job
 
                 perm_script = op.join(SLURM_DIR, "subm_mvpa_permutation.sh")
-                low_level_flag = "true" if low_level_confs else "false"
+                exclude_low_level_flag = "true" if exclude_low_level else "false"
                 for job_idx in range(n_jobs_needed):
                     perm_start = job_idx * perms_per_job
                     perm_end = min((job_idx + 1) * perms_per_job, n_permutations)
 
-                    cmd = f"sbatch --parsable {perm_script} {sub} {n_permutations} {perm_start} {perm_end} {screening} {n_jobs} {low_level_flag}"
+                    cmd = f"sbatch --parsable {perm_script} {sub} {n_permutations} {perm_start} {perm_end} {screening} {n_jobs} {exclude_low_level_flag}"
                     result = c.run(cmd, hide=True)
                     perm_job_id = result.stdout.strip()
                     perm_job_ids.append(perm_job_id)
@@ -399,8 +390,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                     args += f" -{'v' * verbose}"
                 if log_dir:
                     args += f" --log-dir {log_dir}"
-                if low_level_confs:
-                    args += " --low-level-confs"
+                if exclude_low_level:
+                    args += " --exclude-low-level"
                 cmd = f"{PYTHON_BIN} {script} {args}"
                 c.run(cmd)
                 print(f"  ✓ Decoder complete")
@@ -415,8 +406,8 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
                     args += f" -{'v' * verbose}"
                 if log_dir:
                     args += f" --log-dir {log_dir}"
-                if low_level_confs:
-                    args += " --low-level-confs"
+                if exclude_low_level:
+                    args += " --exclude-low-level"
                 cmd = f"{PYTHON_BIN} {script} {args}"
                 c.run(cmd)
                 print(f"  ✓ Permutations complete")
@@ -441,7 +432,7 @@ def mvpa_session_level(c, subject=None, n_permutations=1000, perms_per_job=50,
 # =============================================================================
 
 @task
-def beta_correlations(c, chunk_start=0, chunk_size=None, n_jobs=-1, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
+def beta_correlations(c, chunk_start=0, chunk_size=None, n_jobs=-1, slurm=False, verbose=0, log_dir=None, exclude_low_level=False):
     """
     Compute beta map correlations with HCP data.
 
@@ -452,20 +443,21 @@ def beta_correlations(c, chunk_start=0, chunk_size=None, n_jobs=-1, slurm=False,
         slurm: If True, automatically submit all chunks as SLURM jobs
         verbose: Verbosity level
         log_dir: Custom log directory
-        low_level_confs: Use beta maps from GLM with low-level confounds (processed_low-level/ directory)
+        exclude_low_level: Exclude low-level features from correlation matrix.
     """
     script = op.join(SHINOBI_FMRI_DIR, "correlations", "compute_beta_correlations.py")
 
     args = f"--n-jobs {n_jobs}"
     if chunk_size is not None:
         args += f" --chunk-size {chunk_size}"
-    
+
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:
         args += f" --log-dir {log_dir}"
-    if low_level_confs:
-        args += " --low-level-confs"
+
+    if exclude_low_level:
+        args += " --exclude-low-level"
 
     if slurm:
         # Use the script's built-in --slurm mode to batch submit all chunks
@@ -513,7 +505,7 @@ def fingerprinting(c, verbose=0, log_dir=None):
 # =============================================================================
 
 @task
-def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
+def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, log_dir=None, exclude_low_level=False):
     """
     Generate session-level visualizations.
 
@@ -523,7 +515,7 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
         slurm: If True, submit to SLURM cluster
         verbose: Verbosity level
         log_dir: Custom log directory
-        low_level_confs: Use z-maps from GLM with low-level confounds
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_session_level.py")
 
@@ -532,8 +524,8 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
         args += f" --subject {subject}"
     if condition:
         args += f" --contrast {condition}"
-    if low_level_confs:
-        args += " --low-level-confs"
+    if exclude_low_level:
+        args += " --exclude-low-level"
 
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
@@ -553,7 +545,7 @@ def viz_session_level(c, subject=None, condition=None, slurm=False, verbose=0, l
 
 
 @task
-def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, low_level_confs=False):
+def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, exclude_low_level=False):
     """
     Generate subject-level visualizations.
 
@@ -561,13 +553,13 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, low_level_confs=F
         slurm: If True, submit to SLURM cluster
         verbose: Verbosity level
         log_dir: Custom log directory
-        low_level_confs: Use z-maps from GLM with low-level confounds
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_subject_level.py")
 
     args = ""
-    if low_level_confs:
-        args += " --low-level-confs"
+    if exclude_low_level:
+        args += " --exclude-low-level"
     if isinstance(verbose, int) and verbose > 0:
         args += f" -{'v' * verbose}"
     if log_dir:
@@ -585,7 +577,7 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, low_level_confs=F
 
 
 @task
-def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, use_corrected_maps=False, force=False, low_level_confs=False, verbose=0, log_dir=None):
+def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, use_corrected_maps=False, force=False, exclude_low_level=False, verbose=0, log_dir=None):
     """
     Generate annotation panels with subject-level and session-level brain maps.
 
@@ -602,7 +594,7 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         skip_pdf: Skip generating PDF
         use_corrected_maps: Use corrected z-maps instead of raw maps (default: False)
         force: Force regeneration of images even if they already exist
-        low_level_confs: Use results from GLM with low-level confounds (default: False)
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -625,9 +617,9 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         cmd_parts.append('--use-corrected-maps')
     if force:
         cmd_parts.append('--force')
-    if low_level_confs:
-        cmd_parts.append('--low-level-confs')
-        
+    if exclude_low_level:
+        cmd_parts.append('--exclude-low-level')
+
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
     if log_dir:
@@ -646,14 +638,13 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
 
 
 @task
-def viz_beta_correlations(c, input_path=None, output_path=None, low_level=False, verbose=0, log_dir=None):
+def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_dir=None):
     """
     Generate beta correlations figure.
 
     Args:
         input_path: Path to input .pkl file (default: {DATA_PATH}/processed/beta_correlations.pkl)
         output_path: Path to save the output figure (default: {FIG_PATH}/beta_correlations_plot.png)
-        low_level: Use low-level correlation matrix (processed_low-level/ and _low-level.png)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -666,8 +657,7 @@ def viz_beta_correlations(c, input_path=None, output_path=None, low_level=False,
     if output_path:
         cmd_parts.extend(['--output', output_path])
     
-    if low_level:
-        cmd_parts.append('--low-level')
+
 
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
@@ -680,20 +670,20 @@ def viz_beta_correlations(c, input_path=None, output_path=None, low_level=False,
     if input_path:
         print(f"  Input: {input_path}")
     else:
-        input_loc = "processed_low-level" if low_level else "processed"
+        input_loc = "processed"
         print(f"  Input: Using default from config ({input_loc})")
     
     if output_path:
         print(f"  Output: {output_path}")
     else:
         suffix = "_low-level" if low_level else ""
-        print(f"  Output: Using default from config (beta_correlations_plot{suffix}.png)")
+        print(f"  Output: Using default from config (beta_correlations_plot.png)")
 
     c.run(cmd)
 
 
 @task
-def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level_confs=False, verbose=0, log_dir=None):
+def viz_regressor_correlations(c, subject=None, skip_generation=False, exclude_low_level=False, verbose=0, log_dir=None):
     """
     Generate correlation matrices for design matrix regressors.
 
@@ -703,7 +693,7 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
     Args:
         subject: Specific subject to process (default: all subjects)
         skip_generation: Skip design matrix generation, only plot from existing pickle
-        low_level_confs: Include low-level confounds (psychophysics and button presses) (default: False)
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
     """
@@ -715,10 +705,8 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
         cmd_parts.extend(['--subject', subject])
     if skip_generation:
         cmd_parts.append('--skip-generation')
-    if not low_level_confs:
-        cmd_parts.append('--no-low-level-confs')
-    else:
-        cmd_parts.append('--low-level-confs')
+    if exclude_low_level:
+        cmd_parts.append('--exclude-low-level')
 
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
@@ -732,14 +720,14 @@ def viz_regressor_correlations(c, subject=None, skip_generation=False, low_level
         print(f"  Subject: {subject}")
     else:
         print(f"  Processing all subjects")
-    if low_level_confs:
+    if not exclude_low_level:
         print(f"  Including low-level confounds (psychophysics and button presses)")
 
     c.run(cmd)
 
 
 @task
-def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_raw_maps=False, low_level_confs=False, verbose=0, log_dir=None, output_dir=None):
+def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold=3.0, use_raw_maps=False, exclude_low_level=False, verbose=0, log_dir=None, output_dir=None):
     """
     Generate condition comparison surface plots.
 
@@ -759,7 +747,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
         run_all: Generate all predefined comparisons (default if no conditions specified)
         threshold: Significance threshold for z-maps (default: 3.0)
         use_raw_maps: Use raw (uncorrected) z-maps instead of corrected maps (default: False, uses corrected maps)
-        low_level_confs: Use z-maps from GLM with low-level confounds
+        exclude_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
         output_dir: Custom output directory (auto-determined based on flags if not specified)
@@ -786,8 +774,8 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
     if use_raw_maps:
         cmd_parts.append('--use-raw-maps')
 
-    if low_level_confs:
-        cmd_parts.append('--low-level-confs')
+    if exclude_low_level:
+        cmd_parts.append('--exclude-low-level')
 
     if output_dir:
         cmd_parts.extend(['--output-dir', output_dir])
@@ -812,7 +800,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
 
 @task
-def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, low_level_confs=False, overwrite=False):
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, no_low_level=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -823,7 +811,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
         use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
-        low_level_confs: Use z-maps from GLM with low-level confounds
+        no_low_level: Exclude low-level features (default: False, low-level features included)
         overwrite: Overwrite existing cluster files
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_atlas_tables.py")
@@ -842,8 +830,8 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
     if use_corrected_maps:
         cmd_parts.append('--use-corrected-maps')
 
-    if low_level_confs:
-        cmd_parts.append('--low-level-confs')
+    if no_low_level:
+        cmd_parts.append('--no-low-level')
 
     if overwrite:
         cmd_parts.append('--overwrite')
@@ -882,7 +870,7 @@ def viz_fingerprinting(c, verbose=0, log_dir=None):
 
 
 @task
-def viz_within_subject_correlations(c, low_level_confs=False, verbose=0, log_dir=None):
+def viz_within_subject_correlations(c, no_low_level=False, verbose=0, log_dir=None):
     """
     Compute and visualize within-subject condition correlations.
 
@@ -891,7 +879,7 @@ def viz_within_subject_correlations(c, low_level_confs=False, verbose=0, log_dir
     condition specificity.
 
     Args:
-        low_level_confs: Use correlation data from processed_low-level/ directory
+        no_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -899,8 +887,8 @@ def viz_within_subject_correlations(c, low_level_confs=False, verbose=0, log_dir
 
     cmd_parts = [PYTHON_BIN, script]
 
-    if low_level_confs:
-        cmd_parts.append('--low-level-confs')
+    if no_low_level:
+        cmd_parts.append('--no-low-level')
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
     if log_dir:
@@ -913,7 +901,7 @@ def viz_within_subject_correlations(c, low_level_confs=False, verbose=0, log_dir
 
 
 @task
-def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None, low_level_confs=False, verbose=0, log_dir=None, output_dir=None):
+def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None, no_low_level=False, verbose=0, log_dir=None, output_dir=None):
     """
     Generate raw volume slice comparisons (corrected vs uncorrected maps).
 
@@ -927,7 +915,7 @@ def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None
         session: Session ID (e.g., ses-004) - if provided, uses session-level instead of subject-level
         condition: Condition/contrast name (e.g., HIT, Kill) - if None, process all conditions
         coords: Slice coordinates as "x,y,z" (e.g., "45,55,35") - optional, uses center of mass if not provided
-        low_level_confs: Use results from GLM with low-level confounds (default: False)
+        no_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
         log_dir: Custom log directory
         output_dir: Custom output directory (default: ./reports/figures/volume_slices/)
@@ -968,7 +956,7 @@ def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None
         for sub in subjects:
             for cond in conditions:
                 viz_volume_slices(c, subject=sub, session=session, condition=cond, coords=coords,
-                                low_level_confs=low_level_confs, verbose=verbose,
+                                no_low_level=no_low_level, verbose=verbose,
                                 log_dir=log_dir, output_dir=output_dir)
 
         print(f"\n{'='*60}")
@@ -989,8 +977,8 @@ def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None
         cmd_parts.extend(['--session', session])
     if coords:
         cmd_parts.extend(['--coords', coords])
-    if low_level_confs:
-        cmd_parts.append('--low-level-confs')
+    if no_low_level:
+        cmd_parts.append('--no-low-level')
     if output_dir:
         cmd_parts.extend(['--output-dir', output_dir])
 
@@ -1008,7 +996,7 @@ def viz_volume_slices(c, subject=None, session=None, condition=None, coords=None
 
 
 @task
-def viz_mvpa_confusion_matrices(c, screening=20, low_level_confs=False, output=None):
+def viz_mvpa_confusion_matrices(c, screening=20, no_low_level=False, output=None):
     """
     Plot MVPA confusion matrices for all subjects.
 
@@ -1017,14 +1005,14 @@ def viz_mvpa_confusion_matrices(c, screening=20, low_level_confs=False, output=N
 
     Args:
         screening: Screening percentile used (default: 20)
-        low_level_confs: Use MVPA results from processed_low-level/ directory
+        no_low_level: Exclude low-level features (default: False, low-level features included)
         output: Output path for figure (default: auto-generated in reports/figures_raw/)
     """
     script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_mvpa_confusion_matrices.py")
 
     cmd = f"{PYTHON_BIN} {script} --screening {screening} --no-show"
-    if low_level_confs:
-        cmd += " --low-level-confs"
+    if no_low_level:
+        cmd += " --no-low-level"
     if output:
         cmd += f" --output {output}"
 
@@ -1123,7 +1111,7 @@ def info(c):
 
 @task
 def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False,
-                    output=None, verbose=False, log_dir=None, low_level_confs=False):
+                    output=None, verbose=False, log_dir=None, no_low_level=False):
     """
     Validate shinobi_fmri pipeline outputs for completeness.
 
@@ -1137,7 +1125,7 @@ def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False
         output: Path to save detailed JSON report (optional)
         verbose: If True, enable verbose output (INFO level)
         log_dir: Custom log directory
-        low_level_confs: If True, validate outputs from analyses with low-level confounds (processed_low-level/)
+        no_low_level: Exclude low-level features (default: False, low-level features included)
 
     Examples:
         # Validate everything
@@ -1170,8 +1158,8 @@ def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False
         args.append("-v")
     if log_dir:
         args.append(f"--log-dir {log_dir}")
-    if low_level_confs:
-        args.append("--low-level-confs")
+    if no_low_level:
+        args.append("--no-low-level")
 
     cmd = f"{PYTHON_BIN} {script} {' '.join(args)}"
     print(f"Running validation: {cmd}")

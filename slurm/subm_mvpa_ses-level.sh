@@ -12,12 +12,12 @@
 # $1 = subject (e.g., sub-01)
 # $2 = screening (percentile, default: 20)
 # $3 = n_jobs (CPUs, default: 40)
-# $4 = low_level_confs (true/false, default: false)
+# $4 = exclude_low_level (true/false, default: false)
 
 SUBJECT=$1
 SCREENING=${2:-20}
 N_JOBS=${3:-40}
-LOW_LEVEL_CONFS=${4:-false}
+EXCLUDE_LOW_LEVEL=${4:-false}
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
@@ -46,14 +46,15 @@ echo "=========================================="
 echo "Subject:          $SUBJECT"
 echo "Screening:        $SCREENING%"
 echo "CPUs:             $N_JOBS"
-echo "Low-level confs:  $LOW_LEVEL_CONFS"
+echo "Exclude low-level: $EXCLUDE_LOW_LEVEL"
 echo "Python:           $PYTHON_BIN"
 echo "=========================================="
 
 # Build command arguments
+# Add --exclude-low-level flag when EXCLUDE_LOW_LEVEL is true
 CMD_ARGS="--subject $SUBJECT --screening $SCREENING --n-jobs $N_JOBS -v"
-if [ "$LOW_LEVEL_CONFS" = "true" ]; then
-    CMD_ARGS="$CMD_ARGS --low-level-confs"
+if [ "$EXCLUDE_LOW_LEVEL" = "true" ]; then
+    CMD_ARGS="$CMD_ARGS --exclude-low-level"
 fi
 
 # Run MVPA decoder

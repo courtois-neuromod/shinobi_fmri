@@ -739,7 +739,6 @@ def get_clean_matrix(
     annotation_events: pd.DataFrame,
     run_events: pd.DataFrame,
     path_to_data: str,
-    use_low_level_confs: bool = False,
     t_r: float = TR,
     hrf_model: str = HRF_MODEL
 ) -> pd.DataFrame:
@@ -750,9 +749,8 @@ def get_clean_matrix(
     convolves task events with HRF, and creates scrubbing regressors for
     high-motion volumes.
 
-    When use_low_level_confs=True, treats low-level features (luminance,
-    optical_flow, audio_envelope, button_presses_count) as TASK REGRESSORS
-    (convolved with HRF) instead of nuisance confounds. This allows modeling
+    Low-level features (luminance, optical_flow, audio_envelope, button_presses_count)
+    are always included as HRF-convolved task regressors. This allows modeling
     the BOLD response to sensory/motor features.
 
     Args:
@@ -761,7 +759,6 @@ def get_clean_matrix(
         annotation_events: DataFrame with trial_type, onset, duration columns
         run_events: Full events DataFrame with all trial types
         path_to_data: Root path to data directory
-        use_low_level_confs: Whether to model low-level features as task regressors (default: False)
         t_r: Repetition time in seconds (default: 1.49)
         hrf_model: HRF model name (default: 'spm')
 
@@ -769,12 +766,8 @@ def get_clean_matrix(
         Complete design matrix with all regressors (task + confounds + scrubbing)
 
     Note:
-        When use_low_level_confs=False:
-            - Confounds: motion, WM, CSF, global signal
-            - Task regressors: game conditions (HIT, JUMP, etc.)
-        When use_low_level_confs=True:
-            - Confounds: motion, WM, CSF, global signal
-            - Task regressors: low-level features (luminance, optical_flow, etc.)
+        Confounds: motion, WM, CSF, global signal
+        Task regressors: game conditions PLUS low-level features (luminance, optical_flow, etc.)
     """
     import nilearn.interfaces.fmriprep
     # Load confounds
@@ -801,16 +794,15 @@ def get_clean_matrix(
         add_reg_names=confounds[0].keys(),
     )
 
-    if use_low_level_confs:
-        # Add low-level features as HRF-convolved task regressors
-        low_level_regressors = add_low_level_task_regressors(
-            n_volumes, run_events, path_to_data, t_r, hrf_model
-        )
-        for col in low_level_regressors.columns:
-            if col not in design_matrix_raw.columns:
-                # Use .values to avoid pandas index alignment issues
-                # (design_matrix_raw has frame_times index, low_level_regressors has integer index)
-                design_matrix_raw[col] = low_level_regressors[col].values
+    # Add low-level features as HRF-convolved task regressors (always included)
+    low_level_regressors = add_low_level_task_regressors(
+        n_volumes, run_events, path_to_data, t_r, hrf_model
+    )
+    for col in low_level_regressors.columns:
+        if col not in design_matrix_raw.columns:
+            # Use .values to avoid pandas index alignment issues
+            # (design_matrix_raw has frame_times index, low_level_regressors has integer index)
+            design_matrix_raw[col] = low_level_regressors[col].values
 
     design_matrix_full = get_scrub_regressor(run_events, design_matrix_raw)
     return design_matrix_full
@@ -1007,8 +999,7 @@ def load_run(
     mask_fname: str,
     events_fname: str,
     path_to_data: str,
-    conditions_list: List[str],
-    use_low_level_confs: bool = False
+    conditions_list: List[str]
 ) -> Tuple[pd.DataFrame, Nifti1Image, Nifti1Image]:
     """
     Load and prepare all data needed for run-level GLM analysis.
@@ -1017,13 +1008,15 @@ def load_run(
     complete design matrix with confounds. This is the main data preparation
     function called before fitting a GLM.
 
+    Low-level features (luminance, optical_flow, etc.) are always included
+    as task regressors.
+
     Args:
         fmri_fname: Path to preprocessed fMRI file (.nii.gz)
         mask_fname: Path to brain mask file (.nii.gz)
         events_fname: Path to events TSV file
         path_to_data: Root path to data directory
         conditions_list: List of condition names to model
-        use_low_level_confs: Whether to include psychophysical confounds (default: False)
 
     Returns:
         Tuple of (design_matrix, fmri_img, mask_resampled):
@@ -1060,8 +1053,8 @@ def load_run(
     # Load images
     fmri_img, mask_resampled = load_image_and_mask(fmri_fname, mask_fname)
 
-    # Make design matrix
+    # Make design matrix (low-level features always included)
     design_matrix_clean = get_clean_matrix(
-        fmri_fname, fmri_img, annotation_events, run_events, path_to_data, use_low_level_confs=use_low_level_confs
+        fmri_fname, fmri_img, annotation_events, run_events, path_to_data
     )
     return design_matrix_clean, fmri_img, mask_resampled

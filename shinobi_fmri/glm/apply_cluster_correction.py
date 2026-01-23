@@ -112,7 +112,7 @@ def process_subject_level(
     threshold=None,
     alpha=0.05,
     overwrite=False,
-    low_level_confs=False,
+    low_level_confs=True,
     logger=None
 ):
     """
@@ -133,7 +133,8 @@ def process_subject_level(
     # Get subjects to process
     subjects = [subject] if subject else config.SUBJECTS
 
-    processed_dir = "processed_low-level" if low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dir = "processed"
 
     if logger:
         logger.info(f"Processing subject-level z-maps (threshold={threshold}, alpha={alpha})")
@@ -177,7 +178,7 @@ def process_session_level(
     threshold=None,
     alpha=0.05,
     overwrite=False,
-    low_level_confs=False,
+    low_level_confs=True,
     logger=None
 ):
     """
@@ -199,7 +200,8 @@ def process_session_level(
     # Get subjects to process
     subjects = [subject] if subject else config.SUBJECTS
 
-    processed_dir = "processed_low-level" if low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dir = "processed"
 
     if logger:
         logger.info(f"Processing session-level z-maps (threshold={threshold}, alpha={alpha})")
@@ -296,10 +298,7 @@ def main():
         action="store_true",
         help="Overwrite existing corrected z-maps"
     )
-    parser.add_argument(
-        "--low-level-confs",
-        action="store_true",
-        help="Use results from GLM with low-level confounds (processed_low-level/ directory)"
+    # Removed --low-level-confs flag - low-level features are now default
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -337,8 +336,8 @@ def main():
         logger.info(f"Level: {args.level}")
         logger.info(f"Alpha (FDR q): {args.alpha}")
 
-        if args.low_level_confs:
-            logger.info("Using low-level confounds (processed_low-level/)")
+        # Low-level features are now always included by default
+        logger.info("Using processed/ directory (low-level features included by default)")
 
         # Display thresholds (Ignored for FDR but logged for record if passed)
         if args.threshold:
@@ -354,8 +353,8 @@ def main():
                 args.threshold,
                 args.alpha,
                 args.overwrite,
-                args.low_level_confs,
-                logger
+                low_level_confs=True,
+                logger=logger
             )
 
         if args.level in ["session", "both"]:
@@ -366,8 +365,8 @@ def main():
                 args.threshold,
                 args.alpha,
                 args.overwrite,
-                args.low_level_confs,
-                logger
+                low_level_confs=True,
+                logger=logger
             )
 
         logger.info("\n" + "="*70)

@@ -10,8 +10,8 @@
 CHUNK_START=${1:-0}
 LOG_DIR=${2:-}
 VERBOSE_FLAG=${3:-}
-LOW_LEVEL_FLAG=${4:-}
-CHUNK_SIZE=${5:-100}
+CHUNK_SIZE=${4:-100}
+# Note: LOW_LEVEL_FLAG removed - low-level features are now always included by default
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
@@ -60,10 +60,7 @@ if [ -n "$VERBOSE_FLAG" ]; then
     CMD="$CMD $VERBOSE_FLAG"
 fi
 
-# Add low-level confounds flag if provided
-if [ -n "$LOW_LEVEL_FLAG" ]; then
-    CMD="$CMD $LOW_LEVEL_FLAG"
-fi
+# Low-level features are now always included by default (no flag needed)
 
 # Print the command for debugging
 echo "========================================"
@@ -73,7 +70,7 @@ echo "Script: ${CORRELATION_SCRIPT}"
 echo "Chunk start: ${CHUNK_START}"
 echo "Log directory: ${LOG_DIR:-'default'}"
 echo "Verbosity: ${VERBOSE_FLAG:-'default'}"
-echo "Low-level flag: ${LOW_LEVEL_FLAG:-'none'}"
+echo "Low-level features: always included (default)"
 echo "Command: $CMD"
 echo "========================================"
 

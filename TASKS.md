@@ -44,7 +44,6 @@ Run session-level (second-level) GLM analysis by combining runs within a session
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
-| `--low-level-confs` | flag | False | No | Include low-level confounds and button-press rate in design matrix |
 
 **Common Use Cases:**
 
@@ -57,9 +56,6 @@ invoke glm.session-level --subject sub-01
 
 # Process all subjects/sessions with SLURM
 invoke glm.session-level --slurm
-
-# Include low-level confounds
-invoke glm.session-level --subject sub-01 --session ses-001 --low-level-confs
 ```
 
 ---
@@ -78,7 +74,6 @@ Run subject-level (third-level) GLM analysis by combining sessions across a subj
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
-| `--low-level-confs` | flag | False | No | Use session-level maps from GLM with low-level confounds (processed_low-level/ directory) |
 
 **Common Use Cases:**
 
@@ -94,9 +89,6 @@ invoke glm.subject-level --slurm
 
 # Process specific condition across all subjects
 invoke glm.subject-level --condition JUMP
-
-# Use session-level maps from GLM with low-level confounds
-invoke glm.subject-level --subject sub-01 --condition HIT --low-level-confs
 ```
 
 ---
@@ -187,7 +179,7 @@ The task automatically:
 | `--skip-decoder` | flag | False | No | Skip decoder step (run only permutations/aggregation) |
 | `--skip-permutations` | flag | False | No | Skip permutation testing |
 | `--skip-aggregate` | flag | False | No | Skip aggregation step |
-| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level features (processed_low-level/ directory) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from MVPA analysis |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -216,8 +208,8 @@ invoke mvpa.session-level --subject sub-01 --skip-decoder --skip-permutations
 # Custom screening with full pipeline on SLURM
 invoke mvpa.session-level --screening 10 --n-permutations 1000 --slurm
 
-# Use low-level features instead of game conditions
-invoke mvpa.session-level --subject sub-01 --low-level-confs --slurm
+# Exclude low-level features instead of including them
+invoke mvpa.session-level --subject sub-01 --exclude-low-level --slurm
 ```
 
 **How Job Dependencies Work (SLURM Mode):**
@@ -258,7 +250,7 @@ Compute beta map correlation matrices with HCP data.
 | `--chunk-size` | int | 100 | No | Number of maps per chunk |
 | `--n-jobs` | int | -1 | No | Number of parallel jobs |
 | `--slurm` | flag | False | No | Automatically submit all chunks as SLURM jobs |
-| `--low-level-confs` | flag | False | No | Use beta maps from GLM with low-level confounds (processed_low-level/ directory) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from correlation matrix |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -268,8 +260,8 @@ Compute beta map correlation matrices with HCP data.
 # Submit all chunks to SLURM (recommended for large datasets)
 invoke corr.beta --slurm --chunk-size 100 --verbose 1
 
-# Use beta maps from GLM with low-level confounds
-invoke corr.beta --slurm --low-level-confs --verbose 1
+# Exclude low-level features from correlations
+invoke corr.beta --slurm --exclude-low-level --verbose 1
 
 # Run single chunk locally (for testing)
 invoke corr.beta --chunk-start 0 --chunk-size 100 --n-jobs 20 --verbose 1
@@ -334,7 +326,7 @@ Generate visualizations for session-level GLM results.
 | `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, process all |
 | `--condition` | str | None | No | Condition/contrast name. If None, process all |
 | `--slurm` | flag | False | No | Submit to SLURM cluster |
-| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from visualization |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -347,8 +339,8 @@ invoke viz.session-level --subject sub-01 --condition HIT --verbose 1
 # Process all subjects/conditions
 invoke viz.session-level
 
-# Use low-level confounds GLM results
-invoke viz.session-level --low-level-confs
+# Exclude low-level features from visualization
+invoke viz.session-level --exclude-low-level
 
 # Submit to SLURM
 invoke viz.session-level --slurm
@@ -365,7 +357,7 @@ Generate visualizations for subject-level GLM results.
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `--slurm` | flag | False | No | Submit to SLURM cluster |
-| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from visualization |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -375,8 +367,8 @@ Generate visualizations for subject-level GLM results.
 # Generate subject-level visualizations
 invoke viz.subject-level --verbose 1
 
-# Use low-level confounds GLM results
-invoke viz.subject-level --low-level-confs
+# Exclude low-level features from visualization
+invoke viz.subject-level --exclude-low-level
 
 # Submit to SLURM
 invoke viz.subject-level --slurm
@@ -403,7 +395,7 @@ Generate annotation panels with subject-level and session-level brain maps for d
 | `--skip-panels` | flag | False | No | Skip generating annotation panels |
 | `--skip-pdf` | flag | False | No | Skip generating PDF |
 | `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
-| `--low-level-confs` | flag | False | No | Use results from GLM with low-level confounds (from processed_low-level/ directory) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from panels |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -425,8 +417,8 @@ invoke viz.annotation-panels --condition HIT --skip-panels --skip-pdf
 # Use corrected z-maps instead of raw maps
 invoke viz.annotation-panels --condition HIT --use-corrected-maps
 
-# Use results from GLM with low-level confounds
-invoke viz.annotation-panels --condition HIT --low-level-confs
+# Exclude low-level features from panels
+invoke viz.annotation-panels --condition HIT --exclude-low-level
 
 # Process all default conditions
 invoke viz.annotation-panels
@@ -484,8 +476,8 @@ invoke viz.regressor-correlations --verbose 1
 # Process specific subject
 invoke viz.regressor-correlations --subject sub-01
 
-# Include low-level confounds
-invoke viz.regressor-correlations --low-level-confs
+# Exclude low-level features
+invoke viz.regressor-correlations --exclude-low-level
 
 # Only plot from existing pickle (skip regeneration)
 invoke viz.regressor-correlations --skip-generation
@@ -528,7 +520,7 @@ Creates surface plots comparing two conditions with three-color overlay:
 | `--run-all` | flag | False | No | Generate all predefined comparisons (default if no conditions specified) |
 | `--threshold` | float | 3.0 | No | Significance threshold for z-maps |
 | `--use-raw-maps` | flag | False | No | Use raw (uncorrected) z-maps instead of corrected maps (default: corrected maps) |
-| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from comparisons |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 | `--output-dir` | str | See below | No | Custom output directory |
@@ -536,9 +528,7 @@ Creates surface plots comparing two conditions with three-color overlay:
 **Output Directory Logic:**
 
 **By default, corrected maps are used.** The output directory is automatically determined:
-- `--low-level-confs` (corrected by default): `reports/figures_corrected_low-level/condition_comparison/`
 - Default (no flags, corrected maps): `reports/figures_corrected/condition_comparison/`
-- `--use-raw-maps` + `--low-level-confs`: `reports/figures_raw_low-level/condition_comparison/`
 - `--use-raw-maps` only: `reports/figures_raw/condition_comparison/`
 
 **Common Use Cases:**
@@ -553,20 +543,20 @@ invoke viz.condition-comparison --cond1 shinobi:Kill --cond2 hcp:reward
 # Use custom threshold
 invoke viz.condition-comparison --run-all --threshold 2.5
 
-# Use low-level confounds GLM results (corrected maps by default, outputs to figures_corrected_low-level/)
-invoke viz.condition-comparison --run-all --low-level-confs
+# Exclude low-level features from comparison
+invoke viz.condition-comparison --run-all --exclude-low-level
 
 # Compare specific low-level features (corrected by default)
-invoke viz.condition-comparison --cond1 shinobi:luminance --cond2 shinobi:optical_flow --low-level-confs
+invoke viz.condition-comparison --cond1 shinobi:luminance --cond2 shinobi:optical_flow
 
 # Compare low-level feature with annotation (corrected by default)
-invoke viz.condition-comparison --cond1 shinobi:audio_envelope --cond2 shinobi:Kill --low-level-confs
+invoke viz.condition-comparison --cond1 shinobi:audio_envelope --cond2 shinobi:Kill
 
 # Use RAW (uncorrected) maps instead (outputs to figures_raw/)
 invoke viz.condition-comparison --run-all --use-raw-maps
 
-# Use raw maps with low-level confounds (outputs to figures_raw_low-level/)
-invoke viz.condition-comparison --run-all --use-raw-maps --low-level-confs
+# Exclude low-level features and use raw maps
+invoke viz.condition-comparison --run-all --use-raw-maps --exclude-low-level
 
 # Custom output directory
 invoke viz.condition-comparison --cond1 shinobi:LEFT --cond2 shinobi:RIGHT --output-dir /custom/path
@@ -588,7 +578,7 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--voxel-thresh` | float | 3.0 | No | Voxel threshold for significance |
 | `--direction` | str | `both` | No | Direction of the contrast (`both`, `pos`, `neg`) |
 | `--use-corrected-maps` | flag | False | No | Use corrected z-maps instead of raw maps (default: raw maps) |
-| `--low-level-confs` | flag | False | No | Use z-maps from GLM with low-level confounds (processed_low-level/) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from tables |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
 **Common Use Cases:**
@@ -606,8 +596,8 @@ invoke viz.atlas-tables --direction pos
 # Use corrected z-maps instead of raw maps
 invoke viz.atlas-tables --use-corrected-maps
 
-# Use low-level confounds GLM results
-invoke viz.atlas-tables --low-level-confs
+# Exclude low-level features from atlas tables
+invoke viz.atlas-tables --exclude-low-level
 
 # Use custom input/output directories
 invoke viz.atlas-tables --input-dir /path/to/zmaps --output-dir /path/to/tables
@@ -670,7 +660,7 @@ Computes how maps from different conditions correlate with each other within eac
 
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `--low-level-confs` | flag | False | No | Use correlation data from processed_low-level/ directory |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from plots |
 | `--verbose` | int | 0 | No | Verbosity level (0-2) |
 | `--log-dir` | str | None | No | Custom log directory |
 
@@ -686,8 +676,8 @@ Computes how maps from different conditions correlate with each other within eac
 # Compute and visualize within-subject condition correlations
 invoke viz.within-subject-correlations --verbose 1
 
-# Use low-level confounds correlation data
-invoke viz.within-subject-correlations --low-level-confs
+# Exclude low-level features from plots
+invoke viz.within-subject-correlations --exclude-low-level
 
 # With custom log directory
 invoke viz.within-subject-correlations --log-dir ./logs/viz_correlations
@@ -712,7 +702,7 @@ Generate publication-quality confusion matrix visualization for all subjects wit
 | Argument | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `--screening` | int | 20 | No | Screening percentile used |
-| `--low-level-confs` | flag | False | No | Use MVPA results from processed_low-level/ directory |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from confusion matrices |
 | `--output` | str | Auto | No | Output path for figure |
 
 **Output:**
@@ -727,8 +717,8 @@ invoke viz.mvpa-confusion-matrices
 # Custom screening percentile
 invoke viz.mvpa-confusion-matrices --screening 10
 
-# Use low-level confounds MVPA results
-invoke viz.mvpa-confusion-matrices --low-level-confs
+# Exclude low-level features from confusion matrices
+invoke viz.mvpa-confusion-matrices --exclude-low-level
 
 # Custom output location
 invoke viz.mvpa-confusion-matrices --output reports/my_figure.png

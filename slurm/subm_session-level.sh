@@ -30,5 +30,6 @@ if [[ ! "$PYTHON_BIN" = /* ]]; then
 fi
 
 # Run the script
-# Args: $1=subject, $2=session, $3=optional --low-level-confs flag
-"$PYTHON_BIN" shinobi_fmri/glm/compute_session_level.py --subject $1 --session $2 $3
+# Args: $1=subject, $2=session
+# Note: Low-level features are now always included by default
+"$PYTHON_BIN" shinobi_fmri/glm/compute_session_level.py --subject $1 --session $2

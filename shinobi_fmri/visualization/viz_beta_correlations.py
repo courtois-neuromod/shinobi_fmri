@@ -430,8 +430,8 @@ if __name__ == "__main__":
                        help="Path to the input pickle file (default: derived from config)")
     parser.add_argument("--output",
                        help="Path to save the output figure (default: derived from config)")
-    parser.add_argument("--low-level", action="store_true",
-                       help="Use correlation matrix from processed_low-level")
+    parser.add_argument("--no-low-level", action="store_true",
+                       help="Exclude low-level features from visualization (default: False, low-level features are included)")
 
     args = parser.parse_args()
 
@@ -439,15 +439,13 @@ if __name__ == "__main__":
     try:
         from shinobi_fmri.config import DATA_PATH, FIG_PATH
         
-        if args.low_level:
-            default_input = os.path.join(DATA_PATH, "processed_low-level", "beta_maps_correlations.pkl")
-            # Adjust output path based on input type
-            fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw_low-level')
-            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot_low-level.png")
+        # Always use processed directory (low-level features are now default)
+        default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
+        # Adjust output path based on input type
+        fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw')
+        if args.no_low_level:
+            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot_no-low-level.png")
         else:
-            default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
-            # Adjust output path based on input type
-            fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw')
             default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot.png")
             
     except ImportError:
@@ -466,4 +464,5 @@ if __name__ == "__main__":
         exit(1)
 
     df_main, df_consistency = process_beta_correlations_data(input_path)
-    plot_beta_correlations(df_main, df_consistency, output_path=output_path, include_low_level=args.low_level)
+    # Reverse logic: include low-level by default, exclude only with --no-low-level flag
+    plot_beta_correlations(df_main, df_consistency, output_path=output_path, include_low_level=not args.no_low_level)

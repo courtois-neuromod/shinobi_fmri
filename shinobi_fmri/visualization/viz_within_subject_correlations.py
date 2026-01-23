@@ -765,9 +765,9 @@ def main():
     """Compute correlations and generate all visualizations."""
     parser = argparse.ArgumentParser(description="Within-subject condition correlation analysis")
     parser.add_argument(
-        "--low-level-confs",
+        "--exclude-low-level",
         action="store_true",
-        help="Use correlation data from processed_low-level/ directory"
+        help="Exclude low-level features from visualization (default: False, low-level features included)"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -787,14 +787,14 @@ def main():
     print("="*60)
 
     # Paths
-    processed_dir_name = "processed_low-level" if args.low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dir_name = "processed"
     processed_dir = Path(DATA_PATH) / processed_dir_name
     correlation_file = processed_dir / 'beta_maps_correlations.pkl'
 
-    if args.low_level_confs:
-        print(f"\nUsing low-level confounds data from {processed_dir_name}/")
-    else:
-        print(f"\nUsing standard data from {processed_dir_name}/")
+    print(f"\nUsing correlation data from {processed_dir_name}/")
+    if args.exclude_low_level:
+        print("Excluding low-level features from plots.")
 
     # Load data
     print("\nLoading correlation data...")
@@ -826,20 +826,20 @@ def main():
             subject_results[subject]['correlation_matrix'],
             subject,
             output_path,
-            include_low_level=args.low_level_confs
+            include_low_level=not args.exclude_low_level
         )
 
     # Average heatmap
     print("\n2. Average heatmap...")
-    plot_average_heatmap(avg_matrix, output_path, include_low_level=args.low_level_confs)
+    plot_average_heatmap(avg_matrix, output_path, include_low_level=not args.exclude_low_level)
 
     # Same vs different comparison
     print("\n3. Same vs different condition comparison...")
-    plot_same_vs_different_comparison(subject_results, corr_data, output_path, include_low_level=args.low_level_confs)
+    plot_same_vs_different_comparison(subject_results, corr_data, output_path, include_low_level=not args.exclude_low_level)
 
     # Condition specificity matrix
     print("\n4. Condition specificity matrix...")
-    plot_condition_specificity_matrix(subject_results, output_path, include_low_level=args.low_level_confs)
+    plot_condition_specificity_matrix(subject_results, output_path, include_low_level=not args.exclude_low_level)
 
     print("\n" + "="*60)
     print("ANALYSIS COMPLETE")

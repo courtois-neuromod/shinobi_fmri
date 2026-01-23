@@ -99,15 +99,7 @@ def parse_condition_spec(cond_spec):
     return source, condition
 
 
-def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False, low_level_confs=False):
-    """Get path to shinobi subject-level z-map.
-
-    Args:
-        subject (str): Subject ID (e.g., 'sub-01')
-        condition (str): Condition name (e.g., 'Kill')
-        data_path (str): Path to data directory
         use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
-        low_level_confs (bool): If True, use z-maps from processed_low-level/ directory (default: False)
 
     Returns:
         str: Path to z-map file
@@ -117,7 +109,8 @@ def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=Fals
     else:
         filename = f"{subject}_task-shinobi_contrast-{condition}_stat-z.nii.gz"
 
-    processed_dir = "processed_low-level" if low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dir = "processed"
     return op.join(
         data_path,
         processed_dir,
@@ -197,7 +190,7 @@ def tstat_to_zstat(t_values, df):
     return z_values
 
 
-def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_maps=False, low_level_confs=False, logger=None):
+def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_maps=False, logger=None):
     """Load z-map for a given condition.
 
     Args:
@@ -207,17 +200,16 @@ def load_zmap(source, subject, condition, hcp_task, data_path, use_corrected_map
         hcp_task (str): HCP task name (only used if source='hcp')
         data_path (str): Path to data directory
         use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
-        low_level_confs (bool): If True, use z-maps from processed_low-level/ directory (default: False)
         logger (AnalysisLogger): Logger instance
 
     Returns:
         Nifti1Image or None: Loaded z-map image, or None if not found
     """
     if source == 'shinobi':
-        path = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps, low_level_confs)
+        path = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps)
         # Fall back to raw map if corrected doesn't exist
         if use_corrected_maps and not op.isfile(path):
-            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False, low_level_confs=low_level_confs)
+            path_raw = get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False)
             if op.isfile(path_raw):
                 if logger:
                     logger.debug(f"Corrected map not found, using raw map: {path_raw}")
@@ -952,9 +944,9 @@ def main():
         help='Directory for log files'
     )
     parser.add_argument(
-        '--low-level-confs',
+        '--exclude-low-level',
         action='store_true',
-        help='Use z-maps from GLM with low-level confounds (processed_low-level/ directory)'
+        help='Exclude low-level features from comparison (default: False, low-level features included)'
     )
 
     args = parser.parse_args()
@@ -994,18 +986,16 @@ def main():
                 ('shinobi:LEFT', 'shinobi:HIT'),
             ]
 
-            # Low-level features
-            low_level_features = LOW_LEVEL_CONDITIONS
-
-            # Add low-level vs low-level comparisons (6 comparisons)
-            for i, feat1 in enumerate(low_level_features):
-                for feat2 in low_level_features[i+1:]:
-                    comparisons.append((f'shinobi:{feat1}', f'shinobi:{feat2}'))
-
             # Add Kill and RIGHT vs low-level comparisons (8 comparisons: 2 annotations × 4 low-level)
-            for annot in ['Kill', 'RIGHT']:
-                for feat in low_level_features:
-                    comparisons.append((f'shinobi:{annot}', f'shinobi:{feat}'))
+            if not args.exclude_low_level:
+                # Add low-level vs low-level comparisons (6 comparisons)
+                for i, feat1 in enumerate(low_level_features):
+                    for feat2 in low_level_features[i+1:]:
+                        comparisons.append((f'shinobi:{feat1}', f'shinobi:{feat2}'))
+
+                for annot in ['Kill', 'RIGHT']:
+                    for feat in low_level_features:
+                        comparisons.append((f'shinobi:{annot}', f'shinobi:{feat}'))
         else:
             comparisons = [(args.cond1, args.cond2)]
 
@@ -1034,13 +1024,9 @@ def main():
                 hcp_task2 = find_hcp_task(cond2, args.hcp_task)
                 logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
 
-            # Determine base figure directory based on both flags
-            if use_corrected_maps and args.low_level_confs:
-                base_fig_dir = "figures_corrected_low-level"
-            elif use_corrected_maps:
+            # Determine base figure directory based on corrected flag
+            if use_corrected_maps:
                 base_fig_dir = "figures_corrected"
-            elif args.low_level_confs:
-                base_fig_dir = "figures_raw_low-level"
             else:
                 base_fig_dir = "figures_raw"
 
@@ -1070,8 +1056,8 @@ def main():
                 logger.debug(f"Processing {subject}")
 
                 # Load z-maps
-                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, use_corrected_maps, args.low_level_confs, logger)
-                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, use_corrected_maps, args.low_level_confs, logger)
+                img1 = load_zmap(source1, subject, cond1, hcp_task1, args.data_path, use_corrected_maps, logger)
+                img2 = load_zmap(source2, subject, cond2, hcp_task2, args.data_path, use_corrected_maps, logger)
 
                 if img1 is None or img2 is None:
                     logger.warning(f"Skipping {subject} due to missing data")

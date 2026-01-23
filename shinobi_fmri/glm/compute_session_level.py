@@ -99,11 +99,6 @@ parser.add_argument(
     action="store_true",
     help="Save GLM objects to disk (default: False, only save z-maps)",
 )
-parser.add_argument(
-    "--low-level-confs",
-    action="store_true",
-    help="Include low-level confounds and button-press rate in design matrix (default: False)",
-)
 args = parser.parse_args()
 
 
@@ -111,8 +106,7 @@ def get_output_names(
     sub: str,
     ses: str,
     regressor_output_name: str,
-    n_runs: Optional[int] = None,
-    use_low_level_confs: bool = False
+    n_runs: Optional[int] = None
 ) -> Tuple[str, str, str, str]:
     """
     Construct BIDS-compliant output file paths for session-level GLM results.
@@ -122,7 +116,6 @@ def get_output_names(
         ses: Session identifier (e.g., 'ses-001')
         regressor_output_name: Name of the contrast/regressor
         n_runs: Number of runs included (None for all runs in session)
-        use_low_level_confs: Whether low-level confounds were used
 
     Returns:
         Tuple of (glm_fname, z_map_fname, beta_map_fname, report_fname):
@@ -132,8 +125,7 @@ def get_output_names(
         Output directory structure follows BIDS derivatives convention:
         {DATA_PATH}/processed/session-level/sub-XX/ses-YY/{z_maps,beta_maps,glm}/
     """
-    # Determine output directory based on whether low-level confounds are used
-    output_dir = "processed_low-level" if use_low_level_confs else "processed"
+    output_dir = "processed"
 
     # Determine level directory name
     if n_runs is None:
@@ -167,9 +159,12 @@ def get_output_names(
     return glm_fname, z_map_fname, beta_map_fname, report_fname
 
 
-def load_session(sub, ses, run_list, path_to_data, use_low_level_confs=False):
+def load_session(sub, ses, run_list, path_to_data):
     """
     Loads and prepares the data for a given session.
+    
+    Low-level features (luminance, optical_flow, etc.) are always included
+    as task regressors.
     """
     design_matrices = []
     fmri_imgs = []
@@ -181,7 +176,7 @@ def load_session(sub, ses, run_list, path_to_data, use_low_level_confs=False):
         )
         
         load_run_result = utils.load_run(
-            fmri_fname, mask_fname, events_fname, path_to_data, CONDS_LIST, use_low_level_confs=use_low_level_confs
+            fmri_fname, mask_fname, events_fname, path_to_data, CONDS_LIST
         )
         design_matrix_clean, fmri_img, mask_resampled = load_run_result
         design_matrices.append(design_matrix_clean)
@@ -273,7 +268,6 @@ def make_or_load_glm(
     glm_fname: str,
     mask_resampled_global: Optional[Any] = None,
     save_glm: bool = False,
-    use_low_level_confs: bool = False,
     conditions_list: Optional[List[str]] = None
 ) -> Tuple[Any, Any]:
     """
@@ -290,7 +284,6 @@ def make_or_load_glm(
         glm_fname: Path where GLM pickle file is/will be saved
         mask_resampled_global: Pre-computed mask (if available)
         save_glm: Whether to save/load GLM objects (default: False)
-        use_low_level_confs: Whether to include psychophysical confounds
         conditions_list: List of all conditions in the analysis (for trimming)
 
     Returns:
@@ -299,6 +292,7 @@ def make_or_load_glm(
     Note:
         For interaction contrasts (e.g., 'HITXlvl5'), creates an interaction
         regressor by multiplying the two base regressors.
+        Low-level features are always included as task regressors.
     """
     if save_glm and os.path.exists(glm_fname):
         with open(glm_fname, "rb") as f:
@@ -307,7 +301,7 @@ def make_or_load_glm(
     else:
         # Compute GLM fresh
         fmri_imgs, design_matrices, mask_resampled, anat_fname = load_session(
-            sub, ses, run_list, path_to_data, use_low_level_confs=use_low_level_confs
+            sub, ses, run_list, path_to_data
         )
 
         # Use provided conditions_list or default to game conditions
@@ -339,9 +333,12 @@ def make_or_load_glm(
     return fmri_glm, mask_resampled
 
 
-def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=False, logger=None, conditions_list=None, levels_list=None):
+def process_ses(sub, ses, path_to_data, save_glm=False, logger=None, conditions_list=None, levels_list=None):
     """
     Process an fMRI session for a given subject and session.
+
+    Low-level features (luminance, optical_flow, etc.) are always included
+    as task regressors.
 
     Args:
         conditions_list: List of conditions to process (game conditions or low-level features)
@@ -369,7 +366,7 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
             print(f"Simple model of : {regressor_output_name} with {len(run_list_subset)} runs")
 
         glm_fname, z_map_fname, beta_map_fname, report_fname = get_output_names(
-            sub, ses, regressor_output_name, n_runs=n_runs_label, use_low_level_confs=use_low_level_confs
+            sub, ses, regressor_output_name, n_runs=n_runs_label
         )
 
         if not (os.path.exists(z_map_fname)):
@@ -377,7 +374,7 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
                 if logger:
                     logger.log_computation_start(f"{regressor_output_name}", z_map_fname)
 
-                fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, use_low_level_confs=use_low_level_confs, conditions_list=conditions_list)
+                fmri_glm, _ = make_or_load_glm(sub, ses, run_list_subset, glm_regressors, glm_fname, save_glm=save_glm, conditions_list=conditions_list)
 
                 # Use utils.make_z_map with cluster correction (Liberal threshold for session-level)
                 utils.make_z_map(z_map_fname, beta_map_fname, report_fname, fmri_glm, regressor_output_name, cluster_thresh=config.GLM_CLUSTER_THRESH_SESSION, alpha=config.GLM_ALPHA)
@@ -394,7 +391,7 @@ def process_ses(sub, ses, path_to_data, save_glm=False, use_low_level_confs=Fals
                         'alpha': config.GLM_ALPHA,
                         'hrf_model': utils.HRF_MODEL,
                         'tr': utils.TR,
-                        'use_low_level_confounds': use_low_level_confs,
+                        'low_level_features_included': True,
                         'n_runs': len(run_list_subset),
                     },
                     subject=sub,
@@ -480,8 +477,8 @@ def main():
         verbosity=log_level
     )
 
-    # Create dataset_description.json for processed outputs
-    output_dir = "processed_low-level" if args.low_level_confs else "processed"
+    # Create dataset_description.json for processed outputs (low-level features now default)
+    output_dir = "processed"
     dataset_desc_dir = op.join(path_to_data, output_dir, "session-level")
     if not op.exists(op.join(dataset_desc_dir, "dataset_description.json")):
         create_dataset_description(
@@ -494,14 +491,14 @@ def main():
                 'alpha': config.GLM_ALPHA,
                 'hrf_model': utils.HRF_MODEL,
                 'tr': utils.TR,
-                'use_low_level_confounds': args.low_level_confs,
+                'use_low_level_confounds': True,
             },
             output_dir=dataset_desc_dir
         )
         logger.info(f"Created dataset_description.json in {dataset_desc_dir}")
 
     try:
-        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, use_low_level_confs=args.low_level_confs, logger=logger, conditions_list=CONDS_LIST, levels_list=LEVELS)
+        process_ses(sub, ses, path_to_data, save_glm=args.save_glm, logger=logger, conditions_list=CONDS_LIST, levels_list=LEVELS)
     finally:
         logger.close()
 
@@ -510,19 +507,11 @@ if __name__ == "__main__":
     figures_path = config.FIG_PATH
     path_to_data = config.DATA_PATH
 
-    # Use low-level conditions when flag is set, otherwise use game conditions
-    if args.low_level_confs:
-        CONDS_LIST = config.CONDITIONS + config.LOW_LEVEL_CONDITIONS
-        LEVELS = []  # No level interactions for low-level features
-        additional_contrasts = []
-        print("Using GAME AND LOW-LEVEL CONDITIONS as task regressors:")
-        print(f"  {CONDS_LIST}")
-    else:
-        CONDS_LIST = config.CONDITIONS
-        LEVELS = []
-        additional_contrasts = ["HIT+JUMP", "RIGHT+LEFT+DOWN"]
-        print("Using GAME CONDITIONS as task regressors:")
-        print(f"  {CONDS_LIST}")
+    # Always include low-level conditions (now default behavior)
+    CONDS_LIST = config.CONDITIONS + config.LOW_LEVEL_CONDITIONS
+    LEVELS = []  # No level interactions for low-level features
+    print("Using GAME AND LOW-LEVEL CONDITIONS as task regressors:")
+    print(f"  {CONDS_LIST}")
 
     sub = args.subject
     ses = args.session

@@ -6,16 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed - BREAKING
+- **Low-level features are now included by default**: Luminance, optical_flow, audio_envelope, and button_presses_count are now always included in GLM analyses and MVPA
+- **Removed `--low-level-confs` flag** from all computation scripts (GLM session/subject level, beta correlations, cluster correction)
+- **Replaced `--low-level-confs` with `--exclude-low-level`** for MVPA and visualization scripts
+  - The flag logic is: `--exclude-low-level` EXCLUDES low-level features (default is to include them)
+  - Affects: MVPA scripts, all visualization scripts, validation scripts
+- **Directory structure simplified**: All outputs now go to `processed/` directory (removed `processed_low-level/` distinction)
+
+### Migration Guide
+- **Computation scripts**: Remove any `--low-level-confs` flags from your commands - low-level features are now always included
+- **MVPA/Visualization scripts**: If you want to EXCLUDE low-level features, add `--exclude-low-level` flag
+- **Invoke tasks**:
+  - Remove `low_level_confs` parameter from GLM tasks
+  - Change `low_level_confs=True` to `exclude_low_level=False` (or omit, as False is default) for MVPA/viz tasks
+  - To exclude low-level features: use `exclude_low_level=True`
+- **SLURM scripts**: Updated to match new flag behavior automatically
+
 ### Added
-- **Low-level sensory/motor feature analysis**: Complete pipeline support for analyzing brain responses to low-level visual, audio, and motor features as an alternative to game conditions
+- **Low-level sensory/motor feature analysis**: Complete pipeline support for analyzing brain responses to low-level visual, audio, and motor features alongside game conditions
   - **New condition set**: `luminance`, `optical_flow`, `audio_envelope`, `button_presses_count`
   - **Configuration**: Added `low_level_conditions` list to `config.yaml` and `config.yaml.template`
-  - **GLM analysis**: Modified session-level and subject-level GLM scripts to model low-level features as task regressors (with HRF convolution) when `--low-level-confs` flag is used
+  - **GLM analysis**: Session-level and subject-level GLM scripts now model low-level features as task regressors (with HRF convolution) BY DEFAULT
   - **HRF convolution**: Created `add_low_level_task_regressors()` function in `glm/utils.py` to properly convolve continuous sensory/motor signals with hemodynamic response function
-  - **Output separation**: Low-level analyses automatically route to `processed_low-level/` directory to avoid overwriting game condition results
-  - **MVPA support**: Updated `compute_mvpa.py` to support `--low-level-confs` flag for pattern classification on sensory features
-  - **Correlation analysis**: Updated `compute_beta_correlations.py` to process low-level feature beta maps
-  - **Visualization support**: All visualization scripts (annotation panels, condition comparisons, etc.) now work with low-level conditions via `--low-level-confs` flag
+  - **MVPA support**: Updated `compute_mvpa.py` to include low-level features by default (use `--no-low-level` to exclude)
+  - **Correlation analysis**: Updated `compute_beta_correlations.py` to process low-level feature beta maps by default
+  - **Visualization support**: All visualization scripts work with low-level conditions by default (use `--exclude-low-level` to exclude)
   - **Documentation**: Added "Condition Sets" section to README explaining dual condition system and usage
 
 ### Changed

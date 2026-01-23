@@ -53,7 +53,7 @@ class PipelineValidator:
         analysis_types: Optional[List[str]] = None,
         check_integrity: bool = False,
         logger: Optional[AnalysisLogger] = None,
-        low_level_confs: bool = False
+        exclude_low_level: bool = False
     ):
         """
         Initialize validator.
@@ -65,19 +65,20 @@ class PipelineValidator:
                 Options: ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
             check_integrity: If True, validate file contents (slower)
             logger: Optional logger instance
-            low_level_confs: If True, check processed_low-level/ instead of processed/
+            exclude_low_level: If True, exclude low-level features from validation (default: False, low-level features included)
         """
         self.data_path = data_path
         self.subjects = subjects or config.SUBJECTS
         self.conditions = config.CONDITIONS
-        if low_level_confs:
+        # Reversed logic: include low-level by default, exclude only when exclude_low_level is True
+        if not exclude_low_level:
             self.conditions = self.conditions + config.LOW_LEVEL_CONDITIONS
         self.check_integrity = check_integrity
         self.logger = logger
-        self.low_level_confs = low_level_confs
+        self.exclude_low_level = exclude_low_level
 
-        # Determine processed directory based on low_level_confs
-        self.processed_dir = "processed_low-level" if low_level_confs else "processed"
+        # Always use processed directory (low-level features are now default)
+        self.processed_dir = "processed"
 
         # Determine which analyses to validate
         all_types = ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
@@ -842,9 +843,9 @@ def parse_args():
         help='Directory for log files'
     )
     parser.add_argument(
-        '--low-level-confs',
+        '--exclude-low-level',
         action='store_true',
-        help='Validate outputs from analyses with low-level confounds (checks processed_low-level/ directory)'
+        help='Exclude low-level features from validation (default: False, low-level features included)'
     )
 
     return parser.parse_args()
@@ -885,7 +886,7 @@ def main():
         analysis_types=analysis_types,
         check_integrity=args.check_integrity,
         logger=logger,
-        low_level_confs=args.low_level_confs
+        exclude_low_level=args.exclude_low_level
     )
 
     try:

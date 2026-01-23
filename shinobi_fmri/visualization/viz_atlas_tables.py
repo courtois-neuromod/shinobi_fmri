@@ -255,12 +255,11 @@ if __name__ == "__main__":
     parser.add_argument("--direction", type=str, default="both", choices=["both", "pos", "neg"], help="Direction of the contrast.")
     parser.add_argument("--use-corrected-maps", action="store_true", help="Use corrected z-maps instead of raw maps (default: use raw maps).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing cluster files.")
-    parser.add_argument("--low-level-confs", action="store_true", help="Use z-maps from GLM with low-level confounds (processed_low-level/ directory).")
+    parser.add_argument("--no-low-level", action="store_true", help="Exclude low-level features from visualization (default: False, low-level features are included).")
 
     args = parser.parse_args()
 
-    # If low_level_confs is set and input_dir is default, change to processed_low-level
-    if args.low_level_confs and args.input_dir == op.join(DATA_PATH, "processed", "subject-level"):
-        args.input_dir = op.join(DATA_PATH, "processed_low-level", "subject-level")
+    # Always use processed/ directory (low-level features are now default)
+    # The --no-low-level flag doesn't change the directory since all data is in processed/
 
     generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_corrected_maps, args.overwrite)

@@ -59,9 +59,9 @@ parser.add_argument(
     help="Directory for log files",
 )
 parser.add_argument(
-    "--low-level-confs",
+    "--exclude-low-level",
     action="store_true",
-    help="Use z-maps from GLM with low-level confounds (processed_low-level/ directory)",
+    help="Exclude low-level features from visualization (default: False, low-level features included)",
 )
 args = parser.parse_args()
 
@@ -126,7 +126,6 @@ def plot_fullbrain_subjlevel(zmap_fname, output_path, zmap=None, title=None, fig
 def create_viz(sub, ses, cond_name,
                path_to_data=config.DATA_PATH,
                figures_path=config.FIG_PATH,
-               low_level_confs=False,
                logger=None):
 
     # Base directory for this condition's session-level viz
@@ -137,8 +136,8 @@ def create_viz(sub, ses, cond_name,
     components_base_dir = op.join(base_viz_dir, "components", sub, ses)
 
     # New structure: processed/session-level/sub-XX/ses-YY/z_maps/
-    # Use processed_low-level if low_level_confs flag is set
-    processed_dir = "processed_low-level" if low_level_confs else "processed"
+    # Always use processed directory (low-level features are now default)
+    processed_dir = "processed"
     zmap_fname = op.join(
         path_to_data, processed_dir, "session-level", sub, ses, "z_maps",
         f"{sub}_{ses}_task-shinobi_contrast-{cond_name}_stat-z.nii.gz"
@@ -243,9 +242,12 @@ def create_viz(sub, ses, cond_name,
         logger.log_computation_success("Viz_session-level", zmap_fname)
 
 
-if __name__ == "__main__":
-    COND_LIST = ['HIT', 'JUMP', 'DOWN', 'HealthGain', 'HealthLoss', 
-                 'Kill', 'LEFT', 'RIGHT', 'UP']
+    # Get default condition list from config
+    COND_LIST = config.CONDITIONS + config.LOW_LEVEL_CONDITIONS
+    
+    if args.exclude_low_level:
+        COND_LIST = config.CONDITIONS
+
     if args.subject is not None:
         subjects = [args.subject]
     else:
@@ -302,7 +304,6 @@ if __name__ == "__main__":
                     create_viz(sub, ses, cond,
                              path_to_data=args.data_path,
                              figures_path=args.figures_path,
-                             low_level_confs=args.low_level_confs,
                              logger=logger)
                 except Exception as e:
                     logger.log_computation_error(f"Viz_{sub}_{ses}_{cond}", e)

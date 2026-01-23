@@ -15,7 +15,7 @@
 # $4 = perm_end (ending index for this job)
 # $5 = screening (percentile)
 # $6 = n_jobs (CPUs)
-# $7 = low_level_confs (true/false, default: false)
+# $7 = exclude_low_level (true/false, default: false)
 
 SUBJECT=$1
 N_PERM=$2
@@ -23,7 +23,7 @@ PERM_START=$3
 PERM_END=$4
 SCREENING=${5:-20}
 N_JOBS=${6:-40}
-LOW_LEVEL_CONFS=${7:-false}
+EXCLUDE_LOW_LEVEL=${7:-false}
 
 # Get repository root - use SLURM_SUBMIT_DIR (directory where sbatch was called)
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
@@ -53,14 +53,14 @@ echo "Subject:          $SUBJECT"
 echo "Permutations:     $PERM_START to $((PERM_END-1)) (out of $N_PERM total)"
 echo "Screening:        $SCREENING%"
 echo "CPUs:             $N_JOBS"
-echo "Low-level confs:  $LOW_LEVEL_CONFS"
+echo "Exclude low-level: $EXCLUDE_LOW_LEVEL"
 echo "Python:           $PYTHON_BIN"
 echo "=========================================="
 
-# Build command arguments
+# Add --exclude-low-level flag when EXCLUDE_LOW_LEVEL is true
 CMD_ARGS="--subject $SUBJECT --n-permutations $N_PERM --perm-start $PERM_START --perm-end $PERM_END --screening $SCREENING --n-jobs $N_JOBS -v"
-if [ "$LOW_LEVEL_CONFS" = "true" ]; then
-    CMD_ARGS="$CMD_ARGS --low-level-confs"
+if [ "$EXCLUDE_LOW_LEVEL" = "true" ]; then
+    CMD_ARGS="$CMD_ARGS --exclude-low-level"
 fi
 
 # Run permutation test
