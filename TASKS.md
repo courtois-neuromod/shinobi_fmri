@@ -883,6 +883,7 @@ Comprehensive validation of all analysis outputs against available input data. T
 | `--output` | str | None | No | Path to save detailed JSON report (optional) |
 | `--verbose` | flag | False | No | If True, enable verbose output (INFO level) |
 | `--log-dir` | str | None | No | Custom log directory |
+| `--low-level-confs` | flag | False | No | Validate outputs from analyses with low-level confounds (checks `processed_low-level/` directory) |
 
 **Common Use Cases:**
 
@@ -913,7 +914,21 @@ invoke validate.outputs --output validation_report.json --verbose
 
 # Validate specific subject with integrity check
 invoke validate.outputs --subject sub-01 --check-integrity --verbose
+
+# Validate outputs from low-level confounds analyses (processed_low-level/)
+invoke validate.outputs --low-level-confs --verbose
+
+# Validate low-level GLM outputs with integrity check
+invoke validate.outputs --analysis-type glm_session --low-level-confs --check-integrity --verbose
 ```
+
+**Important Note About Directories:**
+
+The pipeline supports two output directories:
+- `processed/` - Standard analyses (8 game conditions: HIT, JUMP, DOWN, LEFT, RIGHT, UP, Kill, HealthLoss)
+- `processed_low-level/` - Analyses with low-level confounds (12 conditions: 8 game + 4 low-level features)
+
+**Use `--low-level-confs` flag** if you ran all your analyses with `--low-level-confs` and your outputs are in `processed_low-level/`.
 
 **What is Validated:**
 

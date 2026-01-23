@@ -52,7 +52,8 @@ class PipelineValidator:
         subjects: Optional[List[str]] = None,
         analysis_types: Optional[List[str]] = None,
         check_integrity: bool = False,
-        logger: Optional[AnalysisLogger] = None
+        logger: Optional[AnalysisLogger] = None,
+        low_level_confs: bool = False
     ):
         """
         Initialize validator.
@@ -64,12 +65,19 @@ class PipelineValidator:
                 Options: ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
             check_integrity: If True, validate file contents (slower)
             logger: Optional logger instance
+            low_level_confs: If True, check processed_low-level/ instead of processed/
         """
         self.data_path = data_path
         self.subjects = subjects or config.SUBJECTS
         self.conditions = config.CONDITIONS
+        if low_level_confs:
+            self.conditions = self.conditions + config.LOW_LEVEL_CONDITIONS
         self.check_integrity = check_integrity
         self.logger = logger
+        self.low_level_confs = low_level_confs
+
+        # Determine processed directory based on low_level_confs
+        self.processed_dir = "processed_low-level" if low_level_confs else "processed"
 
         # Determine which analyses to validate
         all_types = ['glm_session', 'glm_subject', 'mvpa', 'correlations', 'figures']
@@ -222,18 +230,18 @@ class PipelineValidator:
         }
 
         # Find all session-level directories (session-level, session-level_1runs, etc.)
-        processed_dir = op.join(self.data_path, "processed")
+        processed_path = op.join(self.data_path, self.processed_dir)
         session_level_dirs = []
-        if op.exists(processed_dir):
-            for dirname in os.listdir(processed_dir):
+        if op.exists(processed_path):
+            for dirname in os.listdir(processed_path):
                 if dirname.startswith("session-level"):
                     session_level_dirs.append(dirname)
 
         if not session_level_dirs:
-            self.log("  ⚠ No session-level directories found in processed/", "warning")
+            self.log(f"  ⚠ No session-level directories found in {self.processed_dir}/", "warning")
             session_level_dirs = ["session-level"]  # Fallback to default
-
-        self.log(f"  Found session-level directories: {', '.join(session_level_dirs)}", "debug")
+        else:
+            self.log(f"  Found session-level directories in {self.processed_dir}/: {', '.join(session_level_dirs)}", "info")
 
         # Check GLM outputs for each valid subject/session
         sessions_checked = set()
@@ -249,7 +257,7 @@ class PipelineValidator:
                     for session_dir in session_level_dirs:
                         # Check z-map
                         z_map_dir = op.join(
-                            self.data_path, "processed", session_dir,
+                            self.data_path, self.processed_dir, session_dir,
                             subject, session, "z_maps"
                         )
                         base_name = f"{subject}_{session}_task-shinobi_contrast-{condition}"
@@ -275,7 +283,7 @@ class PipelineValidator:
 
                             # Check beta map
                             beta_map_dir = op.join(
-                                self.data_path, "processed", session_dir,
+                                self.data_path, self.processed_dir, session_dir,
                                 subject, session, "beta_maps"
                             )
                             beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
@@ -291,7 +299,7 @@ class PipelineValidator:
                     else:
                         # If we didn't find files in any session-level directory, mark as expected but missing
                         z_map_dir = op.join(
-                            self.data_path, "processed", "session-level",
+                            self.data_path, self.processed_dir, "session-level",
                             subject, session, "z_maps"
                         )
                         base_name = f"{subject}_{session}_task-shinobi_contrast-{condition}"
@@ -302,7 +310,7 @@ class PipelineValidator:
                         result.add_expected(z_map_corr_file)
 
                         beta_map_dir = op.join(
-                            self.data_path, "processed", "session-level",
+                            self.data_path, self.processed_dir, "session-level",
                             subject, session, "beta_maps"
                         )
                         beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
@@ -339,7 +347,7 @@ class PipelineValidator:
             for condition in self.conditions:
                 # Check z-map
                 z_map_dir = op.join(
-                    self.data_path, "processed", "subject-level",
+                    self.data_path, self.processed_dir, "subject-level",
                     subject, "z_maps"
                 )
                 base_name = f"{subject}_task-shinobi_contrast-{condition}"
@@ -363,7 +371,7 @@ class PipelineValidator:
 
                 # Check beta map
                 beta_map_dir = op.join(
-                    self.data_path, "processed", "subject-level",
+                    self.data_path, self.processed_dir, "subject-level",
                     subject, "beta_maps"
                 )
                 beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
@@ -400,7 +408,7 @@ class PipelineValidator:
 
         self.log(f"  Checking MVPA results for {len(subjects_to_check)} subjects", "info")
 
-        mvpa_dir = op.join(self.data_path, "processed", f"mvpa_results_s{screening}")
+        mvpa_dir = op.join(self.data_path, self.processed_dir, f"mvpa_results_s{screening}")
 
         for subject in subjects_to_check:
             # Main decoder
@@ -475,7 +483,7 @@ class PipelineValidator:
 
         # Beta correlations
         beta_corr_file = op.join(
-            self.data_path, "processed", "beta_maps_correlations.pkl"
+            self.data_path, self.processed_dir, "beta_maps_correlations.pkl"
         )
         result.add_expected(beta_corr_file)
 
@@ -553,14 +561,29 @@ class PipelineValidator:
                 cond = map_conditions[i]
 
                 # Construct expected beta map path
-                beta_map_file = op.join(
-                    self.data_path, "processed", "session-level",
-                    subj, ses, "beta_maps",
-                    f"{subj}_{ses}_task-shinobi_contrast-{cond}_stat-beta.nii.gz"
-                )
+                # Need to check all session-level* directories
+                beta_map_file = None
+                processed_path = op.join(self.data_path, self.processed_dir)
+                if op.exists(processed_path):
+                    for dirname in os.listdir(processed_path):
+                        if dirname.startswith("session-level"):
+                            test_path = op.join(
+                                self.data_path, self.processed_dir, dirname,
+                                subj, ses, "beta_maps",
+                                f"{subj}_{ses}_task-shinobi_contrast-{cond}_stat-beta.nii.gz"
+                            )
+                            if op.exists(test_path):
+                                beta_map_file = test_path
+                                break
 
-                if not op.exists(beta_map_file):
-                    missing_files.append(beta_map_file)
+                if beta_map_file is None or not op.exists(beta_map_file):
+                    # Construct the expected path for reporting
+                    expected_path = op.join(
+                        self.data_path, self.processed_dir, "session-level",
+                        subj, ses, "beta_maps",
+                        f"{subj}_{ses}_task-shinobi_contrast-{cond}_stat-beta.nii.gz"
+                    )
+                    missing_files.append(expected_path)
 
         return missing_files
 
@@ -643,7 +666,9 @@ class PipelineValidator:
         self.log("SHINOBI_FMRI PIPELINE VALIDATION")
         self.log("=" * 80)
         self.log(f"Data path: {self.data_path}")
+        self.log(f"Processed directory: {self.processed_dir}/")
         self.log(f"Subjects: {', '.join(self.subjects)}")
+        self.log(f"Conditions: {len(self.conditions)} ({', '.join(self.conditions[:3])}...)" if len(self.conditions) > 3 else f"Conditions: {', '.join(self.conditions)}")
         self.log(f"Analysis types: {', '.join(self.analysis_types)}")
         self.log(f"Integrity check: {'ENABLED' if self.check_integrity else 'DISABLED'}")
         self.log("=" * 80)
@@ -816,6 +841,11 @@ def parse_args():
         type=str,
         help='Directory for log files'
     )
+    parser.add_argument(
+        '--low-level-confs',
+        action='store_true',
+        help='Validate outputs from analyses with low-level confounds (checks processed_low-level/ directory)'
+    )
 
     return parser.parse_args()
 
@@ -854,7 +884,8 @@ def main():
         subjects=subjects,
         analysis_types=analysis_types,
         check_integrity=args.check_integrity,
-        logger=logger
+        logger=logger,
+        low_level_confs=args.low_level_confs
     )
 
     try:

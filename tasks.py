@@ -1123,7 +1123,7 @@ def info(c):
 
 @task
 def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False,
-                    output=None, verbose=False, log_dir=None):
+                    output=None, verbose=False, log_dir=None, low_level_confs=False):
     """
     Validate shinobi_fmri pipeline outputs for completeness.
 
@@ -1137,6 +1137,7 @@ def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False
         output: Path to save detailed JSON report (optional)
         verbose: If True, enable verbose output (INFO level)
         log_dir: Custom log directory
+        low_level_confs: If True, validate outputs from analyses with low-level confounds (processed_low-level/)
 
     Examples:
         # Validate everything
@@ -1169,6 +1170,8 @@ def validate_outputs(c, subject=None, analysis_type='all', check_integrity=False
         args.append("-v")
     if log_dir:
         args.append(f"--log-dir {log_dir}")
+    if low_level_confs:
+        args.append("--low-level-confs")
 
     cmd = f"{PYTHON_BIN} {script} {' '.join(args)}"
     print(f"Running validation: {cmd}")
