@@ -208,8 +208,9 @@ class PipelineValidator:
 
         if input_data['missing_events']:
             self.log(f"  ⚠ Warning: {len(input_data['missing_events'])} BOLD files have no corresponding events.tsv", "warning")
-            for missing in input_data['missing_events'][:5]:  # Show first 5
-                self.log(f"    Missing events for: {op.basename(missing['bold'])}", "debug")
+            for missing in input_data['missing_events']:
+                self.log(f"    Missing events for: {op.basename(missing['bold'])}", "info")
+                self.log(f"      Expected: {missing['expected_events']}", "debug")
 
         # Store input data stats in result
         if not hasattr(result, 'extra_info'):
@@ -219,6 +220,20 @@ class PipelineValidator:
             'total_runs': len(input_data['runs']),
             'missing_events_count': len(input_data['missing_events'])
         }
+
+        # Find all session-level directories (session-level, session-level_1runs, etc.)
+        processed_dir = op.join(self.data_path, "processed")
+        session_level_dirs = []
+        if op.exists(processed_dir):
+            for dirname in os.listdir(processed_dir):
+                if dirname.startswith("session-level"):
+                    session_level_dirs.append(dirname)
+
+        if not session_level_dirs:
+            self.log("  ⚠ No session-level directories found in processed/", "warning")
+            session_level_dirs = ["session-level"]  # Fallback to default
+
+        self.log(f"  Found session-level directories: {', '.join(session_level_dirs)}", "debug")
 
         # Check GLM outputs for each valid subject/session
         sessions_checked = set()
@@ -230,44 +245,71 @@ class PipelineValidator:
                 sessions_checked.add((subject, session))
 
                 for condition in self.conditions:
-                    # Check z-map
-                    z_map_dir = op.join(
-                        self.data_path, "processed", "session-level",
-                        subject, session, "z_maps"
-                    )
-                    base_name = f"{subject}_{session}_task-shinobi_contrast-{condition}"
-                    z_map_file = op.join(z_map_dir, f"{base_name}_stat-z.nii.gz")
+                    # Try to find files in any of the session-level directories
+                    for session_dir in session_level_dirs:
+                        # Check z-map
+                        z_map_dir = op.join(
+                            self.data_path, "processed", session_dir,
+                            subject, session, "z_maps"
+                        )
+                        base_name = f"{subject}_{session}_task-shinobi_contrast-{condition}"
+                        z_map_file = op.join(z_map_dir, f"{base_name}_stat-z.nii.gz")
 
-                    result.add_expected(z_map_file)
+                        # Only check once (first directory where files exist)
+                        if op.exists(z_map_file):
+                            result.add_expected(z_map_file)
 
-                    if self.check_integrity and op.exists(z_map_file):
-                        is_valid, error = validate_nifti(z_map_file, check_integrity=True)
-                        if not is_valid:
-                            result.add_error(z_map_file, error)
+                            if self.check_integrity:
+                                is_valid, error = validate_nifti(z_map_file, check_integrity=True)
+                                if not is_valid:
+                                    result.add_error(z_map_file, error)
 
-                    # Check corrected z-map
-                    z_map_corr_file = op.join(z_map_dir, f"{base_name}_desc-corrected_stat-z.nii.gz")
-                    result.add_expected(z_map_corr_file)
+                            # Check corrected z-map
+                            z_map_corr_file = op.join(z_map_dir, f"{base_name}_desc-corrected_stat-z.nii.gz")
+                            result.add_expected(z_map_corr_file)
 
-                    if self.check_integrity and op.exists(z_map_corr_file):
-                        is_valid, error = validate_nifti(z_map_corr_file, check_integrity=True)
-                        if not is_valid:
-                            result.add_error(z_map_corr_file, error)
+                            if self.check_integrity and op.exists(z_map_corr_file):
+                                is_valid, error = validate_nifti(z_map_corr_file, check_integrity=True)
+                                if not is_valid:
+                                    result.add_error(z_map_corr_file, error)
 
-                    # Check beta map
-                    beta_map_dir = op.join(
-                        self.data_path, "processed", "session-level",
-                        subject, session, "beta_maps"
-                    )
-                    beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
-                    result.add_expected(beta_map_file)
+                            # Check beta map
+                            beta_map_dir = op.join(
+                                self.data_path, "processed", session_dir,
+                                subject, session, "beta_maps"
+                            )
+                            beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
+                            result.add_expected(beta_map_file)
 
-                    if self.check_integrity and op.exists(beta_map_file):
-                        is_valid, error = validate_nifti(beta_map_file, check_integrity=True)
-                        if not is_valid:
-                            result.add_error(beta_map_file, error)
+                            if self.check_integrity and op.exists(beta_map_file):
+                                is_valid, error = validate_nifti(beta_map_file, check_integrity=True)
+                                if not is_valid:
+                                    result.add_error(beta_map_file, error)
+
+                            # Found files in this directory, stop searching
+                            break
+                    else:
+                        # If we didn't find files in any session-level directory, mark as expected but missing
+                        z_map_dir = op.join(
+                            self.data_path, "processed", "session-level",
+                            subject, session, "z_maps"
+                        )
+                        base_name = f"{subject}_{session}_task-shinobi_contrast-{condition}"
+                        z_map_file = op.join(z_map_dir, f"{base_name}_stat-z.nii.gz")
+                        result.add_expected(z_map_file)
+
+                        z_map_corr_file = op.join(z_map_dir, f"{base_name}_desc-corrected_stat-z.nii.gz")
+                        result.add_expected(z_map_corr_file)
+
+                        beta_map_dir = op.join(
+                            self.data_path, "processed", "session-level",
+                            subject, session, "beta_maps"
+                        )
+                        beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
+                        result.add_expected(beta_map_file)
 
         result.extra_info['sessions_checked'] = len(sessions_checked)
+        result.extra_info['missing_events'] = input_data['missing_events']
         return result
 
     def validate_glm_subject_level(self) -> ValidationResult:
