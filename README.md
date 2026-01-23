@@ -172,6 +172,9 @@ The pipeline provides the following task categories:
 **Descriptive Statistics:**
 - `descriptive.viz` - Generate 3-panel figure with dataset summary (events, sessions, volumes)
 
+**Validation:**
+- `validate.outputs` - Comprehensive validation of all pipeline outputs against input data
+
 **Pipelines:**
 - `pipeline.full` - Complete pipeline for a subject/session
 - `pipeline.subject` - Complete subject-level pipeline
@@ -190,6 +193,12 @@ invoke viz.session-level
 
 # Generate descriptive statistics figure (auto-generates CSV if needed)
 invoke descriptive.viz --verbose 1
+
+# Validate all pipeline outputs (quick check)
+invoke validate.outputs
+
+# Thorough validation with integrity checks before publication
+invoke validate.outputs --check-integrity --verbose --output validation_report.json
 
 # Run complete pipeline
 invoke pipeline.full --subject sub-01 --session ses-001

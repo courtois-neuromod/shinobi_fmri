@@ -857,6 +857,159 @@ invoke pipeline.subject --subject sub-01 --n-jobs 16
 
 ---
 
+## Validation Tasks
+
+### `validate.outputs`
+
+Validate shinobi_fmri pipeline outputs for completeness.
+
+**Description:**
+
+Comprehensive validation of all analysis outputs against available input data. This task:
+- Scans for all BOLD files in fmriprep and corresponding events.tsv files
+- Checks that all expected GLM outputs exist (session-level and subject-level)
+- Validates beta correlation matrix completeness
+- Checks MVPA results and permutation tests
+- Verifies figure and visualization outputs
+- Optionally validates file integrity by loading and checking contents
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--subject` | str | None | No | Specific subject to validate (e.g., `sub-01`). Default: all subjects |
+| `--analysis-type` | str | `all` | No | Type of analysis to validate (`glm_session`, `glm_subject`, `mvpa`, `correlations`, `figures`, `all`) |
+| `--check-integrity` | flag | False | No | If True, validate file contents (load NIfTI, pickle files) - slower but thorough |
+| `--output` | str | None | No | Path to save detailed JSON report (optional) |
+| `--verbose` | flag | False | No | If True, enable verbose output (INFO level) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Validate everything (quick existence check)
+invoke validate.outputs
+
+# Validate specific subject
+invoke validate.outputs --subject sub-01
+
+# Validate only GLM session-level outputs
+invoke validate.outputs --analysis-type glm_session
+
+# Validate only correlation matrix
+invoke validate.outputs --analysis-type correlations
+
+# Validate only MVPA results
+invoke validate.outputs --analysis-type mvpa
+
+# Validate only figures and visualizations
+invoke validate.outputs --analysis-type figures
+
+# Full integrity check (slower but thorough - loads and validates all files)
+invoke validate.outputs --check-integrity --verbose
+
+# Generate detailed JSON report
+invoke validate.outputs --output validation_report.json --verbose
+
+# Validate specific subject with integrity check
+invoke validate.outputs --subject sub-01 --check-integrity --verbose
+```
+
+**What is Validated:**
+
+1. **GLM Session-Level:**
+   - Scans fmriprep for all available BOLD files
+   - Checks corresponding events.tsv files exist
+   - Verifies z-maps (raw and corrected) exist for each session/condition
+   - Verifies beta maps exist for each session/condition
+
+2. **GLM Subject-Level:**
+   - Checks z-maps (raw and corrected) exist for each subject/condition
+   - Verifies beta maps exist for each subject/condition
+
+3. **Beta Correlations:**
+   - Checks correlation matrix file exists
+   - Validates matrix completeness (which pairs have been computed)
+   - Reports missing correlation pairs
+   - Cross-validates matrix entries against actual beta map files
+
+4. **MVPA:**
+   - Checks decoder files exist for each subject
+   - Verifies weight maps exist
+   - Counts permutation files and reports status
+   - Checks aggregated permutation results exist
+
+5. **Figures & Visualizations:**
+   - Checks for beta correlation plots
+   - Verifies subject-level condition plots exist
+   - Checks annotation panels
+   - Validates GLM HTML reports
+   - Checks MVPA confusion matrices
+
+**Output Example:**
+
+```
+================================================================================
+VALIDATION SUMMARY
+================================================================================
+
+GLM Session-Level:
+  Expected: 256
+  Found:    250
+  Missing:  6
+  Complete: 97.7%
+  Input Data:
+    Subjects: 4
+    Runs: 64
+    ⚠ Missing events.tsv: 2
+  Sessions Checked: 32
+
+GLM Subject-Level:
+  Expected: 64
+  Found:    64
+  Missing:  0
+  Complete: 100.0%
+  Subjects Checked: 4
+
+MVPA (screening=20):
+  Expected: 4
+  Found:    4
+  Missing:  0
+  Complete: 100.0%
+  Permutation Files Found:
+    sub-01: 100 files
+    sub-02: 100 files
+    sub-04: 100 files
+    sub-06: 100 files
+
+Correlations - Beta Maps:
+  Expected: 1
+  Found:    1
+  Missing:  0
+  Complete: 100.0%
+  Matrix Details:
+    Total maps in matrix: 1024
+    Shinobi session-level maps: 256
+    Computed pairs: 523776/523776
+    Matrix completion: 100.0%
+
+================================================================================
+OVERALL:
+  Expected: 325
+  Found:    319
+  Missing:  6
+  Complete: 98.2%
+================================================================================
+```
+
+**Tips:**
+- Run this after completing analysis steps to verify outputs
+- Use `--check-integrity` for thorough validation before publication
+- Save JSON report for documentation and tracking
+- Re-run after fixing missing outputs to verify completeness
+
+---
+
 ## Setup and Utility Tasks
 
 ### `setup.env`

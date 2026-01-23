@@ -264,59 +264,74 @@ def print_detailed_breakdown(records, logger=None):
         by_subject[subj] += 1
         by_condition[cond] += 1
 
-    # Print header
+    # Print header (to both console and log)
     msg = "\n" + "="*80
+    print(msg)
     log(msg, logger)
     msg = "DETAILED MAP COLLECTION BREAKDOWN"
+    print(msg)
     log(msg, logger)
     msg = "="*80
+    print(msg)
     log(msg, logger)
 
     # Summary by source category
     msg = "\nMAPS BY CATEGORY:"
+    print(msg)
     log(msg, logger)
     total = 0
     for source in sorted(by_source.keys()):
         count = sum(len(maps) for maps in by_source[source].values())
         total += count
         msg = f"  {source:30s}: {count:4d} maps"
+        print(msg)
         log(msg, logger)
     msg = f"  {'TOTAL':30s}: {total:4d} maps"
+    print(msg)
     log(msg, logger)
 
     # Detailed breakdown by source and subject
     msg = "\nDETAILED BREAKDOWN BY SOURCE AND SUBJECT:"
+    print(msg)
     log(msg, logger)
     for source in sorted(by_source.keys()):
         msg = f"\n  {source}:"
+        print(msg)
         log(msg, logger)
         for subj in sorted(by_source[source].keys()):
             maps = by_source[source][subj]
             conditions = set(m['cond'] for m in maps)
             msg = f"    {subj}: {len(maps):3d} maps ({len(conditions):2d} conditions)"
+            print(msg)
             log(msg, logger)
             # Show first few conditions as examples
             example_conds = sorted(list(conditions))[:6]
             if len(conditions) > 6:
                 example_conds.append(f"... +{len(conditions)-6} more")
             msg = f"           Conditions: {', '.join(example_conds)}"
+            print(msg)
             log(msg, logger)
 
     # Summary by subject (across all sources)
     msg = "\nMAPS BY SUBJECT (all sources):"
+    print(msg)
     log(msg, logger)
     for subj in sorted(by_subject.keys()):
         msg = f"  {subj}: {by_subject[subj]:4d} maps"
+        print(msg)
         log(msg, logger)
 
     # Summary by condition (across all sources)
     msg = "\nMAPS BY CONDITION (all sources):"
+    print(msg)
     log(msg, logger)
     for cond in sorted(by_condition.keys()):
         msg = f"  {cond:30s}: {by_condition[cond]:4d} maps"
+        print(msg)
         log(msg, logger)
 
     msg = "="*80 + "\n"
+    print(msg)
     log(msg, logger)
 
 

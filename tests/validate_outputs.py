@@ -21,6 +21,8 @@ import sys
 import argparse
 import json
 import logging
+import glob
+import re
 from typing import Dict, List, Optional
 
 # Add parent directory to path to import shinobi_fmri
@@ -101,19 +103,132 @@ class PipelineValidator:
         """
         return get_sessions_from_raw_data(self.data_path, subject)
 
+    def get_available_input_data(self) -> Dict:
+        """
+        Scan for all available input data (BOLDs in fmriprep + events.tsv in shinobi).
+
+        Returns:
+            Dictionary with structure:
+            {
+                'subjects': list of subject IDs,
+                'runs': list of (subject, session, run) tuples,
+                'sessions': dict mapping subject -> list of sessions,
+                'missing_events': list of BOLDs missing corresponding events.tsv
+            }
+        """
+        input_data = {
+            'subjects': [],
+            'runs': [],
+            'sessions': {},
+            'missing_events': []
+        }
+
+        # Scan fmriprep directory for BOLD files
+        fmriprep_dir = op.join(self.data_path, "shinobi.fmriprep")
+        if not op.exists(fmriprep_dir):
+            self.log(f"Warning: fmriprep directory not found: {fmriprep_dir}", "warning")
+            return input_data
+
+        # Get all subjects from fmriprep
+        subjects = sorted([d for d in os.listdir(fmriprep_dir)
+                          if d.startswith('sub-') and op.isdir(op.join(fmriprep_dir, d))])
+        input_data['subjects'] = subjects
+
+        for subject in subjects:
+            subject_sessions = set()
+
+            # Find all BOLD files for this subject
+            bold_pattern = op.join(
+                fmriprep_dir, subject, "*", "func",
+                "*_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
+            )
+            bold_files = glob.glob(bold_pattern)
+
+            for bold_file in bold_files:
+                # Parse subject, session, run from filename
+                basename = op.basename(bold_file)
+                sub_match = re.search(r'(sub-\d+)', basename)
+                ses_match = re.search(r'(ses-\d+)', basename)
+                run_match = re.search(r'run-(\d+)', basename)
+
+                if sub_match and ses_match and run_match:
+                    subj = sub_match.group(1)
+                    session = ses_match.group(1)
+                    run = run_match.group(1)
+
+                    subject_sessions.add(session)
+                    input_data['runs'].append((subj, session, run))
+
+                    # Check if corresponding events.tsv exists
+                    # Events files may have leading zeros (run-01) while BOLD files may not (run-1)
+                    run_padded = run.zfill(2)  # Ensure 2 digits
+                    events_file = op.join(
+                        self.data_path, "shinobi", subj, session, "func",
+                        f"{subj}_{session}_task-shinobi_run-{run_padded}_events.tsv"
+                    )
+
+                    # Also try without padding if padded version doesn't exist
+                    if not op.exists(events_file):
+                        events_file_no_pad = op.join(
+                            self.data_path, "shinobi", subj, session, "func",
+                            f"{subj}_{session}_task-shinobi_run-{run}_events.tsv"
+                        )
+                        if op.exists(events_file_no_pad):
+                            events_file = events_file_no_pad
+
+                    if not op.exists(events_file):
+                        input_data['missing_events'].append({
+                            'bold': bold_file,
+                            'expected_events': events_file
+                        })
+
+            input_data['sessions'][subject] = sorted(list(subject_sessions))
+
+        return input_data
+
     def validate_glm_session_level(self) -> ValidationResult:
         """
-        Validate session-level GLM outputs.
+        Validate session-level GLM outputs based on available input data.
+
+        Scans for all BOLD files in fmriprep and corresponding events.tsv files,
+        then checks if GLM outputs exist for all valid input combinations.
 
         Returns:
             ValidationResult for session-level GLM
         """
         result = ValidationResult("GLM Session-Level")
 
-        for subject in self.subjects:
-            sessions = self.get_subject_sessions(subject)
+        # Get available input data
+        self.log("  Scanning input data (fmriprep BOLDs + events.tsv)...", "info")
+        input_data = self.get_available_input_data()
 
-            for session in sessions:
+        # Report on input data
+        self.log(f"  Found {len(input_data['subjects'])} subjects in fmriprep", "info")
+        self.log(f"  Found {len(input_data['runs'])} BOLD runs", "info")
+
+        if input_data['missing_events']:
+            self.log(f"  ⚠ Warning: {len(input_data['missing_events'])} BOLD files have no corresponding events.tsv", "warning")
+            for missing in input_data['missing_events'][:5]:  # Show first 5
+                self.log(f"    Missing events for: {op.basename(missing['bold'])}", "debug")
+
+        # Store input data stats in result
+        if not hasattr(result, 'extra_info'):
+            result.extra_info = {}
+        result.extra_info['input_data'] = {
+            'total_subjects': len(input_data['subjects']),
+            'total_runs': len(input_data['runs']),
+            'missing_events_count': len(input_data['missing_events'])
+        }
+
+        # Check GLM outputs for each valid subject/session
+        sessions_checked = set()
+        for subject in input_data['subjects']:
+            if subject not in input_data['sessions']:
+                continue
+
+            for session in input_data['sessions'][subject]:
+                sessions_checked.add((subject, session))
+
                 for condition in self.conditions:
                     # Check z-map
                     z_map_dir = op.join(
@@ -130,6 +245,15 @@ class PipelineValidator:
                         if not is_valid:
                             result.add_error(z_map_file, error)
 
+                    # Check corrected z-map
+                    z_map_corr_file = op.join(z_map_dir, f"{base_name}_desc-corrected_stat-z.nii.gz")
+                    result.add_expected(z_map_corr_file)
+
+                    if self.check_integrity and op.exists(z_map_corr_file):
+                        is_valid, error = validate_nifti(z_map_corr_file, check_integrity=True)
+                        if not is_valid:
+                            result.add_error(z_map_corr_file, error)
+
                     # Check beta map
                     beta_map_dir = op.join(
                         self.data_path, "processed", "session-level",
@@ -138,18 +262,38 @@ class PipelineValidator:
                     beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
                     result.add_expected(beta_map_file)
 
+                    if self.check_integrity and op.exists(beta_map_file):
+                        is_valid, error = validate_nifti(beta_map_file, check_integrity=True)
+                        if not is_valid:
+                            result.add_error(beta_map_file, error)
+
+        result.extra_info['sessions_checked'] = len(sessions_checked)
         return result
 
     def validate_glm_subject_level(self) -> ValidationResult:
         """
-        Validate subject-level GLM outputs.
+        Validate subject-level GLM outputs based on available session-level data.
+
+        Subject-level GLM requires session-level outputs to exist first.
+        Only checks subjects that have session-level data available.
 
         Returns:
             ValidationResult for subject-level GLM
         """
         result = ValidationResult("GLM Subject-Level")
 
-        for subject in self.subjects:
+        # Get available input data to know which subjects have data
+        input_data = self.get_available_input_data()
+
+        # Check GLM outputs for each subject that has input data
+        for subject in input_data['subjects']:
+            if subject not in input_data['sessions']:
+                continue
+
+            # Only expect subject-level outputs if subject has sessions
+            if len(input_data['sessions'][subject]) == 0:
+                continue
+
             for condition in self.conditions:
                 # Check z-map
                 z_map_dir = op.join(
@@ -166,6 +310,15 @@ class PipelineValidator:
                     if not is_valid:
                         result.add_error(z_map_file, error)
 
+                # Check corrected z-map
+                z_map_corr_file = op.join(z_map_dir, f"{base_name}_desc-corrected_stat-z.nii.gz")
+                result.add_expected(z_map_corr_file)
+
+                if self.check_integrity and op.exists(z_map_corr_file):
+                    is_valid, error = validate_nifti(z_map_corr_file, check_integrity=True)
+                    if not is_valid:
+                        result.add_error(z_map_corr_file, error)
+
                 # Check beta map
                 beta_map_dir = op.join(
                     self.data_path, "processed", "subject-level",
@@ -174,11 +327,21 @@ class PipelineValidator:
                 beta_map_file = op.join(beta_map_dir, f"{base_name}_stat-beta.nii.gz")
                 result.add_expected(beta_map_file)
 
+                if self.check_integrity and op.exists(beta_map_file):
+                    is_valid, error = validate_nifti(beta_map_file, check_integrity=True)
+                    if not is_valid:
+                        result.add_error(beta_map_file, error)
+
+        # Store subject count
+        if not hasattr(result, 'extra_info'):
+            result.extra_info = {}
+        result.extra_info['subjects_checked'] = len(input_data['subjects'])
+
         return result
 
     def validate_mvpa(self, screening: int = 20, expected_permutations: int = 1000) -> ValidationResult:
         """
-        Validate MVPA outputs including permutation tests.
+        Validate MVPA outputs including permutation tests based on available input data.
 
         Args:
             screening: Screening percentile used (default: 20)
@@ -189,9 +352,15 @@ class PipelineValidator:
         """
         result = ValidationResult(f"MVPA (screening={screening})")
 
+        # Get available input data to know which subjects should have MVPA results
+        input_data = self.get_available_input_data()
+        subjects_to_check = input_data['subjects']
+
+        self.log(f"  Checking MVPA results for {len(subjects_to_check)} subjects", "info")
+
         mvpa_dir = op.join(self.data_path, "processed", f"mvpa_results_s{screening}")
 
-        for subject in self.subjects:
+        for subject in subjects_to_check:
             # Main decoder
             decoder_file = op.join(mvpa_dir, f"{subject}_decoder.pkl")
             result.add_expected(decoder_file)
@@ -219,7 +388,6 @@ class PipelineValidator:
             perm_dir = op.join(mvpa_dir, f"{subject}_permutations")
             if op.exists(perm_dir):
                 # Count permutation files
-                import glob
                 perm_files = glob.glob(op.join(perm_dir, "perm_*.pkl"))
 
                 if perm_files:
@@ -399,7 +567,6 @@ class PipelineValidator:
         for level in ['run-level', 'session-level', 'subject-level']:
             report_dir = op.join(fig_path, level, "reports")
             if op.exists(report_dir):
-                import glob
                 html_reports = glob.glob(op.join(report_dir, "**/*.html"), recursive=True)
                 for report in html_reports:
                     result.add_expected(report)
@@ -407,7 +574,6 @@ class PipelineValidator:
         # 5. MVPA confusion matrices
         mvpa_fig_dir = op.join(fig_path, "mvpa_confusion_matrices")
         if op.exists(mvpa_fig_dir):
-            import glob
             confusion_plots = glob.glob(op.join(mvpa_fig_dir, "*.png"))
             for plot in confusion_plots:
                 result.add_expected(plot)
@@ -480,11 +646,42 @@ class PipelineValidator:
             if result.errors:
                 print(f"  Errors:   {len(result.errors)}")
 
-            # Show extra info for correlations and MVPA
+            # Show extra info
             if hasattr(result, 'extra_info'):
+                # Input data stats (for GLM)
+                if 'input_data' in result.extra_info:
+                    idata = result.extra_info['input_data']
+                    print(f"  Input Data:")
+                    print(f"    Subjects: {idata['total_subjects']}")
+                    print(f"    Runs: {idata['total_runs']}")
+                    if idata['missing_events_count'] > 0:
+                        print(f"    ⚠ Missing events.tsv: {idata['missing_events_count']}")
+
+                # Session-level stats
+                if 'sessions_checked' in result.extra_info:
+                    print(f"  Sessions Checked: {result.extra_info['sessions_checked']}")
+
+                # Subject-level stats
+                if 'subjects_checked' in result.extra_info and 'input_data' not in result.extra_info:
+                    print(f"  Subjects Checked: {result.extra_info['subjects_checked']}")
+
+                # Correlation matrix stats
                 if 'matrix_stats' in result.extra_info:
                     stats = result.extra_info['matrix_stats']
-                    print(f"  Matrix Pairs: {stats['computed_pairs']}/{stats['total_possible_pairs']} ({stats['matrix_completion_rate']:.1f}%)")
+                    print(f"  Matrix Details:")
+                    print(f"    Total maps in matrix: {stats['total_maps_in_matrix']}")
+                    print(f"    Shinobi session-level maps: {stats['shinobi_session_maps']}")
+                    print(f"    Computed pairs: {stats['computed_pairs']}/{stats['total_possible_pairs']}")
+                    print(f"    Matrix completion: {stats['matrix_completion_rate']:.1f}%")
+                    if stats['missing_pairs'] > 0:
+                        print(f"    ⚠ Missing pairs: {stats['missing_pairs']}")
+
+                # MVPA permutation counts
+                if 'permutation_counts' in result.extra_info:
+                    perm_counts = result.extra_info['permutation_counts']
+                    print(f"  Permutation Files Found:")
+                    for subj, count in sorted(perm_counts.items()):
+                        print(f"    {subj}: {count} files")
 
         # Overall stats
         total_expected = sum(r.expected for r in self.results.values())
