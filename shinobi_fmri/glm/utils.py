@@ -1030,7 +1030,7 @@ def load_run(
     validate_events_file(events_fname, required_columns=['onset', 'duration'])
 
     # Load events
-    run_events = pd.read_csv(events_fname, sep="\t", index_col=[0], low_memory=False)
+    run_events = pd.read_csv(events_fname, sep="\t", low_memory=False)
     annotation_events = select_events(run_events, conditions_list)
 
     # Load images
