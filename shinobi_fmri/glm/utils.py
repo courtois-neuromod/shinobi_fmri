@@ -284,15 +284,33 @@ def get_filenames(
     )
     # assert op.isfile(mask_fname), f"Mask file not found for {sub}_{ses}_{run}"
     
-    events_fname = op.join(
+    events_base_path = op.join(
         path_to_data,
         "shinobi",
         sub,
         ses,
-        "func",
+        "func"
+    )
+    
+    annotated_events = op.join(
+        events_base_path,
         f"{sub}_{ses}_task-shinobi_run-{run_padded}_desc-annotated_events.tsv",
     )
-    # assert op.isfile(events_fname), f"Annotated events file not found for {sub}_{ses}_{run}"
+    
+    standard_events = op.join(
+        events_base_path,
+        f"{sub}_{ses}_task-shinobi_run-{run_padded}_events.tsv",
+    )
+    
+    if op.exists(annotated_events):
+        events_fname = annotated_events
+    elif op.exists(standard_events):
+        events_fname = standard_events
+    else:
+        # Default to annotated for error message if neither exists
+        events_fname = annotated_events
+    
+    # assert op.isfile(events_fname), f"Events file not found for {sub}_{ses}_{run}"
     
     return fmri_fname, anat_fname, events_fname, mask_fname
 

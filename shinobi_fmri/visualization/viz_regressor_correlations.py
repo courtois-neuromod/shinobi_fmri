@@ -104,10 +104,23 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
         run_padded = run.zfill(2)
 
         # Build file paths
-        events_fname = op.join(
-            path_to_data, "shinobi", sub, ses, "func",
+        # Build file paths
+        events_base_path = op.join(path_to_data, "shinobi", sub, ses, "func")
+        annotated_events = op.join(
+            events_base_path,
             f"{sub}_{ses}_task-shinobi_run-{run_padded}_desc-annotated_events.tsv"
         )
+        standard_events = op.join(
+            events_base_path,
+            f"{sub}_{ses}_task-shinobi_run-{run_padded}_events.tsv"
+        )
+        
+        if op.exists(annotated_events):
+            events_fname = annotated_events
+        elif op.exists(standard_events):
+            events_fname = standard_events
+        else:
+            events_fname = annotated_events # Default for error reporting
         fmri_fname = op.join(
             path_to_data, "shinobi.fmriprep",
             sub, ses, "func",

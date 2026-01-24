@@ -74,13 +74,24 @@ def get_run_summary(
         data_path, "shinobi", sub, ses, "func",
         f"{sub}_{ses}_task-shinobi_run-{run_padded}_desc-annotated_events.tsv"
     )
+    
+    # Check which events file exists (prefer annotated)
+    if op.exists(annotated_events_path):
+        events_path_to_use = annotated_events_path
+        events_available = True
+    elif op.exists(events_path):
+        events_path_to_use = events_path
+        events_available = True
+    else:
+        events_path_to_use = None
+        events_available = False
 
     base_summary = {
         'subject': sub,
         'session': ses,
         'run': run_padded,
         'fmri_exists': op.exists(fmri_path),
-        'events_exists': op.exists(annotated_events_path),
+        'events_exists': events_available,
         'n_volumes': None,
         'n_HIT': 0,
         'n_JUMP': 0,
@@ -100,10 +111,10 @@ def get_run_summary(
         except Exception as e:
             print(f"Warning: Could not load {fmri_path}: {e}")
 
-    # Count detailed events from annotated file (aggregated per run)
-    if op.exists(annotated_events_path):
+    # Count detailed events from events file (aggregated per run)
+    if events_available:
         try:
-            events = pd.read_csv(annotated_events_path, sep='\t')
+            events = pd.read_csv(events_path_to_use, sep='\t')
             event_counts = count_events_by_type(events)
 
             # Extract counts for specific conditions
