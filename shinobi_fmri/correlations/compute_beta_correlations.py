@@ -448,41 +448,190 @@ def collect_pending_pairs_for_indices(path, indices):
     return pairs, data
 
 
-def merge_updates(path, updates, logger=None):
-    if not updates:
-        return load_existing_dict(path)
-    while True:
-        current = load_existing_dict(path)
-        for (i, j), value in updates.items():
-            current['corr_matrix'][i, j] = current['corr_matrix'][j, i] = value
-            current['computed_mask'][i, j] = current['computed_mask'][j, i] = True
-        np.fill_diagonal(current['corr_matrix'], 1.0)
+def get_chunk_dir(base_path):
+    """Get the directory path for chunk files."""
+    return op.join(op.dirname(base_path), 'corrmat_chunks')
 
-        # Prepare metadata for provenance tracking
-        n_maps = current['corr_matrix'].shape[0]
-        n_computed = int(np.sum(current['computed_mask']) // 2)  # Divide by 2 for symmetry
-        n_total = (n_maps * (n_maps - 1)) // 2
-        metadata_params = {
-            'description': 'Beta map correlation matrix across shinobi and HCP datasets',
-            'parameters': {
-                'contrasts': CONTRASTS,
-                'subjects': SUBJECTS,
-                'model': MODEL,
-            },
-            'subject': None,  # Multi-subject analysis
-            'session': None,
-            'additional_info': {
-                'analysis_type': 'beta_correlations',
-                'n_maps': n_maps,
-                'n_computed_pairs': n_computed,
-                'n_total_pairs': n_total,
-                'completion_percentage': (n_computed / n_total * 100) if n_total > 0 else 0,
-                'mapnames_count': len(current.get('mapnames', [])),
-            }
+
+def get_chunk_path(base_path, chunk_start, chunk_end):
+    """Get the file path for a specific chunk."""
+    chunk_dir = get_chunk_dir(base_path)
+    return op.join(chunk_dir, f'chunk_{chunk_start}-{chunk_end}.pkl')
+
+
+def check_all_chunks_complete(base_path, total_maps, chunk_size):
+    """
+    Check if all expected chunk files exist.
+
+    Returns:
+        tuple: (all_complete: bool, chunk_paths: list)
+    """
+    chunk_dir = get_chunk_dir(base_path)
+    if not op.exists(chunk_dir):
+        return False, []
+
+    num_chunks = (total_maps + chunk_size - 1) // chunk_size
+    chunk_paths = []
+
+    for chunk_idx in range(num_chunks):
+        chunk_start = chunk_idx * chunk_size
+        chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
+        chunk_path = get_chunk_path(base_path, chunk_start, chunk_end)
+
+        if not op.exists(chunk_path):
+            return False, []
+        chunk_paths.append(chunk_path)
+
+    return True, chunk_paths
+
+
+def merge_all_chunks(base_path, chunk_paths, logger=None):
+    """
+    Merge all chunk files into the master correlation matrix.
+
+    Loads the base structure from the first chunk, then merges all
+    correlation values from all chunks.
+    """
+    log(f"All chunks complete! Merging {len(chunk_paths)} chunks into master file...", logger)
+
+    # Load base structure from first chunk
+    master = load_existing_dict(chunk_paths[0])
+    if master is None:
+        log("ERROR: Could not load first chunk file", logger)
+        return None
+
+    log(f"Loaded base structure: {master['corr_matrix'].shape[0]} maps", logger)
+
+    # Merge correlation values from all chunks
+    for chunk_path in chunk_paths[1:]:
+        chunk_data = load_existing_dict(chunk_path)
+        if chunk_data is None:
+            log(f"WARNING: Could not load chunk {chunk_path}, skipping", logger)
+            continue
+
+        # Merge computed correlations
+        chunk_mask = chunk_data['computed_mask']
+        master['corr_matrix'][chunk_mask] = chunk_data['corr_matrix'][chunk_mask]
+        master['computed_mask'] |= chunk_mask
+
+    # Ensure diagonal is 1.0
+    np.fill_diagonal(master['corr_matrix'], 1.0)
+
+    # Prepare metadata for provenance tracking
+    n_maps = master['corr_matrix'].shape[0]
+    n_computed = int(np.sum(master['computed_mask']) // 2)  # Divide by 2 for symmetry
+    n_total = (n_maps * (n_maps - 1)) // 2
+    metadata_params = {
+        'description': 'Beta map correlation matrix across shinobi and HCP datasets',
+        'parameters': {
+            'contrasts': CONTRASTS,
+            'subjects': SUBJECTS,
+            'model': MODEL,
+        },
+        'subject': None,  # Multi-subject analysis
+        'session': None,
+        'additional_info': {
+            'analysis_type': 'beta_correlations',
+            'n_maps': n_maps,
+            'n_computed_pairs': n_computed,
+            'n_total_pairs': n_total,
+            'completion_percentage': (n_computed / n_total * 100) if n_total > 0 else 0,
+            'mapnames_count': len(master.get('mapnames', [])),
+            'n_chunks_merged': len(chunk_paths),
         }
+    }
 
-        save_with_retry(path, current, logger, save_metadata=True, metadata_params=metadata_params)
-        return current
+    # Save master file
+    save_with_retry(base_path, master, logger, save_metadata=True, metadata_params=metadata_params)
+    log(f"Master file saved to {base_path}", logger)
+
+    # Clean up chunk files (be safe in case of concurrent cleanup)
+    chunk_dir = get_chunk_dir(base_path)
+    try:
+        import shutil
+        if op.exists(chunk_dir):
+            shutil.rmtree(chunk_dir)
+            log(f"Cleaned up chunk directory: {chunk_dir}", logger)
+        else:
+            log(f"Chunk directory already cleaned up by another process", logger)
+    except Exception as e:
+        log(f"Warning: Could not remove chunk directory (may be cleaned by another job): {e}", logger)
+
+    return master
+
+
+def merge_updates(path, updates, chunk_start, chunk_size, total_maps, logger=None):
+    """
+    Save chunk results and merge into master if all chunks complete.
+
+    Args:
+        path: Base path for master correlation matrix file
+        updates: Dict of {(i,j): correlation_value} computed in this chunk
+        chunk_start: Starting map index for this chunk
+        chunk_size: Size of each chunk
+        total_maps: Total number of maps across all chunks
+        logger: Logger instance
+
+    Returns:
+        dict: Current state of correlation matrix (from chunk or merged master)
+    """
+    if not updates:
+        # No updates computed, load from chunk file or create empty
+        chunk_dir = get_chunk_dir(path)
+        os.makedirs(chunk_dir, exist_ok=True)
+        chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
+        chunk_path = get_chunk_path(path, chunk_start, chunk_end)
+        existing = load_existing_dict(chunk_path)
+        if existing:
+            return existing
+        # If chunk doesn't exist, load master structure
+        return load_existing_dict(path)
+
+    # Create chunk directory if needed
+    chunk_dir = get_chunk_dir(path)
+    os.makedirs(chunk_dir, exist_ok=True)
+
+    # Determine chunk file path
+    chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
+    chunk_path = get_chunk_path(path, chunk_start, chunk_end)
+
+    # Load or initialize chunk data (use master file as template)
+    chunk_data = load_existing_dict(chunk_path)
+    if chunk_data is None:
+        # Initialize from master file structure if it exists
+        chunk_data = load_existing_dict(path)
+        if chunk_data is None:
+            log("ERROR: No master file to initialize chunk structure", logger)
+            return None
+
+    # Apply updates to chunk
+    for (i, j), value in updates.items():
+        chunk_data['corr_matrix'][i, j] = chunk_data['corr_matrix'][j, i] = value
+        chunk_data['computed_mask'][i, j] = chunk_data['computed_mask'][j, i] = True
+    np.fill_diagonal(chunk_data['corr_matrix'], 1.0)
+
+    # Save chunk file (no metadata for individual chunks)
+    save_with_retry(chunk_path, chunk_data, logger, save_metadata=False)
+    log(f"Chunk saved: {chunk_path}", logger)
+
+    # Check if all chunks are complete
+    all_complete, chunk_paths = check_all_chunks_complete(path, total_maps, chunk_size)
+
+    if all_complete:
+        # Check if someone else already merged (race condition prevention)
+        chunk_dir = get_chunk_dir(path)
+        if not op.exists(chunk_dir):
+            # Chunks were already cleaned up by another job
+            log("Another job already completed the merge. Loading master file.", logger)
+            master = load_existing_dict(path)
+            return master if master else chunk_data
+
+        # We're the last chunk (or first to notice)! Merge everything
+        log("All chunks detected. Attempting to merge...", logger)
+        return merge_all_chunks(path, chunk_paths, logger)
+    else:
+        log(f"Chunk {chunk_start}-{chunk_end} complete. Waiting for other chunks...", logger)
+        return chunk_data
 
 
 def mark_pair(matrix, mask, i, j, value):
@@ -491,10 +640,30 @@ def mark_pair(matrix, mask, i, j, value):
 
 
 def load_existing_dict(results_path):
+    """
+    Load existing correlation results from pickle file.
+
+    If the pickle file is corrupted (e.g., truncated from a crashed job),
+    rename it with .corrupted suffix and return None to allow recovery.
+
+    Returns:
+        dict or None: Loaded results dict, or None if file doesn't exist or is corrupted
+    """
     if not op.isfile(results_path):
         return None
-    with open(results_path, 'rb') as f:
-        return pickle.load(f)
+
+    try:
+        with open(results_path, 'rb') as f:
+            return pickle.load(f)
+    except (pickle.UnpicklingError, EOFError) as e:
+        # Pickle file is corrupted (likely from a crashed job or concurrent write)
+        import shutil
+        backup_path = f"{results_path}.corrupted_{int(time.time())}"
+        shutil.move(results_path, backup_path)
+        print(f"WARNING: Corrupted pickle file detected and moved to: {backup_path}")
+        print(f"         Error was: {e}")
+        print(f"         Continuing with fresh initialization...")
+        return None
 
 
 def save_with_retry(path, payload, logger=None, save_metadata=False, metadata_params=None):
@@ -699,7 +868,11 @@ def main():
 
         # Process the assigned chunk
         total_maps = len(records)
-        chunk_indices = list(chunk_range(total_maps, args.chunk_size, args.chunk_start))
+        # Use total_maps as chunk_size if not specified (process everything in one chunk)
+        chunk_size = args.chunk_size if args.chunk_size is not None else total_maps
+        chunk_start = args.chunk_start
+
+        chunk_indices = list(chunk_range(total_maps, chunk_size, chunk_start))
         if not chunk_indices:
             log("Chunk contains no map indices; exiting.", logger)
             save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, logger)
@@ -711,7 +884,7 @@ def main():
             save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
             return
         updates = compute_pairs_batch(pairs, records, masker, target_affine, target_shape, args.n_jobs, args.backend, logger)
-        latest = merge_updates(results_path, updates, logger)
+        latest = merge_updates(results_path, updates, chunk_start, chunk_size, total_maps, logger)
         save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
         
     finally:
