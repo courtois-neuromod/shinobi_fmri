@@ -152,7 +152,7 @@ def get_run_summary(
                 
                 if stim_file and isinstance(stim_file, str) and stim_file != "Missing file":
                     # Path is relative to shinobi root
-                    json_path = op.join(data_path, "shinobi", stim_file.replace(".bk2", ".json"))
+                    json_path = op.join(data_path, "shinobi", stim_file.replace(".bk2", "_summary.json"))
                     if op.exists(json_path):
                         try:
                             with open(json_path) as jf:

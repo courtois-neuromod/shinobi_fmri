@@ -406,93 +406,63 @@ def add_button_press_confounds(
     """
     Add game controller button press regressors to confound matrix.
 
-    Detects button press and release events from frame-by-frame game state data
+    Counts button press events from annotated events (trial_types in all capitals)
     and creates regressors indicating the number of button presses per TR.
     Useful for modeling motor-related variance in video game fMRI.
 
     Args:
         confounds: Tuple of (confounds_df, column_names) from fMRIPrep
-        run_events: DataFrame with trial_type='frame' rows containing button states
+        run_events: DataFrame with button press events (all-caps trial_types)
         t_r: Repetition time in seconds (default: 1.49)
 
     Returns:
         Updated confounds tuple with button press regressors added
 
     Note:
-        Adds 'button_presses_count' regressor tracking number of simultaneous
-        button presses per TR. Handles 8 buttons: DOWN, LEFT, RIGHT, UP, C, Y, X, Z.
-        Button state transitions (False→True) are detected as presses.
+        Adds 'button_presses_count' regressor tracking number of button presses
+        per TR. Button press events are identified as trial_types that are fully
+        uppercase (e.g., RIGHT, LEFT, JUMP, HIT, UP, DOWN), excluding
+        'gym-retro_game' event type.
     """
     n_volumes = len(confounds[0])
-    
-    # Button columns to extract
-    button_columns = ['DOWN', 'LEFT', 'RIGHT', 'UP', 'C', 'Y', 'X', 'Z']
-    
-    # Get only frame events - reset index to ensure we can iterate properly
-    frame_events = run_events[run_events['trial_type'] == 'frame'].copy().reset_index(drop=True)
-    
-    if len(frame_events) == 0:
+
+    # Initialize button press counter
+    count_press = np.zeros(n_volumes)
+
+    # Get button press events - all trial_types that are fully uppercase
+    # Exclude 'gym-retro_game' event type
+    button_mask = (
+        run_events['trial_type'].notna() &
+        run_events['trial_type'].str.isupper() &
+        (run_events['trial_type'] != 'gym-retro_game')
+    )
+    button_events = run_events[button_mask].copy()
+
+    if len(button_events) == 0:
+        logging.debug("No button press events found in run_events")
+        confounds[0]['button_presses_count'] = count_press
         return confounds
 
-    # Initialize regressors
-    any_press = np.zeros(n_volumes)  # 1 if any button pressed
-    any_release = np.zeros(n_volumes)  # 1 if any button released
-    count_press = np.zeros(n_volumes)  # number of buttons pressed
-    count_release = np.zeros(n_volumes)  # number of buttons released
-    
-    # For each button, detect transitions (press/release events)
-    for button in button_columns:
-        if button not in frame_events.columns:
-            continue
-        
-        # Get button states as boolean array
-        button_states = frame_events[button].copy()
-        
-        # Convert to boolean, handling NaN and various types
-        button_states = button_states.fillna(False)
-        if button_states.dtype == 'object':
-            button_states = button_states.replace({'False': False, 'True': True, False: False, True: True})
-        button_states = button_states.astype(bool)
-        
-        button_states = button_states.values
-        onsets = frame_events['onset'].values
+    # Count button presses per TR
+    onsets = button_events['onset'].values
 
-        # Filter out None/NaN onsets
-        valid_mask = pd.notna(onsets)
-        n_invalid = (~valid_mask).sum()
-        if n_invalid > 0:
-            logging.warning(f"Found {n_invalid} frame events with NaN onsets (button {button})")
+    # Filter out None/NaN onsets
+    valid_mask = pd.notna(onsets)
+    n_invalid = (~valid_mask).sum()
+    if n_invalid > 0:
+        logging.warning(f"Found {n_invalid} button press events with NaN onsets")
 
-        onsets = onsets[valid_mask]
-        button_states = button_states[valid_mask]
+    onsets = onsets[valid_mask]
 
-        # Detect transitions: False->True = press, True->False = release
-        presses = np.zeros(len(button_states), dtype=bool)
-        releases = np.zeros(len(button_states), dtype=bool)
+    # Map button press events to TR volumes
+    for onset in onsets:
+        volume_idx = int(np.round(onset / t_r))
+        if 0 <= volume_idx < n_volumes:
+            count_press[volume_idx] += 1
 
-        for i in range(1, len(button_states)):
-            if not button_states[i-1] and button_states[i]:
-                presses[i] = True
-            elif button_states[i-1] and not button_states[i]:
-                releases[i] = True
-        
-        # Map events to volumes (TR bins)
-        for i, onset in enumerate(onsets):
-            volume_idx = int(np.round(onset / t_r))
-            if 0 <= volume_idx < n_volumes:
-                if presses[i]:
-                    any_press[volume_idx] = 1
-                    count_press[volume_idx] += 1
-                if releases[i]:
-                    any_release[volume_idx] = 1
-                    count_release[volume_idx] += 1
-    
-    # Add regressors to confounds[0]
-    #confounds[0]['button_any_press'] = any_press
-    #confounds[0]['button_any_release'] = any_release
+    # Add regressor to confounds
     confounds[0]['button_presses_count'] = count_press
-    #confounds[0]['button_count_release'] = count_release
-    
+
     return confounds
 
 def add_psychophysics_confounds(
@@ -535,7 +505,7 @@ def add_psychophysics_confounds(
             continue
 
         ppc_fname = op.join(
-            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_confs.npy")
+            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_lowlevel.npy")
         )
 
         if not os.path.exists(ppc_fname):
@@ -588,7 +558,7 @@ def add_low_level_task_regressors(
 
     Args:
         n_volumes: Number of fMRI volumes
-        run_events: DataFrame with trial_type='gym-retro_game' and 'frame' events
+        run_events: DataFrame with trial_type='gym-retro_game' and button press events
         path_to_data: Root path to data directory
         t_r: Repetition time in seconds (default: 1.49)
         hrf_model: HRF model name (default: 'spm')
@@ -612,7 +582,7 @@ def add_low_level_task_regressors(
             continue
 
         ppc_fname = op.join(
-            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_confs.npy")
+            path_to_data, "shinobi", row["stim_file"].replace(".bk2", "_lowlevel.npy")
         )
 
         if not os.path.exists(ppc_fname):
@@ -650,39 +620,34 @@ def add_low_level_task_regressors(
     for key, data in ppc_data.items():
         features[key] = data
 
-    # 2. Load button press counts
+    # 2. Load button press counts from button press event annotations
+    # Get button press events - all trial_types that are fully uppercase
+    # Exclude 'gym-retro_game' event type
     button_presses = np.zeros(n_volumes)
-    button_columns = ['DOWN', 'LEFT', 'RIGHT', 'UP', 'C', 'Y', 'X', 'Z']
-    frame_events = run_events[run_events['trial_type'] == 'frame'].copy().reset_index(drop=True)
+    button_mask = (
+        run_events['trial_type'].notna() &
+        run_events['trial_type'].str.isupper() &
+        (run_events['trial_type'] != 'gym-retro_game')
+    )
+    button_events = run_events[button_mask].copy()
 
-    if len(frame_events) > 0:
-        count_press = np.zeros(n_volumes)
-        for button in button_columns:
-            if button not in frame_events.columns:
-                continue
+    if len(button_events) > 0:
+        # Count button presses per TR
+        onsets = button_events['onset'].values
 
-            button_states = frame_events[button].copy()
-            button_states = button_states.fillna(False)
-            if button_states.dtype == 'object':
-                button_states = button_states.replace({'False': False, 'True': True, False: False, True: True})
-            button_states = button_states.astype(bool).values
-            onsets = frame_events['onset'].values
+        # Filter out None/NaN onsets
+        valid_mask = pd.notna(onsets)
+        n_invalid = (~valid_mask).sum()
+        if n_invalid > 0:
+            logging.warning(f"Found {n_invalid} button press events with NaN onsets")
 
-            valid_mask = pd.notna(onsets)
-            onsets = onsets[valid_mask]
-            button_states = button_states[valid_mask]
+        onsets = onsets[valid_mask]
 
-            presses = np.zeros(len(button_states), dtype=bool)
-            for i in range(1, len(button_states)):
-                if not button_states[i-1] and button_states[i]:
-                    presses[i] = True
-
-            for i, onset in enumerate(onsets):
-                volume_idx = int(np.round(onset / t_r))
-                if 0 <= volume_idx < n_volumes and presses[i]:
-                    count_press[volume_idx] += 1
-
-        button_presses = count_press
+        # Map button press events to TR volumes
+        for onset in onsets:
+            volume_idx = int(np.round(onset / t_r))
+            if 0 <= volume_idx < n_volumes:
+                button_presses[volume_idx] += 1
 
     features['button_presses_count'] = button_presses
 
@@ -983,7 +948,7 @@ def select_events(
 
     Example:
         >>> events = pd.DataFrame({
-        ...     'trial_type': ['HIT', 'frame', 'JUMP', 'HIT'],
+        ...     'trial_type': ['HIT', 'Kill', 'JUMP', 'HIT'],
         ...     'onset': [1.0, 1.5, 3.0, 5.0],
         ...     'duration': [0.5, 0.0, 0.5, 0.5]
         ... })
