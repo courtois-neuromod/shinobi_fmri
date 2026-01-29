@@ -248,6 +248,7 @@ def create_all_images(subject, condition, fig_folder, data_path=DATA_PATH, use_c
     
     Low-level features (luminance, optical_flow, etc.) are always included.
     The source is always the 'processed/' directory.
+    """
     # Always use processed directory (low-level features are now default)
     output_dir = "processed"
 
@@ -395,6 +396,7 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
 
     Low-level features are always included.
     Source is always the 'processed/' directory.
+    """
     # Always use processed directory (low-level features are now default)
     output_dir = "processed"
 
@@ -644,9 +646,9 @@ def main():
         help='Skip generating PDF'
     )
     parser.add_argument(
-        '--use-corrected-maps',
+        '--use-raw-maps',
         action='store_true',
-        help='Use corrected z-maps instead of raw maps (default: use raw maps)'
+        help='Use raw uncorrected z-maps instead of corrected maps (default: use corrected maps)'
     )
     parser.add_argument(
         '--force',
@@ -705,7 +707,7 @@ def main():
 
         logger.info(f"Processing {len(conditions)} condition(s): {', '.join(conditions)}")
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
-        logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
+        logger.info(f"Using {'raw uncorrected' if args.use_raw_maps else 'corrected'} z-maps")
         logger.info(f"Including low-level features: {not args.exclude_low_level}")
         logger.info(f"Output directory: {args.output_dir}\n")
 
@@ -736,28 +738,28 @@ def main():
                           unit="img") as pbar:
                     for subject in SUBJECTS:
                         fig_folder = op.join(
-                            ".", "reports", base_fig_dir, "full_zmap_plot",
+                            ".", "reports", "figures", "full_zmap_plot",
                             subject, condition
                         )
                         os.makedirs(fig_folder, exist_ok=True)
                         create_all_images(subject, condition, fig_folder,
-                                          data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                          data_path=args.data_path, use_corrected_maps=not args.use_raw_maps,
                                           force=args.force, pbar=pbar, logger=logger)
 
             # Create combined annotation panel
             if not args.skip_panels:
                 # Add suffix to indicate corrected vs raw maps
-                map_type = "corrected" if args.use_corrected_maps else "raw"
+                map_type = "raw" if args.use_raw_maps else "corrected"
                 save_path = op.join(args.output_dir, f"annotations_plot_{condition}_{map_type}.png")
                 with tqdm(total=1, desc=f"Creating panel for {condition}", unit="panel") as pbar:
                     make_annotation_plot(condition, save_path,
-                                         data_path=args.data_path, use_corrected_maps=args.use_corrected_maps,
+                                         data_path=args.data_path, use_corrected_maps=not args.use_raw_maps,
                                          pbar=pbar, logger=logger)
 
         # Create PDF with all panels
         if not args.skip_pdf:
             # Add suffix to indicate corrected vs raw maps
-            map_type = "corrected" if args.use_corrected_maps else "raw"
+            map_type = "raw" if args.use_raw_maps else "corrected"
             pdf_path = op.join(args.output_dir, f'inflated_zmaps_by_annot_{map_type}.pdf')
             panel_images = [f for f in os.listdir(args.output_dir) if f.endswith('.png')]
             with tqdm(total=len(panel_images), desc="Creating PDF", unit="page") as pbar:

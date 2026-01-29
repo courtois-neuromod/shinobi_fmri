@@ -550,7 +550,7 @@ def viz_subject_level(c, slurm=False, verbose=0, log_dir=None, exclude_low_level
 
 
 @task
-def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, use_corrected_maps=False, force=False, exclude_low_level=False, verbose=0, log_dir=None):
+def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=False, skip_panels=False, skip_pdf=False, use_raw_maps=False, force=False, exclude_low_level=False, verbose=0, log_dir=None):
     """
     Generate annotation panels with subject-level and session-level brain maps.
 
@@ -565,7 +565,7 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         skip_individual: Skip generating individual brain maps
         skip_panels: Skip generating annotation panels
         skip_pdf: Skip generating PDF
-        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False)
+        use_raw_maps: Use raw uncorrected z-maps instead of corrected maps (default: False)
         force: Force regeneration of images even if they already exist
         exclude_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level
@@ -586,8 +586,8 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
         cmd_parts.append('--skip-panels')
     if skip_pdf:
         cmd_parts.append('--skip-pdf')
-    if use_corrected_maps:
-        cmd_parts.append('--use-corrected-maps')
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
     if force:
         cmd_parts.append('--force')
     if exclude_low_level:
