@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from shinobi_fmri.config import DATA_PATH, FIG_PATH
 from shinobi_fmri.visualization.hcp_tasks import (
     get_condition_label, get_condition_color, is_shinobi_condition,
-    get_all_shinobi_conditions
+    get_all_shinobi_conditions, SHINOBI_COLOR
 )
 
 
@@ -270,20 +270,19 @@ def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=Fa
     # Add icons to condition labels
     ordered_conds_with_icons = [get_condition_label(cond) for cond in ordered_conds]
 
-    # Reorder and rotate matrix 90° clockwise to get left triangle
+    # Reorder matrix (no rotation - use lower triangle mask directly)
     corr_matrix_ordered = corr_matrix.loc[ordered_conds, ordered_conds]
-    corr_matrix_rotated = np.rot90(corr_matrix_ordered.values, k=3)
 
-    # Create mask for upper-right triangle (after clockwise rotation)
-    mask_rotated = np.triu(np.ones_like(corr_matrix_rotated, dtype=bool), k=1)
+    # Create mask for upper triangle (keep lower triangle visible)
+    mask = np.triu(np.ones_like(corr_matrix_ordered.values, dtype=bool), k=1)
 
     # Create figure
     fig, ax = plt.subplots(figsize=(14, 12))
 
     # Plot heatmap
     sns.heatmap(
-        corr_matrix_rotated,
-        mask=mask_rotated,
+        corr_matrix_ordered.values,
+        mask=mask,
         annot=True,
         fmt='.2f',
         cmap='RdYlBu_r',
@@ -294,12 +293,12 @@ def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=Fa
         cbar_kws={'label': 'Mean Pearson r', 'shrink': 0.4},
         ax=ax,
         annot_kws={'fontsize': 7},
-        xticklabels=ordered_conds_with_icons[::-1],
+        xticklabels=ordered_conds_with_icons,
         yticklabels=ordered_conds_with_icons
     )
 
-    # Color tick labels (adjusted for clockwise rotation)
-    color_condition_labels(ax, ordered_conds[::-1], axis='x', include_low_level=include_low_level)
+    # Color tick labels
+    color_condition_labels(ax, ordered_conds, axis='x', include_low_level=include_low_level)
     color_condition_labels(ax, ordered_conds, axis='y', include_low_level=include_low_level)
 
     # Add separating lines between Shinobi and HCP, and between HCP tasks
@@ -308,9 +307,9 @@ def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=Fa
     n_shinobi = len(shinobi_conds)
     n_total = len(ordered_conds)
     if n_shinobi > 0 and len(hcp_conds) > 0:
-        # Main separator between Shinobi and HCP (adjusted for clockwise rotation)
-        ax.axhline(y=n_shinobi, color='black', linewidth=3)
-        ax.axvline(x=n_total - n_shinobi, color='black', linewidth=3)
+        # Main separator between Shinobi and HCP (lines stop at diagonal)
+        ax.plot([0, n_shinobi], [n_shinobi, n_shinobi], color='black', linewidth=3, clip_on=True)
+        ax.plot([n_shinobi, n_shinobi], [n_shinobi, n_total], color='black', linewidth=3, clip_on=True)
 
         # Add task separators within HCP section
         event_to_task = get_event_to_task_mapping()
@@ -319,16 +318,16 @@ def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=Fa
         for i, cond in enumerate(hcp_conds):
             task = event_to_task.get(cond)
             if task and task != prev_task and prev_task is not None:
-                # Add a thin line between different tasks
+                # Add a thin line between different tasks (stop at diagonal)
                 pos = n_shinobi + i
-                ax.axhline(y=pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
-                ax.axvline(x=n_total - pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
+                ax.plot([0, pos], [pos, pos], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
+                ax.plot([pos, pos], [pos, n_total], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
             prev_task = task
 
-        # Add labels for sections
-        ax.text(-0.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
-                fontsize=14, fontweight='bold', color='#FF6B6B')
-        ax.text(-0.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
+        # Add labels for sections (further left to avoid overlap with tick labels)
+        ax.text(-2.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
+                fontsize=14, fontweight='bold', color=SHINOBI_COLOR)
+        ax.text(-2.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
     title = f'{subject}: Within-Subject Condition Correlations'
@@ -365,20 +364,19 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
     # Add icons to condition labels
     ordered_conds_with_icons = [get_condition_label(cond) for cond in ordered_conds]
 
-    # Reorder and rotate matrix 90° clockwise to get left triangle
+    # Reorder matrix (no rotation - use lower triangle mask directly)
     avg_matrix_ordered = avg_matrix.loc[ordered_conds, ordered_conds]
-    avg_matrix_rotated = np.rot90(avg_matrix_ordered.values, k=3)
 
-    # Create mask for upper-right triangle (after clockwise rotation)
-    mask_rotated = np.triu(np.ones_like(avg_matrix_rotated, dtype=bool), k=1)
+    # Create mask for upper triangle (keep lower triangle visible)
+    mask = np.triu(np.ones_like(avg_matrix_ordered.values, dtype=bool), k=1)
 
     # Create figure
     fig, ax = plt.subplots(figsize=(14, 12))
 
     # Plot heatmap
     sns.heatmap(
-        avg_matrix_rotated,
-        mask=mask_rotated,
+        avg_matrix_ordered.values,
+        mask=mask,
         annot=True,
         fmt='.2f',
         cmap='RdYlBu_r',
@@ -389,12 +387,12 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
         cbar_kws={'label': 'Mean Pearson r', 'shrink': 0.4},
         ax=ax,
         annot_kws={'fontsize': 7},
-        xticklabels=ordered_conds_with_icons[::-1],
+        xticklabels=ordered_conds_with_icons,
         yticklabels=ordered_conds_with_icons
     )
 
-    # Color tick labels (adjusted for clockwise rotation)
-    color_condition_labels(ax, ordered_conds[::-1], axis='x', include_low_level=include_low_level)
+    # Color tick labels
+    color_condition_labels(ax, ordered_conds, axis='x', include_low_level=include_low_level)
     color_condition_labels(ax, ordered_conds, axis='y', include_low_level=include_low_level)
 
     # Add separating lines between Shinobi and HCP, and between HCP tasks
@@ -403,9 +401,9 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
     n_shinobi = len(shinobi_conds)
     n_total = len(ordered_conds)
     if n_shinobi > 0 and len(hcp_conds) > 0:
-        # Main separator between Shinobi and HCP (adjusted for clockwise rotation)
-        ax.axhline(y=n_shinobi, color='black', linewidth=3)
-        ax.axvline(x=n_total - n_shinobi, color='black', linewidth=3)
+        # Main separator between Shinobi and HCP (lines stop at diagonal)
+        ax.plot([0, n_shinobi], [n_shinobi, n_shinobi], color='black', linewidth=3, clip_on=True)
+        ax.plot([n_shinobi, n_shinobi], [n_shinobi, n_total], color='black', linewidth=3, clip_on=True)
 
         # Add task separators within HCP section
         event_to_task = get_event_to_task_mapping()
@@ -414,16 +412,16 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
         for i, cond in enumerate(hcp_conds):
             task = event_to_task.get(cond)
             if task and task != prev_task and prev_task is not None:
-                # Add a thin line between different tasks
+                # Add a thin line between different tasks (stop at diagonal)
                 pos = n_shinobi + i
-                ax.axhline(y=pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
-                ax.axvline(x=n_total - pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
+                ax.plot([0, pos], [pos, pos], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
+                ax.plot([pos, pos], [pos, n_total], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
             prev_task = task
 
-        # Add labels
-        ax.text(-0.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
-                fontsize=14, fontweight='bold', color='#FF6B6B')
-        ax.text(-0.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
+        # Add labels (further left to avoid overlap with tick labels)
+        ax.text(-2.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
+                fontsize=14, fontweight='bold', color=SHINOBI_COLOR)
+        ax.text(-2.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
     title = 'Average Within-Subject Correlations'
@@ -699,14 +697,11 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
     ordered_conds = shinobi_conds + hcp_conds
     ordered_conds_with_icons = [get_condition_label(cond) for cond in ordered_conds]
 
-    # Reorder and rotate average matrix 90° clockwise to get left triangle
+    # Reorder matrix (no rotation - use lower triangle mask directly)
     avg_matrix_ordered = avg_matrix.loc[ordered_conds, ordered_conds]
-    # Rotate 90° clockwise (k=-1 or k=3)
-    avg_matrix_rotated = np.rot90(avg_matrix_ordered.values, k=3)
 
-    # Create mask for upper triangle (which becomes top-right after clockwise rotation)
-    # After rotation, we want to keep only the lower-left triangle
-    mask_rotated = np.triu(np.ones_like(avg_matrix_rotated, dtype=bool), k=1)
+    # Create mask for upper triangle (keep lower triangle visible)
+    mask = np.triu(np.ones_like(avg_matrix_ordered.values, dtype=bool), k=1)
 
     # Compute specificity matrix
     subjects = sorted(subject_results.keys())
@@ -738,17 +733,16 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
             else:
                 specificity_matrix[i, j] = np.nan
 
-    # Create figure with two panels - make specificity panel half as wide
+    # Create figure with two panels
     fig = plt.figure(figsize=(18, 10))
-    gs = fig.add_gridspec(1, 2, width_ratios=[2, 1], wspace=0.3)
+    gs = fig.add_gridspec(1, 2, width_ratios=[2, 1], wspace=0.15)
     ax1 = fig.add_subplot(gs[0])
     ax2 = fig.add_subplot(gs[1])
 
-    # Panel A: Average correlation matrix (rotated 90° clockwise)
-    # After clockwise rotation: x-axis shows original y-axis labels, y-axis shows original x-axis labels (reversed)
-    sns.heatmap(
-        avg_matrix_rotated,
-        mask=mask_rotated,
+    # Panel A: Average correlation matrix (lower triangle)
+    hm = sns.heatmap(
+        avg_matrix_ordered.values,
+        mask=mask,
         annot=True,
         fmt='.2f',
         cmap='RdYlBu_r',
@@ -756,26 +750,37 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
         vmin=-0.3,
         vmax=0.8,
         square=True,
-        cbar=False,  # Remove colorbar from average matrix
+        cbar=False,  # Colorbar added as inset in empty triangle
         ax=ax1,
         annot_kws={'fontsize': 7},
-        xticklabels=ordered_conds_with_icons[::-1],  # Reversed for clockwise rotation
+        xticklabels=ordered_conds_with_icons,
         yticklabels=ordered_conds_with_icons
     )
 
-    # Color tick labels for panel A (adjusted for clockwise rotation)
-    color_condition_labels(ax1, ordered_conds[::-1], axis='x', include_low_level=include_low_level)
+    # Add colorbar as inset in the empty upper triangle
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    cbar_ax = inset_axes(ax1,
+                         width="5%",
+                         height="50%",
+                         loc='upper right',
+                         bbox_to_anchor=(0, 0, 0.85, 0.85),
+                         bbox_transform=ax1.transAxes,
+                         borderpad=0)
+    cbar = fig.colorbar(hm.collections[0], cax=cbar_ax, orientation='vertical')
+    cbar.set_label('Mean Pearson r', fontsize=10)
+    cbar.ax.tick_params(labelsize=8)
+
+    # Color tick labels for panel A
+    color_condition_labels(ax1, ordered_conds, axis='x', include_low_level=include_low_level)
     color_condition_labels(ax1, ordered_conds, axis='y', include_low_level=include_low_level)
 
-    # Add separating lines for panel A (adjusted for clockwise rotation)
+    # Add separating lines for panel A (lines stop at diagonal)
     n_shinobi = len(shinobi_conds)
     n_total = len(ordered_conds)
     if n_shinobi > 0 and len(hcp_conds) > 0:
-        # After clockwise rotation: original vertical becomes horizontal, original horizontal becomes vertical
-        # Original y-position n_shinobi becomes x-position n_total - n_shinobi - 1 (reversed)
-        # Original x-position n_shinobi becomes y-position n_shinobi
-        ax1.axhline(y=n_shinobi, color='black', linewidth=3)
-        ax1.axvline(x=n_total - n_shinobi, color='black', linewidth=3)
+        # Main separator between Shinobi and HCP (lines stop at diagonal)
+        ax1.plot([0, n_shinobi], [n_shinobi, n_shinobi], color='black', linewidth=3, clip_on=True)
+        ax1.plot([n_shinobi, n_shinobi], [n_shinobi, n_total], color='black', linewidth=3, clip_on=True)
 
         event_to_task = get_event_to_task_mapping()
         prev_task = None
@@ -783,15 +788,14 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
             task = event_to_task.get(cond)
             if task and task != prev_task and prev_task is not None:
                 pos = n_shinobi + i
-                ax1.axhline(y=pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
-                ax1.axvline(x=n_total - pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
+                ax1.plot([0, pos], [pos, pos], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
+                ax1.plot([pos, pos], [pos, n_total], color='gray', linewidth=1, linestyle='--', alpha=0.5, clip_on=True)
             prev_task = task
 
-        # Labels adjusted for clockwise rotation
-        # Shinobi label on y-axis, HCP labels adjusted
-        ax1.text(-0.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
-                fontsize=14, fontweight='bold', color='#FF6B6B')
-        ax1.text(-0.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
+        # Labels further left to avoid overlap with tick labels
+        ax1.text(-4.5, n_shinobi/2, 'Shinobi', ha='right', va='center', rotation=90,
+                fontsize=14, fontweight='bold', color=SHINOBI_COLOR)
+        ax1.text(-4.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
     title_a = 'Average Within-Subject Correlations'
@@ -800,7 +804,7 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
     ax1.set_title(title_a, fontsize=16, pad=20)
     ax1.text(-0.05, 1.05, 'A', transform=ax1.transAxes, fontsize=20, fontweight='bold', va='top', ha='right')
 
-    # Panel B: Specificity matrix
+    # Panel B: Specificity matrix (no colorbar - shared with panel A)
     sns.heatmap(
         specificity_matrix,
         xticklabels=subjects,
@@ -811,7 +815,7 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
         center=0,  # Center at 0 so values ≤0 are blue, >0 are yellow/red
         vmin=-0.3,
         vmax=0.8,
-        cbar_kws={'label': 'Mean Pearson r', 'shrink': 0.4},
+        cbar=False,  # No colorbar - using shared one in panel A
         ax=ax2,
         annot_kws={'fontsize': 8}
     )
@@ -831,10 +835,7 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
                 ax2.axhline(y=pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
             prev_task = task
 
-    ax2.set_xlabel('Subject', fontsize=12, fontweight='bold')
-    ax2.set_ylabel('Condition', fontsize=12, fontweight='bold')
-
-    title_b = 'Condition Specificity\n(Same-condition correlation minus mean different-condition correlation)'
+    title_b = 'Condition Specificity'
     if not include_low_level:
         title_b += '\n(excluding low-level features)'
     ax2.set_title(title_b, fontsize=16, pad=20)

@@ -212,7 +212,10 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
 
     # --- Setup Colors and Logic ---
     # Get all Shinobi conditions (including low-level if specified)
-    highlight_events = get_all_shinobi_conditions(include_low_level=include_low_level) + ['Inter']
+    # Include both internal names and display names so matching works with display data
+    shinobi_conditions = get_all_shinobi_conditions(include_low_level=include_low_level)
+    low_level_display_names = list(LOW_LEVEL_DISPLAY_NAMES.values()) if include_low_level else []
+    highlight_events = shinobi_conditions + low_level_display_names + ['Inter']
 
     # Use centralized HCP task configuration
     highlight_color = SHINOBI_COLOR
@@ -378,18 +381,22 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
         # Only show y-axis labels on the first subplot
         if idx == 0:
             ax_sub.set_yticklabels(y_labels_plot, fontsize=8)
+            # Style all Shinobi labels (including low-level features) with orange color and bold
+            for label in ax_sub.get_yticklabels():
+                label.set_color(highlight_color)
+                label.set_fontweight('bold')
         else:
             ax_sub.set_yticklabels([])
 
         ax_sub.set_xlim(0, 1.05)
-        ax_sub.grid(axis='x', linestyle='--', alpha=0.5)
+        # Disable automatic grid and draw all vertical lines manually for consistency
+        ax_sub.set_xticks([0.5, 1.0])  # Only show labels at 0.5 and 1.0
+        ax_sub.grid(False)
+        for x_val in [0.25, 0.5, 0.75, 1.0]:
+            ax_sub.axvline(x=x_val, color='gray', linestyle='--', alpha=0.5, linewidth=0.8, zorder=0)
 
         # Add darker, solid line at x=0
         ax_sub.axvline(x=0, color='gray', linestyle='-', alpha=0.7, linewidth=1.2, zorder=0)
-
-        # Add dashed lines at 0.25 and 0.75
-        ax_sub.axvline(x=0.25, color='gray', linestyle='--', alpha=0.5)
-        ax_sub.axvline(x=0.75, color='gray', linestyle='--', alpha=0.5)
 
         ax_sub.set_xlabel('')
         ax_sub.set_ylabel('')
@@ -414,7 +421,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
     # List has 8 items total (Tasks header + Shinobi + 6 tasks), spanning 7 intervals of 0.03 = 0.21
     # Middle is at 3.5 intervals = 0.105 from top
     # Middle of A and B graphs is approximately at y=0.58
-    legend_middle = 0.58
+    legend_middle = 0.65
     legend_top = legend_middle + 0.105
 
     fig.text(0.82, legend_top, 'Tasks:', fontsize=10, fontweight='bold', ha='left')
