@@ -99,6 +99,13 @@ def parse_condition_spec(cond_spec):
     return source, condition
 
 
+def get_shinobi_zmap_path(subject, condition, data_path, use_corrected_maps=False):
+    """Get path to Shinobi FFX z-map.
+
+    Args:
+        subject (str): Subject ID (e.g., 'sub-01')
+        condition (str): Condition name (e.g., 'Kill')
+        data_path (str): Path to data directory
         use_corrected_maps (bool): If True, use corrected z-maps instead of raw maps (default: False)
 
     Returns:
@@ -949,7 +956,11 @@ def main():
         help='Exclude low-level features from comparison (default: False, low-level features included)'
     )
 
+
     args = parser.parse_args()
+
+    # Set up low-level features list for use in all logic below
+    low_level_features = LOW_LEVEL_CONDITIONS
 
     # Corrected maps are used by default (use --use-raw-maps to override)
     use_corrected_maps = not args.use_raw_maps
