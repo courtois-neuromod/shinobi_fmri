@@ -1024,21 +1024,14 @@ def main():
                 hcp_task2 = find_hcp_task(cond2, args.hcp_task)
                 logger.info(f"Using HCP task '{hcp_task2}' for condition 2")
 
-            # Determine base figure directory based on corrected flag
-            if use_corrected_maps:
-                base_fig_dir = "figures_corrected"
-            else:
-                base_fig_dir = "figures_raw"
-
             # Use single output directory for all panels
             if args.output_dir:
                 output_dir = args.output_dir
             else:
-                output_dir = op.join(".", "reports", base_fig_dir, "condition_comparison")
+                output_dir = op.join(".", "reports", "figures", "condition_comparison")
             os.makedirs(output_dir, exist_ok=True)
 
             if len(comparisons) == 1:
-                logger.info(f"Base figures directory: {base_fig_dir}")
                 logger.info(f"Output directory: {output_dir}\n")
 
             # Get task colors for conditions

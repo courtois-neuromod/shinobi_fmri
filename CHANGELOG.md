@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Low-level features now properly included in correlation visualizations**: Fixed mismatch between internal condition names (`luminance`, `optical_flow`, `audio_envelope`, `button_presses_count`) and display names in `hcp_tasks.py`. Low-level features are now correctly included in within-subject correlation matrices and specificity matrices when using default settings (or when not using `--exclude-low-level` flag).
+
+### Changed
+- **Improved within-subject correlation visualizations**:
+  - Correlation matrices now show only lower triangle (including diagonal) rotated 90° clockwise to form a left triangle, avoiding redundancy
+  - Created new combined panel with (A) Average Within-Subject Correlations and (B) Condition Specificity
+  - Unified colormap (`RdYlBu_r`, centered at 0) and value range (-0.3 to 0.8) across all correlation and specificity visualizations
+  - Reduced colorbar size by 50% for cleaner appearance
+  - Updated colorbar label to "Mean Pearson r" for consistency
+  - Removed colorbar from average correlation matrix in combined panel (only shown on specificity panel)
+  - Made specificity matrix half as wide in combined panel for better proportions
+  - Colorbar properly centered at 0 (values ≤0 are blue, >0 are yellow/red)
+  - Masked regions (upper-right triangle) no longer display grid lines or annotations
+
+### Changed
+- **Merged fingerprinting computation into visualization task**: The separate `corr.fingerprinting` task has been removed. Now `viz.fingerprinting` automatically computes fingerprinting scores if they don't already exist, then generates visualizations in a single command. This simplifies the workflow since the computation is fast and always runs on the same pre-computed correlation matrix.
+
 ### Changed - BREAKING
 - **Low-level features are now included by default**: Luminance, optical_flow, audio_envelope, and button_presses_count are now always included in GLM analyses and MVPA
 - **Removed `--low-level-confs` flag** from all computation scripts (GLM session/subject level, beta correlations, cluster correction)

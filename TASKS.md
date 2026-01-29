@@ -277,42 +277,6 @@ invoke corr.beta --chunk-start 200 --chunk-size 200 --n-jobs 32
 
 ---
 
-### `corr.fingerprinting`
-
-Run fingerprinting analysis on beta maps to assess participant-specificity.
-
-**Description:**
-
-Assesses whether brain maps are participant-specific by checking if each map's most similar map (nearest neighbor) comes from the same subject. This provides a quantitative measure of individual differences in brain activation patterns.
-
-**Arguments:**
-
-| Argument | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `--verbose` | int | 0 | No | Verbosity level (0-2) |
-| `--log-dir` | str | None | No | Custom log directory |
-
-**Outputs:**
-- `processed/fingerprinting/fingerprinting_detailed.tsv` - Per-map results
-- `processed/fingerprinting/fingerprinting_aggregated.tsv` - Summary statistics
-
-**Common Use Cases:**
-
-```bash
-# Run fingerprinting analysis
-invoke corr.fingerprinting --verbose 1
-
-# With custom log directory
-invoke corr.fingerprinting --log-dir ./logs/fingerprinting
-```
-
-**What it computes:**
-- For each map: finds nearest neighbor (highest correlation) and checks if from same subject
-- Fingerprinting score = proportion of maps where nearest neighbor is from same subject
-- Aggregates by subject, condition, and analysis level
-
----
-
 ## Visualization Tasks
 
 ### `viz.session-level`
@@ -610,11 +574,13 @@ invoke viz.atlas-tables --overwrite
 
 ### `viz.fingerprinting`
 
-Generate fingerprinting analysis visualizations.
+Compute fingerprinting scores (if needed) and generate visualizations.
 
 **Description:**
 
-Creates comprehensive visualizations showing subject identification from brain map similarity, including confusion matrices, correlation distributions, and fingerprinting scores by different groupings.
+Fingerprinting assesses whether brain maps are participant-specific by checking if each map's most similar map (nearest neighbor) comes from the same subject. This task automatically computes fingerprinting scores if they don't already exist, then creates comprehensive visualizations.
+
+The computation is fast (runs on the pre-computed correlation matrix) and is integrated into the visualization task for convenience.
 
 **Arguments:**
 
@@ -624,6 +590,12 @@ Creates comprehensive visualizations showing subject identification from brain m
 | `--log-dir` | str | None | No | Custom log directory |
 
 **Outputs:**
+
+Computed data (if not already present):
+- `processed/fingerprinting/fingerprinting_detailed.tsv` - Per-map fingerprinting results
+- `processed/fingerprinting/fingerprinting_aggregated.tsv` - Summary statistics by subject/condition/level
+
+Figures:
 - `reports/figures/fingerprinting/fingerprinting_confusion_matrix.png` - Subject identification confusion matrix
 - `reports/figures/fingerprinting/fingerprinting_correlation_distributions.png` - Within vs between subject correlations
 - `reports/figures/fingerprinting/fingerprinting_by_source.png` - Scores by analysis level
@@ -633,18 +605,21 @@ Creates comprehensive visualizations showing subject identification from brain m
 **Common Use Cases:**
 
 ```bash
-# Generate fingerprinting visualizations
+# Run fingerprinting analysis and generate visualizations (single command)
+invoke viz.fingerprinting
+
+# With verbose output to see computation details
 invoke viz.fingerprinting --verbose 1
 
 # With custom log directory
 invoke viz.fingerprinting --log-dir ./logs/viz_fingerprinting
 ```
 
-**What it generates:**
-- Confusion matrix showing perfect diagonal (subject identification accuracy)
-- Histograms and violin plots comparing within-subject vs between-subject correlations
-- Bar plots showing fingerprinting performance across conditions and analysis levels
-- Statistical summaries including Cohen's d and t-test results
+**What it computes and visualizes:**
+- Computation: For each map, finds nearest neighbor (highest correlation) and checks if from same subject
+- Fingerprinting score = proportion of maps where nearest neighbor is from same subject
+- Aggregates by subject, condition, and analysis level
+- Visualizations: Confusion matrices, within vs between subject correlation distributions, performance by condition/level
 
 ---
 

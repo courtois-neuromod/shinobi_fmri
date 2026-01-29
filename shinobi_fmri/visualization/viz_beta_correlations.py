@@ -18,8 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from visualization.hcp_tasks import (
     TASK_ICONS, TASK_COLORS, SHINOBI_COLOR,
     get_event_to_task_mapping, get_task_label,
-    get_all_shinobi_conditions
+    get_all_shinobi_conditions, LOW_LEVEL_DISPLAY_NAMES
 )
+
+def get_display_name(condition_name):
+    """Convert internal condition name to display name."""
+    return LOW_LEVEL_DISPLAY_NAMES.get(condition_name, condition_name)
 
 def process_beta_correlations_data(pickle_path):
     """
@@ -108,7 +112,9 @@ def process_beta_correlations_data(pickle_path):
                         corr_cond.append('Inter')
                         corr_intera.append('inter-subject')
 
-    plot_df = pd.DataFrame({'r': corr_r, 'event': corr_cond, 'comparison': corr_intera})
+    # Apply display name mapping to conditions
+    corr_cond_display = [get_display_name(cond) for cond in corr_cond]
+    plot_df = pd.DataFrame({'r': corr_r, 'event': corr_cond_display, 'comparison': corr_intera})
 
     # --- Part 2: Consistency Analysis (Intra-subject reliability of Xrun maps) ---
     print("Processing Consistency Analysis (Intra-subject reliability)...")
@@ -174,9 +180,11 @@ def process_beta_correlations_data(pickle_path):
                     cons_runs.append(n_run)
                     cons_r.append(r_val)
 
+    # Apply display name mapping to conditions
+    cons_conds_display = [get_display_name(cond) for cond in cons_conds]
     consistency_df = pd.DataFrame({
         'subject': cons_subjs,
-        'condition': cons_conds,
+        'condition': cons_conds_display,
         'num_runs': cons_runs,
         'r': cons_r
     })
@@ -238,8 +246,8 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
 
     # Wider figure to accommodate legends on the right
     fig = plt.figure(figsize=(10.08, 12), dpi=300)
-    # Compact height ratios for A and B, adjusted spacing
-    gs = fig.add_gridspec(3, 5, height_ratios=[0.6, 0.6, 0.7], width_ratios=[1, 1, 1, 1, 0.3], hspace=0.9, wspace=0.4)
+    # Compact height ratios for A and B, more space for C-F
+    gs = fig.add_gridspec(3, 5, height_ratios=[0.5, 0.5, 1.2], width_ratios=[1, 1, 1, 1, 0.3], hspace=0.9, wspace=0.4)
 
     # Plots A and B only span first 4 columns, leaving space for legends
     ax_intra = fig.add_subplot(gs[0, :4])
@@ -247,7 +255,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
     
     # --- Row 1: Intra-subject ---
     sns.pointplot(data=intra_df, x='event', y='r', palette=intra_palette, ax=ax_intra, order=intra_events, ci='sd', capsize=0.1, join=True)
-    ax_intra.set_title('Within-participant Correlations') # Unbold
+    ax_intra.set_title('Within-participant') # Unbold
     ax_intra.set_xlabel('')
     ax_intra.set_ylabel('Mean Pearson r')
     ax_intra.set_ylim(-0.2, 1.05)
@@ -294,7 +302,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
     
     # --- Row 2: Inter-subject ---
     sns.pointplot(data=inter_df, x='event', y='r', palette=inter_palette, ax=ax_inter, order=inter_events, ci='sd', capsize=0.1, join=True)
-    ax_inter.set_title('Between-participant Correlations') # Unbold
+    ax_inter.set_title('Between-participant') # Unbold
     ax_inter.set_xlabel('')
     ax_inter.set_ylabel('Mean Pearson r')
     ax_inter.set_ylim(-0.2, 1.05)
@@ -309,8 +317,10 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
     # --- Row 3: Consistency (Intra-subject Reliability) ---
     subjects = sorted(consistency_df['subject'].unique())
     labels_bottom = ['C', 'D', 'E', 'F']
-    events_ordered = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT']
-    
+    # Reversed order for top-to-bottom reading on y-axis
+    events_ordered = ['Audio envelope', 'Luminance', 'Optical flow', 'Button press',
+                     'DOWN', 'LEFT', 'RIGHT', 'JUMP', 'HIT', 'HealthLoss', 'Kill']
+
     max_runs_global = int(consistency_df['num_runs'].max()) if not consistency_df.empty else 1
     run_palette = sns.color_palette("Oranges", n_colors=max_runs_global + 3)[3:]
 
@@ -318,68 +328,83 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
         if idx >= 4: break
         # Bottom plots also span only first 4 columns
         ax_sub = fig.add_subplot(gs[2, idx if idx < 4 else idx])
-        
+
         subj_df = consistency_df[consistency_df['subject'] == subj]
         agg_df = subj_df.groupby(['condition', 'num_runs'])['r'].agg(['mean', 'std']).reset_index()
-        
-        x_centers = []
-        x_labels_plot = []
-        current_x_start = 0
-        run_x_scale = 0.3 
+
+        y_centers = []
+        y_labels_plot = []
+        current_y_start = 0
+        run_y_scale = 0.3
         event_spacing = 1.5
-        
+
         for evt in events_ordered:
             evt_data = agg_df[agg_df['condition'] == evt].sort_values('num_runs')
             if evt_data.empty: continue
-            
+
             runs = evt_data['num_runs'].values
             means = evt_data['mean'].values
-            
-            xs = current_x_start + (runs - runs[0]) * run_x_scale
-            
-            points = np.array([xs, means]).T.reshape(-1, 1, 2)
+
+            ys = current_y_start + (runs - runs[0]) * run_y_scale
+
+            # Transposed: means on x-axis, event positions on y-axis
+            points = np.array([means, ys]).T.reshape(-1, 1, 2)
             segments = np.concatenate([points[:-1], points[1:]], axis=1)
-            
+
             seg_colors = []
             for i in range(len(runs) - 1):
                 r_idx_mid = (runs[i] + runs[i+1]) / 2
                 c_idx = min(int(r_idx_mid) - 1, len(run_palette) - 1)
                 c_idx = max(0, c_idx)
                 seg_colors.append(run_palette[c_idx])
-            
+
             lc = LineCollection(segments, colors=seg_colors, linewidth=2, alpha=0.8, zorder=1)
             ax_sub.add_collection(lc)
-            
-            for x, y, r_n in zip(xs, means, runs):
+
+            for y, x, r_n in zip(ys, means, runs):
                 c_idx = min(int(r_n) - 1, len(run_palette) - 1)
                 c_idx = max(0, c_idx)
                 color = run_palette[c_idx]
                 ax_sub.scatter(x, y, color=color, s=30, zorder=3, edgecolors='white', linewidth=0.5)
 
-            if len(xs) > 0:
-                x_centers.append(np.mean(xs))
-                x_labels_plot.append(evt)
-                current_x_start = xs[-1] + event_spacing
-        
+            if len(ys) > 0:
+                y_centers.append(np.mean(ys))
+                y_labels_plot.append(evt)
+                current_y_start = ys[-1] + event_spacing
+
         ax_sub.set_title(f'{subj}') # Unbold
-        ax_sub.set_xticks(x_centers)
-        ax_sub.set_xticklabels(x_labels_plot, rotation=90, fontsize=8)
-        
+        ax_sub.set_yticks(y_centers)
+
+        # Only show y-axis labels on the first subplot
         if idx == 0:
-            ax_sub.set_ylabel('Intra-subject Pearson r')
+            ax_sub.set_yticklabels(y_labels_plot, fontsize=8)
         else:
-            ax_sub.set_ylabel('')
-            
-        ax_sub.set_ylim(0, 1.05)
-        ax_sub.grid(axis='y', linestyle='--', alpha=0.5)
+            ax_sub.set_yticklabels([])
+
+        ax_sub.set_xlim(0, 1.05)
+        ax_sub.grid(axis='x', linestyle='--', alpha=0.5)
+
+        # Add darker, solid line at x=0
+        ax_sub.axvline(x=0, color='gray', linestyle='-', alpha=0.7, linewidth=1.2, zorder=0)
+
+        # Add dashed lines at 0.25 and 0.75
+        ax_sub.axvline(x=0.25, color='gray', linestyle='--', alpha=0.5)
+        ax_sub.axvline(x=0.75, color='gray', linestyle='--', alpha=0.5)
+
         ax_sub.set_xlabel('')
-        
+        ax_sub.set_ylabel('')
+
         # Remove frame (spines)
         for spine in ax_sub.spines.values():
             spine.set_visible(False)
-        
+
         label_char = labels_bottom[idx] if idx < len(labels_bottom) else ''
-        ax_sub.text(-0.15, 1.15, label_char, transform=ax_sub.transAxes, fontsize=14, fontweight='bold', va='top', ha='right')
+        # Position letters nearly above the 0 line (left edge of plot)
+        ax_sub.text(-0.02, 1.10, label_char, transform=ax_sub.transAxes, fontsize=14, fontweight='bold', va='top', ha='right')
+
+    # Add centered xlabel for all C-F subplots
+    # Position between graph D (idx=1) and E (idx=2), closer to the graphs
+    fig.text(0.5, 0.065, 'Mean Pearson r', ha='center', fontsize=10)
 
     # --- Labels A, B ---
     ax_intra.text(-0.05, 1.15, 'A', transform=ax_intra.transAxes, fontsize=14, fontweight='bold', va='top', ha='right')
@@ -409,7 +434,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
                                           markerfacecolor=color, markersize=8))
 
     fig.legend(handles=run_legend_elements, title='Number of runs',
-               loc='upper left', bbox_to_anchor=(0.82, 0.25), frameon=False,
+               loc='upper left', bbox_to_anchor=(0.8, 0.3), frameon=False,
                title_fontsize=10, fontsize=10)
 
     # Tight layout with more room on the right for legends
@@ -441,12 +466,10 @@ if __name__ == "__main__":
         
         # Always use processed directory (low-level features are now default)
         default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
-        # Adjust output path based on input type
-        fig_path_adjusted = FIG_PATH.replace('figures', 'figures_raw')
         if args.no_low_level:
-            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot_no-low-level.png")
+            default_output = os.path.join(FIG_PATH, "beta_correlations_plot_no-low-level.png")
         else:
-            default_output = os.path.join(fig_path_adjusted, "beta_correlations_plot.png")
+            default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
             
     except ImportError:
         default_input = None

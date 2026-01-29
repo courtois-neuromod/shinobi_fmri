@@ -47,7 +47,16 @@ EVENTS_TASK_DICT = {
 SHINOBI_CONDITIONS = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'UP', 'Inter']
 
 # Low-level features (Shinobi task sensory/motor confounds)
+# These are the internal names as they appear in the data
 LOW_LEVEL_CONDITIONS = ['luminance', 'optical_flow', 'audio_envelope', 'button_presses_count']
+
+# Mapping from internal low-level feature names to display names
+LOW_LEVEL_DISPLAY_NAMES = {
+    'luminance': 'Luminance',
+    'optical_flow': 'Optical flow',
+    'button_presses_count': 'Button press',
+    'audio_envelope': 'Audio envelope'
+}
 
 def get_event_to_task_mapping():
     """Get mapping from event/condition name to task name."""
@@ -68,6 +77,7 @@ def get_task_color(task_name):
 def get_condition_label(condition_name, task_name=None):
     """
     Get formatted condition label with icon if it's an HCP condition.
+    Converts low-level internal names to display names.
 
     Parameters
     ----------
@@ -79,8 +89,12 @@ def get_condition_label(condition_name, task_name=None):
     Returns
     -------
     str
-        Formatted label with icon prefix for HCP conditions
+        Formatted label with icon prefix for HCP conditions, or display name for low-level features
     """
+    # Convert low-level internal names to display names
+    if condition_name in LOW_LEVEL_CONDITIONS:
+        return LOW_LEVEL_DISPLAY_NAMES.get(condition_name, condition_name)
+
     if task_name is None:
         event_to_task = get_event_to_task_mapping()
         task_name = event_to_task.get(condition_name)
@@ -93,7 +107,7 @@ def get_condition_label(condition_name, task_name=None):
 
 def get_condition_color(condition_name):
     """
-    Get color for a condition (HCP or Shinobi).
+    Get color for a condition (HCP, Shinobi, or low-level feature).
 
     Parameters
     ----------
@@ -105,7 +119,7 @@ def get_condition_color(condition_name):
     tuple
         RGB color tuple
     """
-    if condition_name in SHINOBI_CONDITIONS:
+    if condition_name in SHINOBI_CONDITIONS or condition_name in LOW_LEVEL_CONDITIONS:
         return SHINOBI_COLOR
 
     event_to_task = get_event_to_task_mapping()

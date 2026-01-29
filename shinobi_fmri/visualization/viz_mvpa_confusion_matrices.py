@@ -289,15 +289,16 @@ if __name__ == "__main__":
 
     # Default output path
     if args.output is None:
-        # Adjust figures path to figures_raw as MVPA is based on uncorrected maps
+        # Use standard figures directory
         figures_path = config.FIG_PATH
-        if 'figures' in figures_path and 'figures_' not in figures_path:
-            output_dir = figures_path.replace('figures', 'figures_raw')
+        if 'figures' in figures_path:
+            output_dir = figures_path
         else:
-            output_dir = op.join(os.getcwd(), "reports", "figures_raw")
-            
+            output_dir = op.join(os.getcwd(), "reports", "figures")
+
         os.makedirs(output_dir, exist_ok=True)
-        args.output = op.join(output_dir, f"mvpa_confusion_matrices_s{args.screening}.png")
+        # Include map type (raw/corrected) in filename
+        args.output = op.join(output_dir, f"mvpa_confusion_matrices_s{args.screening}_raw.png")
 
     print(f"Creating confusion matrix figure...")
     print(f"Results path: {mvpa_results_path}")

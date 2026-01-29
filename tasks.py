@@ -473,33 +473,6 @@ def beta_correlations(c, chunk_start=0, chunk_size=None, n_jobs=-1, slurm=False,
     c.run(cmd)
 
 
-@task
-def fingerprinting(c, verbose=0, log_dir=None):
-    """
-    Run fingerprinting analysis on beta maps.
-
-    Assesses whether brain maps are participant-specific by checking if each map's
-    most similar map (nearest neighbor) comes from the same subject.
-
-    Args:
-        verbose: Verbosity level
-        log_dir: Custom log directory
-    """
-    script = op.join(SHINOBI_FMRI_DIR, "correlations", "fingerprinting_analysis.py")
-
-    cmd_parts = [PYTHON_BIN, script]
-
-    if isinstance(verbose, int) and verbose > 0:
-        cmd_parts.append(f"-{'v' * verbose}")
-    if log_dir:
-        cmd_parts.extend(["--log-dir", log_dir])
-
-    cmd = ' '.join(cmd_parts)
-
-    print("Running fingerprinting analysis...")
-    c.run(cmd)
-
-
 # =============================================================================
 # Visualization Tasks
 # =============================================================================
@@ -638,13 +611,14 @@ def viz_annotation_panels(c, condition=None, conditions=None, skip_individual=Fa
 
 
 @task
-def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_dir=None):
+def viz_beta_correlations(c, input_path=None, output_path=None, no_low_level=False, verbose=0, log_dir=None):
     """
     Generate beta correlations figure.
 
     Args:
         input_path: Path to input .pkl file (default: {DATA_PATH}/processed/beta_correlations.pkl)
         output_path: Path to save the output figure (default: {FIG_PATH}/beta_correlations_plot.png)
+        no_low_level: Exclude low-level features (default: False, low-level features included)
         verbose: Verbosity level
         log_dir: Custom log directory
     """
@@ -656,8 +630,8 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
         cmd_parts.extend(['--input', input_path])
     if output_path:
         cmd_parts.extend(['--output', output_path])
-    
-
+    if no_low_level:
+        cmd_parts.append('--no-low-level')
 
     if isinstance(verbose, int) and verbose > 0:
         cmd_parts.append(f"-{'v' * verbose}")
@@ -672,12 +646,16 @@ def viz_beta_correlations(c, input_path=None, output_path=None, verbose=0, log_d
     else:
         input_loc = "processed"
         print(f"  Input: Using default from config ({input_loc})")
-    
+
     if output_path:
         print(f"  Output: {output_path}")
     else:
-        suffix = "_low-level" if low_level else ""
-        print(f"  Output: Using default from config (beta_correlations_plot.png)")
+        suffix = "_no-low-level" if no_low_level else ""
+        output_name = f"beta_correlations_plot{suffix}.png"
+        print(f"  Output: Using default from config ({output_name})")
+
+    if not no_low_level:
+        print(f"  Including low-level features")
 
     c.run(cmd)
 
@@ -844,11 +822,17 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
 @task
 def viz_fingerprinting(c, verbose=0, log_dir=None):
     """
-    Generate fingerprinting analysis visualizations.
+    Compute fingerprinting scores (if needed) and generate visualizations.
 
-    Creates plots showing subject identification from nearest neighbors,
-    within vs between subject correlation distributions, and fingerprinting
-    scores by different groupings.
+    Fingerprinting assesses whether brain maps are participant-specific by
+    checking if each map's most similar map (nearest neighbor) comes from
+    the same subject. Computation is fast and runs automatically if results
+    don't exist.
+
+    Creates plots showing:
+    - Subject identification confusion matrix from nearest neighbors
+    - Within vs between subject correlation distributions
+    - Fingerprinting scores by analysis level and condition
 
     Args:
         verbose: Verbosity level
@@ -865,7 +849,7 @@ def viz_fingerprinting(c, verbose=0, log_dir=None):
 
     cmd = ' '.join(cmd_parts)
 
-    print("Generating fingerprinting visualizations...")
+    print("Running fingerprinting analysis and visualization...")
     c.run(cmd)
 
 
@@ -1242,7 +1226,6 @@ namespace.add_collection(mvpa_collection)
 # Correlation tasks
 corr_collection = Collection('corr')
 corr_collection.add_task(beta_correlations, name='beta')
-corr_collection.add_task(fingerprinting, name='fingerprinting')
 namespace.add_collection(corr_collection)
 
 # Visualization tasks

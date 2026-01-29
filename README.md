@@ -158,7 +158,6 @@ The pipeline provides the following task categories:
 
 **Correlation Analysis:**
 - `corr.beta` - Compute beta map correlations with HCP data (includes low-level features by default)
-- `corr.fingerprinting` - Subject identification from brain map similarity
 
 **Visualization:**
 - `viz.session-level` - Session-level visualizations
@@ -168,7 +167,7 @@ The pipeline provides the following task categories:
 - `viz.regressor-correlations` - Design matrix regressor correlation matrices
 - `viz.condition-comparison` - Condition comparison surface plots
 - `viz.atlas-tables` - Generate atlas tables for z-maps
-- `viz.fingerprinting` - Fingerprinting analysis visualizations
+- `viz.fingerprinting` - Fingerprinting analysis and visualization (computes scores if needed, then generates plots)
 - `viz.within-subject-correlations` - Within-subject condition correlation analysis and heatmaps
 - `viz.mvpa-confusion-matrices` - MVPA confusion matrices with task grouping
 

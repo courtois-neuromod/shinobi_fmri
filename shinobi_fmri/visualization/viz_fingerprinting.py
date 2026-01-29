@@ -1,10 +1,13 @@
 """
-Visualizations for fingerprinting analysis.
+Fingerprinting analysis and visualization.
 
-Creates plots showing:
+Computes fingerprinting scores (if needed) and creates plots showing:
 1. Confusion matrix of nearest-neighbor subject identification
 2. Within vs between subject correlation distributions
 3. Fingerprinting scores by different groupings
+
+Fingerprinting assesses whether brain maps are participant-specific by checking
+if each map's most similar map (nearest neighbor) comes from the same subject.
 """
 
 import numpy as np
@@ -14,6 +17,7 @@ import seaborn as sns
 from pathlib import Path
 import pickle
 import sys
+from typing import Dict
 
 # Add parent directory to path for config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -21,23 +25,249 @@ from shinobi_fmri.config import DATA_PATH, FIG_PATH
 from shinobi_fmri.visualization.hcp_tasks import get_condition_label
 
 
-def load_data():
-    """Load fingerprinting results and correlation data."""
+def compute_fingerprinting_scores(corr_matrix: np.ndarray,
+                                   subjects: list,
+                                   sources: list,
+                                   conditions: list) -> pd.DataFrame:
+    """
+    Compute fingerprinting scores.
+
+    For each map:
+    - Find the most similar map (highest correlation, excluding self)
+    - Check if it comes from the same subject
+    - Score = 1 if same subject, 0 otherwise
+
+    Parameters
+    ----------
+    corr_matrix : np.ndarray
+        Correlation matrix (n_maps x n_maps)
+    subjects : list
+        Subject ID for each map
+    sources : list
+        Source/level for each map (e.g., 'session-level', 'subject-level')
+    conditions : list
+        Condition for each map
+
+    Returns
+    -------
+    pd.DataFrame
+        Results with fingerprinting scores per map
+    """
+    n_maps = corr_matrix.shape[0]
+    results = []
+
+    print(f"Computing fingerprinting scores for {n_maps} maps...")
+
+    for i in range(n_maps):
+        # Get correlations for this map
+        correlations = corr_matrix[i, :].copy()
+
+        # Exclude self-correlation
+        correlations[i] = -np.inf
+
+        # Exclude NaN values
+        valid_mask = ~np.isnan(correlations)
+
+        if not np.any(valid_mask):
+            # No valid correlations
+            results.append({
+                'map_idx': i,
+                'subject': subjects[i],
+                'source': sources[i],
+                'condition': conditions[i],
+                'nearest_neighbor_idx': np.nan,
+                'nearest_neighbor_subject': np.nan,
+                'nearest_neighbor_corr': np.nan,
+                'is_same_subject': np.nan,
+                'fingerprint_score': np.nan
+            })
+            continue
+
+        # Find nearest neighbor (highest correlation)
+        nn_idx = np.nanargmax(correlations)
+        nn_corr = correlations[nn_idx]
+        nn_subject = subjects[nn_idx]
+
+        # Check if same subject
+        is_same = (subjects[i] == nn_subject)
+
+        results.append({
+            'map_idx': i,
+            'subject': subjects[i],
+            'source': sources[i],
+            'condition': conditions[i],
+            'nearest_neighbor_idx': nn_idx,
+            'nearest_neighbor_subject': nn_subject,
+            'nearest_neighbor_corr': nn_corr,
+            'is_same_subject': is_same,
+            'fingerprint_score': 1.0 if is_same else 0.0
+        })
+
+        if (i + 1) % 100 == 0:
+            print(f"  Processed {i + 1}/{n_maps} maps...")
+
+    return pd.DataFrame(results)
+
+
+def aggregate_fingerprinting_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregate fingerprinting scores by different groupings.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Individual map results
+
+    Returns
+    -------
+    pd.DataFrame
+        Aggregated scores
+    """
+    aggregations = []
+
+    # Overall score
+    overall = df['fingerprint_score'].mean()
+    aggregations.append({
+        'grouping': 'overall',
+        'group': 'all',
+        'n_maps': len(df),
+        'fingerprint_score': overall,
+        'std': df['fingerprint_score'].std(),
+        'sem': df['fingerprint_score'].sem()
+    })
+
+    # By subject
+    for subj, subj_df in df.groupby('subject'):
+        score = subj_df['fingerprint_score'].mean()
+        aggregations.append({
+            'grouping': 'by_subject',
+            'group': subj,
+            'n_maps': len(subj_df),
+            'fingerprint_score': score,
+            'std': subj_df['fingerprint_score'].std(),
+            'sem': subj_df['fingerprint_score'].sem()
+        })
+
+    # By source (level)
+    for source, source_df in df.groupby('source'):
+        score = source_df['fingerprint_score'].mean()
+        aggregations.append({
+            'grouping': 'by_source',
+            'group': source,
+            'n_maps': len(source_df),
+            'fingerprint_score': score,
+            'std': source_df['fingerprint_score'].std(),
+            'sem': source_df['fingerprint_score'].sem()
+        })
+
+    # By condition
+    for cond, cond_df in df.groupby('condition'):
+        score = cond_df['fingerprint_score'].mean()
+        aggregations.append({
+            'grouping': 'by_condition',
+            'group': cond,
+            'n_maps': len(cond_df),
+            'fingerprint_score': score,
+            'std': cond_df['fingerprint_score'].std(),
+            'sem': cond_df['fingerprint_score'].sem()
+        })
+
+    # By subject and source
+    for (subj, source), group_df in df.groupby(['subject', 'source']):
+        score = group_df['fingerprint_score'].mean()
+        aggregations.append({
+            'grouping': 'by_subject_source',
+            'group': f'{subj}_{source}',
+            'n_maps': len(group_df),
+            'fingerprint_score': score,
+            'std': group_df['fingerprint_score'].std(),
+            'sem': group_df['fingerprint_score'].sem()
+        })
+
+    return pd.DataFrame(aggregations)
+
+
+def load_or_compute_fingerprinting_data():
+    """
+    Load fingerprinting results if they exist, otherwise compute them.
+
+    Returns
+    -------
+    tuple
+        (fp_detailed, fp_aggregated, corr_data)
+    """
     processed_dir = Path(DATA_PATH) / 'processed'
+    fp_dir = processed_dir / 'fingerprinting'
+    detailed_file = fp_dir / 'fingerprinting_detailed.tsv'
+    aggregated_file = fp_dir / 'fingerprinting_aggregated.tsv'
 
-    # Load fingerprinting results
-    fp_detailed = pd.read_csv(
-        processed_dir / 'fingerprinting' / 'fingerprinting_detailed.tsv',
-        sep='\t'
-    )
-    fp_aggregated = pd.read_csv(
-        processed_dir / 'fingerprinting' / 'fingerprinting_aggregated.tsv',
-        sep='\t'
-    )
-
-    # Load correlation matrix
-    with open(processed_dir / 'beta_maps_correlations.pkl', 'rb') as f:
+    # Load correlation matrix (always needed)
+    corr_file = processed_dir / 'beta_maps_correlations.pkl'
+    print(f"Loading correlation data from {corr_file}...")
+    with open(corr_file, 'rb') as f:
         corr_data = pickle.load(f)
+
+    print(f"Loaded {len(corr_data['mapnames'])} maps")
+
+    # Check if fingerprinting results exist
+    if detailed_file.exists() and aggregated_file.exists():
+        print("Loading existing fingerprinting results...")
+        fp_detailed = pd.read_csv(detailed_file, sep='\t')
+        fp_aggregated = pd.read_csv(aggregated_file, sep='\t')
+    else:
+        print("\nFingerprinting results not found. Computing now...")
+        print("="*60)
+
+        # Create output directory
+        fp_dir.mkdir(exist_ok=True, parents=True)
+
+        # Extract metadata
+        corr_matrix = corr_data['corr_matrix']
+        subjects = corr_data['subj']
+        sources = corr_data['source']
+        conditions = corr_data['cond']
+
+        # Compute fingerprinting scores
+        fp_detailed = compute_fingerprinting_scores(
+            corr_matrix, subjects, sources, conditions
+        )
+
+        # Save detailed results
+        fp_detailed.to_csv(detailed_file, sep='\t', index=False)
+        print(f"\nSaved detailed results to {detailed_file}")
+
+        # Aggregate scores
+        fp_aggregated = aggregate_fingerprinting_scores(fp_detailed)
+
+        # Save aggregated results
+        fp_aggregated.to_csv(aggregated_file, sep='\t', index=False)
+        print(f"Saved aggregated results to {aggregated_file}")
+
+        # Print summary
+        print("\n" + "="*60)
+        print("FINGERPRINTING ANALYSIS SUMMARY")
+        print("="*60)
+
+        overall_score = fp_aggregated[fp_aggregated['grouping'] == 'overall']['fingerprint_score'].values[0]
+        print(f"\nOverall fingerprinting score: {overall_score:.3f}")
+        print(f"(Proportion of maps where nearest neighbor is from same subject)")
+
+        print("\n--- By Subject ---")
+        subj_agg = fp_aggregated[fp_aggregated['grouping'] == 'by_subject'].sort_values('group')
+        for _, row in subj_agg.iterrows():
+            print(f"  {row['group']}: {row['fingerprint_score']:.3f} (n={row['n_maps']})")
+
+        print("\n--- By Source/Level ---")
+        source_agg = fp_aggregated[fp_aggregated['grouping'] == 'by_source'].sort_values('fingerprint_score', ascending=False)
+        for _, row in source_agg.iterrows():
+            print(f"  {row['group']}: {row['fingerprint_score']:.3f} (n={row['n_maps']})")
+
+        print("\n--- By Condition ---")
+        cond_agg = fp_aggregated[fp_aggregated['grouping'] == 'by_condition'].sort_values('fingerprint_score', ascending=False)
+        for _, row in cond_agg.iterrows():
+            print(f"  {row['group']}: {row['fingerprint_score']:.3f} (n={row['n_maps']})")
+
+        print("\n" + "="*60)
 
     return fp_detailed, fp_aggregated, corr_data
 
@@ -302,12 +532,12 @@ def plot_nearest_neighbor_correlations(fp_detailed, output_path):
 def main():
     """Generate all fingerprinting visualizations."""
     print("="*60)
-    print("FINGERPRINTING VISUALIZATION")
+    print("FINGERPRINTING ANALYSIS & VISUALIZATION")
     print("="*60)
 
-    # Load data
-    print("\nLoading data...")
-    fp_detailed, fp_aggregated, corr_data = load_data()
+    # Load or compute fingerprinting data
+    print("\nPreparing data...")
+    fp_detailed, fp_aggregated, corr_data = load_or_compute_fingerprinting_data()
 
     # Setup output directory
     output_path = Path(FIG_PATH) / 'fingerprinting'

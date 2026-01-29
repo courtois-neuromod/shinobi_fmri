@@ -398,16 +398,10 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
     # Always use processed directory (low-level features are now default)
     output_dir = "processed"
 
-    # Determine base figure directory based on corrected flag
-    if use_corrected_maps:
-        base_fig_dir = "figures_corrected"
-    else:
-        base_fig_dir = "figures_raw"
-
     images = []
 
     for idx_subj, subject in enumerate(SUBJECTS):
-        fig_folder = op.join(".", "reports", base_fig_dir, "full_zmap_plot", subject, condition)
+        fig_folder = op.join(".", "reports", "figures", "full_zmap_plot", subject, condition)
 
         # Find top 4 session maps based on number of voxels above threshold
         ses_dir = op.join(data_path, "shinobi", subject)
@@ -678,15 +672,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine base figure directory based on corrected flag
-    if args.use_corrected_maps:
-        base_fig_dir = "figures_corrected"
-    else:
-        base_fig_dir = "figures_raw"
-
     # Set default output directory if not provided
     if args.output_dir is None:
-        args.output_dir = op.join(".", "reports", base_fig_dir, "full_zmap_plot", "annotations")
+        args.output_dir = op.join(".", "reports", "figures", "full_zmap_plot", "annotations")
 
     # Determine verbosity
     if args.verbose == 0:
@@ -719,7 +707,6 @@ def main():
         logger.info(f"Subjects: {', '.join(SUBJECTS)}")
         logger.info(f"Using {'corrected' if args.use_corrected_maps else 'raw uncorrected'} z-maps")
         logger.info(f"Including low-level features: {not args.exclude_low_level}")
-        logger.info(f"Base figures directory: {base_fig_dir}")
         logger.info(f"Output directory: {args.output_dir}\n")
 
         # Create output directory
@@ -780,7 +767,7 @@ def main():
         logger.info("All done!")
 
         if not args.skip_individual:
-            logger.info(f"Individual brain maps saved to ./reports/{base_fig_dir}/full_zmap_plot/<subject>/<condition>/")
+            logger.info(f"Individual brain maps saved to ./reports/figures/full_zmap_plot/<subject>/<condition>/")
 
         if not args.skip_panels:
             logger.info(f"Annotation panels saved to {op.abspath(args.output_dir)}/")

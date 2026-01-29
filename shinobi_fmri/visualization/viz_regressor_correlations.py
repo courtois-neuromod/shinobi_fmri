@@ -385,7 +385,7 @@ def plot_run_correlations(regressors_dict, figures_path, logger=None):
         pbar.set_postfix({"Subject": sub, "Session": ses, "Run": run_num})
 
 
-def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, logger=None):
+def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=False, logger=None):
     """
     Plot subject-averaged correlation matrices.
 
@@ -393,10 +393,14 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
         regressors_dict: Dictionary containing correlation matrices
         subjects: List of subjects to process
         figures_path: Path to save figures
+        use_low_level_confs: Include low-level confounds in design matrix
         logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
+
+    # Add suffix to filename if low-level confounds are included
+    suffix = "_low-level" if use_low_level_confs else ""
 
     for sub in tqdm(subjects, desc="Plotting subject-averaged correlations"):
         if logger:
@@ -419,12 +423,15 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
 
         # Heatmap with annotations
         f, ax = plt.subplots(figsize=(30, 25))
+        title = f'{sub} - Averaged across runs'
+        if use_low_level_confs:
+            title += ' (with low-level confounds)'
         sns.heatmap(
             averaged_corr_mat, mask=mask, center=0,
             square=True, linewidths=.5, annot=True,
             cbar_kws={"shrink": .5}, fmt='.2f'
-        ).set_title(f'{sub} - Averaged across runs')
-        fig_fname = op.join(output_dir, f'regressor_correlations_{sub}.png')
+        ).set_title(title)
+        fig_fname = op.join(output_dir, f'regressor_correlations_{sub}{suffix}.png')
         plt.savefig(fig_fname, dpi=100, bbox_inches='tight')
         plt.close()
 
@@ -436,7 +443,7 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
                     center=0, square=True, linewidths=.5, annot=True,
                     cbar_kws={"shrink": .5}, fmt='.2f'
                 )
-                fig_fname = op.join(output_dir, f'regressor_correlations_{sub}_cluster.png')
+                fig_fname = op.join(output_dir, f'regressor_correlations_{sub}_cluster{suffix}.png')
                 f.savefig(fig_fname, dpi=100, bbox_inches='tight')
                 plt.close()
             except ValueError as e:
@@ -450,7 +457,7 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
             logger.summary.add_computed(f"Subject-averaged correlations: {sub}")
 
 
-def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logger=None):
+def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=False, logger=None):
     """
     Plot a 2x2 grid of subject-averaged correlation matrices.
 
@@ -466,10 +473,14 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logge
         regressors_dict: Dictionary containing correlation matrices
         subjects: List of subjects to process (should be 4 subjects for 2x2 grid)
         figures_path: Path to save figures
+        use_low_level_confs: Include low-level confounds in design matrix
         logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
+
+    # Add suffix to filename if low-level confounds are included
+    suffix = "_low-level" if use_low_level_confs else ""
 
     if logger:
         logger.info(f"Plotting 2x2 grid for {len(subjects)} subjects")
@@ -608,7 +619,7 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logge
                  fontsize=36, ha='center', va='bottom')
 
     # Save figure
-    fig_fname = op.join(output_dir, 'regressor_correlations_2x2_subjects.png')
+    fig_fname = op.join(output_dir, f'regressor_correlations_2x2_subjects{suffix}.png')
     plt.savefig(fig_fname, dpi=150, bbox_inches='tight')
     plt.close()
 
@@ -633,13 +644,6 @@ def main():
 
     # Configuration
     figures_path = args.figures_path
-    
-    # Adjust figures path based on low-level confounds if it's the default (contains 'figures')
-    if 'figures' in figures_path:
-        if args.low_level_confs:
-            figures_path = figures_path.replace('figures', 'figures_raw_low-level')
-        else:
-            figures_path = figures_path.replace('figures', 'figures_raw')
 
     path_to_data = args.data_path
     subjects = [args.subject] if args.subject else config.subjects
@@ -687,7 +691,7 @@ def main():
 
     # Generate 2x2 subject correlation grid (Shinobi conditions + 3 psychophysics confounds only)
     logger.info("Plotting 2x2 subject correlation grid...")
-    plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, logger)
+    plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=args.low_level_confs, logger=logger)
 
     logger.info("Done!")
     logger.close()
