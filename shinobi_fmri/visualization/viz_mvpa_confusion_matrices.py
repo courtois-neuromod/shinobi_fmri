@@ -239,7 +239,7 @@ def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None
         handles=legend_elements,
         loc='lower center',
         ncol=4,
-        bbox_to_anchor=(0.5, 0.0),
+        bbox_to_anchor=(0.5, 0.03),
         frameon=False,
         fontsize=14
     )
@@ -254,7 +254,7 @@ def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None
             text.set_fontweight('bold')
 
     # Add "Tasks" title
-    fig.text(0.5, 0.05, 'Tasks', fontweight='bold', ha='center', fontsize=16)
+    fig.text(0.5, 0.08, 'Tasks', fontweight='bold', ha='center', fontsize=16)
 
     # Layout adjustment
     plt.tight_layout(rect=[0, 0.1, 0.9, 1])
