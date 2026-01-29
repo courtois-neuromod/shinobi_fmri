@@ -3,9 +3,9 @@
 Descriptive Statistics Visualization
 
 Generates publication-ready 3-panel figure showing dataset descriptive statistics:
-- Panel A: Events by subject and condition (grouped bar chart, spans top row)
-- Panel B: Session/run availability matrix (heatmap, bottom left)
-- Panel C: Volume counts distribution (box plot, bottom right)
+- Panel A: Events by subject and condition (boxplot)
+- Panel B: Session/run availability matrix (heatmap)
+- Panel C: Level attempts by subject (stacked bar)
 
 Usage:
     python viz_descriptive_stats.py [-v] [--output path/to/figure.png] [--force]
@@ -19,7 +19,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import ptitprince as pt
 import warnings
 
 import shinobi_fmri.config as config
@@ -31,12 +30,13 @@ from shinobi_fmri.visualization.hcp_tasks import SHINOBI_COLOR
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 
-def plot_events_subjects_x_conditions(ax, df, logger):
+def plot_events_subjects_x_conditions(fig, gs_slot, df, logger):
     """
-    Plot events distribution per run (Panel A).
+    Plot events distribution per run (Panel A) - One boxplot per subject.
 
     Args:
-        ax: Matplotlib axes object
+        fig: Matplotlib Figure object
+        gs_slot: GridSpec slot for this panel
         df: Dataset summary DataFrame
         logger: AnalysisLogger instance
     """
@@ -51,39 +51,60 @@ def plot_events_subjects_x_conditions(ax, df, logger):
     
     # Clean condition names
     melted_df['Condition'] = melted_df['Condition'].str.replace('n_', '')
-
-    # Create Raincloud plot
-    # x='subject' groups by subject
-    # hue='Condition' creates clustered clouds within subject
-    # dodge=True ensures they don't overlap each other
-    # width_viol=0.4 makes clouds narrower to fit better
-    # move=0.2 separates rain from cloud
-    pt.RainCloud(x='subject', y='Count', hue='Condition', data=melted_df, ax=ax,
-                 palette="Set2", 
-                 width_viol=.4, width_box=0, box_showfliers=False,
-                 alpha=.65, dodge=True, move=.2, point_size=2)
-
-    # Styling
-    ax.set_ylabel('Event Count per Run', fontsize=14)
-    ax.set_xlabel('Subject', fontsize=14)
-    ax.grid(axis='y', linestyle='--', alpha=0.5)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
     
-    # Fix Legend: Move outside
-    if ax.get_legend():
-        ax.get_legend().remove()
+    # Get subjects and conditions
+    subjects = sorted(melted_df['subject'].unique())
+    conditions = sorted(melted_df['Condition'].unique())
+    n_subjects = len(subjects)
+    
+    # Create subplots for each subject with shared Y axis
+    gs_inner = gs_slot.subgridspec(1, n_subjects, wspace=0.05)
+    axes = [fig.add_subplot(gs_inner[i]) for i in range(n_subjects)]
+    
+    # Get global y limits for shared axis
+    y_max = melted_df['Count'].max() * 1.1
+    
+    for i, (ax, subj) in enumerate(zip(axes, subjects)):
+        subj_data = melted_df[melted_df['subject'] == subj]
         
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    # Place legend outside top right
-    ax.legend(by_label.values(), by_label.keys(), 
-              loc='upper left', bbox_to_anchor=(1, 1), title='Conditions',
-              frameon=False, fontsize=10)
-
-    # Panel label
-    ax.text(-0.05, 1.05, 'A', transform=ax.transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
+        # Create boxplot - all orange
+        bp = ax.boxplot([subj_data[subj_data['Condition'] == cond]['Count'].values 
+                         for cond in conditions],
+                        positions=range(len(conditions)),
+                        widths=0.6,
+                        patch_artist=True,
+                        showfliers=True,
+                        flierprops=dict(marker='o', markersize=3, markerfacecolor=SHINOBI_COLOR, alpha=0.5),
+                        medianprops=dict(color='black', linewidth=1.5),
+                        boxprops=dict(facecolor=SHINOBI_COLOR, alpha=0.7, edgecolor='black', linewidth=1),
+                        whiskerprops=dict(color='black', linewidth=1),
+                        capprops=dict(color='black', linewidth=1))
+        
+        # X-axis: condition names in bold orange
+        ax.set_xticks(range(len(conditions)))
+        ax.set_xticklabels(conditions, fontsize=8, fontweight='bold', color=SHINOBI_COLOR, rotation=45, ha='right')
+        
+        # Subject title
+        subj_short = subj.replace('sub-', '')
+        ax.set_title(subj_short, fontsize=10, fontweight='bold', color=SHINOBI_COLOR)
+        
+        # Shared Y axis
+        ax.set_ylim(0, y_max)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        
+        if i == 0:
+            # First plot: show Y axis labels
+            ax.set_ylabel('Event count per run', fontsize=10)
+        else:
+            # Other plots: hide Y tick labels but keep axis
+            ax.tick_params(axis='y', labelleft=False)
+            ax.spines['left'].set_visible(False)
+    
+    # Panel label on first axis
+    axes[0].text(-0.15, 1.05, 'A', transform=axes[0].transAxes,
+                 fontsize=14, fontweight='bold', va='top', ha='right')
 
 
 def plot_composite_session_stats(fig, gs_slot, df, logger):
@@ -99,59 +120,65 @@ def plot_composite_session_stats(fig, gs_slot, df, logger):
     logger.debug("Generating Panel B/C: Composite session statistics")
 
     # Create nested GridSpec: Heatmap (left) and Marginal (right)
-    # Increase width ratio for marginal to fit legend outside if needed
-    gs = gs_slot.subgridspec(1, 2, width_ratios=[2, 1], wspace=0.1)
+    gs = gs_slot.subgridspec(1, 2, width_ratios=[1.5, 1], wspace=0.3)
     ax_heatmap = fig.add_subplot(gs[0])
-    ax_marginal = fig.add_subplot(gs[1]) # No sharey because Heatmap has margins now
+    ax_marginal = fig.add_subplot(gs[1])
 
     # --- Heatmap Data Preparation ---
     subjects = sorted(df['subject'].unique())
     sessions = sorted(df['session'].unique())
 
-    # Pivot for Heatmap: Count unique runs
-    # Add margins=True to get Total row/col
+    # Pivot for Heatmap: Count unique runs per subject/session
     runs_matrix = pd.pivot_table(df, values='run', index='subject', columns='session', 
-                                 aggfunc='nunique', margins=True, margins_name='Total')
+                                 aggfunc='nunique').fillna(0).astype(int)
     
-    # Reindex to ensure all sessions/subjects are present + Total
-    # IMPORTANT: Include 'Total' in the reindex lists!
-    idx_labels = subjects + ['Total']
-    col_labels = sessions + ['Total']
+    # Add Total column (sum of runs per subject)
+    runs_matrix['Total'] = runs_matrix.sum(axis=1)
     
-    runs_matrix = runs_matrix.reindex(index=idx_labels, columns=col_labels).fillna(0).astype(int)
+    # Add Total row (sum of runs per session)
+    total_row = runs_matrix.sum(axis=0)
+    runs_matrix.loc['Total'] = total_row
+    
+    # Simplify session labels: ses-001 -> 001
+    new_cols = [c.replace('ses-', '') if c != 'Total' else c for c in runs_matrix.columns]
+    runs_matrix.columns = new_cols
+    
+    # Simplify subject labels: sub-01 -> 01
+    new_idx = [i.replace('sub-', '') if i != 'Total' else i for i in runs_matrix.index]
+    runs_matrix.index = new_idx
 
     # Plot Heatmap
     sns.heatmap(runs_matrix, ax=ax_heatmap, cmap='YlOrRd', annot=True, fmt='d',
                 linewidths=0.5, linecolor='gray', cbar=False,
-                square=False) # Auto-detect xticklabels/yticklabels
+                annot_kws={'size': 8})
 
-    ax_heatmap.set_xlabel('Session', fontsize=14)
-    ax_heatmap.set_ylabel('Subject', fontsize=14)
-    ax_heatmap.tick_params(axis='both', labelsize=10)
+    ax_heatmap.set_xlabel('Session', fontsize=11, fontweight='bold', color=SHINOBI_COLOR)
+    ax_heatmap.set_ylabel('Subject', fontsize=11, fontweight='bold', color=SHINOBI_COLOR)
+    ax_heatmap.tick_params(axis='both', labelsize=8)
+    # Rotate x labels for better fit
+    ax_heatmap.set_xticklabels(ax_heatmap.get_xticklabels(), rotation=45, ha='right')
     
     # Panel B label
-    ax_heatmap.text(-0.1, 1.05, 'B', transform=ax_heatmap.transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
+    ax_heatmap.text(-0.12, 1.02, 'B', transform=ax_heatmap.transAxes,
+            fontsize=14, fontweight='bold', va='top', ha='right')
     
-    # --- Marginal Plot Data Preparation ---
-    # Group by Subject and Level
+    # --- Marginal Plot (Panel C): Level attempts by subject ---
+    # Group by Subject and Level, count unique runs
     level_stats = df.groupby(['subject', 'level']).agg({
         'cleared': 'sum',
-        'run': 'count', 
+        'run': 'nunique',  # Count unique runs, not rows
         'duration': 'sum'
     }).reset_index()
-    level_stats.rename(columns={'run': 'total_attempts'}, inplace=True)
-    level_stats['failed'] = level_stats['total_attempts'] - level_stats['cleared']
+    level_stats.rename(columns={'run': 'n_runs'}, inplace=True)
     
     # Calculate Total for Dataset
     total_stats = df.groupby(['level']).agg({
         'cleared': 'sum',
-        'run': 'count',
+        'run': 'nunique',
         'duration': 'sum'
     }).reset_index()
     total_stats['subject'] = 'Total'
-    total_stats.rename(columns={'run': 'total_attempts'}, inplace=True)
-    total_stats['failed'] = total_stats['total_attempts'] - total_stats['cleared']
+    total_stats.rename(columns={'run': 'n_runs'}, inplace=True)
     
     # Combine
     plot_data = pd.concat([level_stats, total_stats], ignore_index=True)
@@ -162,130 +189,62 @@ def plot_composite_session_stats(fig, gs_slot, df, logger):
         'Level 5': '#2ca02c'
     }
     
-    plot_subjects = subjects + ['Total']
-    y_positions = np.arange(len(plot_subjects)) + 0.5
+    # Simplify subject labels
+    plot_subjects = [s.replace('sub-', '') for s in subjects] + ['Total']
+    y_positions = np.arange(len(plot_subjects))
     bar_height = 0.6
     
     for i, subj in enumerate(plot_subjects):
-        subj_d = plot_data[plot_data['subject'] == subj]
+        subj_key = f'sub-{subj}' if subj != 'Total' else 'Total'
+        subj_d = plot_data[plot_data['subject'] == subj_key]
         left_offset = 0
         
         for lvl in ['Level 1', 'Level 4', 'Level 5']:
             lvl_d = subj_d[subj_d['level'] == lvl]
             if len(lvl_d) > 0:
+                n_runs = lvl_d.iloc[0]['n_runs']
                 cleared = lvl_d.iloc[0]['cleared']
-                failed = lvl_d.iloc[0]['failed']
                 base_color = level_colors.get(lvl, 'gray')
                 
-                # Cleared Segment
-                if cleared > 0:
-                    ax_marginal.barh(i + 0.5, cleared, height=bar_height, left=left_offset,
-                                     color=base_color, alpha=1.0, edgecolor='white')
-                    left_offset += cleared
-                    
-                # Failed Segment
-                if failed > 0:
-                    ax_marginal.barh(i + 0.5, failed, height=bar_height, left=left_offset,
-                                     color=base_color, alpha=0.3, edgecolor='white', hatch='///')
-                    left_offset += failed
+                if n_runs > 0:
+                    ax_marginal.barh(i, n_runs, height=bar_height, left=left_offset,
+                                     color=base_color, alpha=0.85, edgecolor='white', linewidth=0.5)
+                    left_offset += n_runs
         
-        # Label
-        total_n = subj_d['total_attempts'].sum()
+        # Compact label: just total runs
+        total_runs = subj_d['n_runs'].sum()
         total_dur = subj_d['duration'].sum()
-        dur_str = f"{int(total_dur//3600)}h"
-        total_clr = subj_d['cleared'].sum()
-        success_pct = (total_clr / total_n * 100) if total_n > 0 else 0
+        dur_str = f"{int(total_dur//3600)}h" if total_dur > 0 else ""
         
-        label = f" {total_n} ({success_pct:.0f}%) | {dur_str}"
-        ax_marginal.text(left_offset + 2, i + 0.5, label, va='center', fontsize=9, fontweight='bold' if subj == 'Total' else 'normal')
+        label = f" {int(total_runs)}" + (f" ({dur_str})" if dur_str else "")
+        ax_marginal.text(left_offset + 1, i, label, va='center', fontsize=8, 
+                        fontweight='bold' if subj == 'Total' else 'normal')
 
     # Styling Marginal
-    # Align visually with heatmap rows. Heatmap has subjects + Total.
-    # Heatmap 'Total' is at the bottom (index -1 in y-axis usually or index N).
-    # Since we added margins=True, seaborn heatmap puts Total at the end.
-    # So plot_subjects ordering (subjects + Total) matches heatmap y-axis order.
-    
-    ax_marginal.set_ylim(len(plot_subjects), 0)
+    ax_marginal.set_ylim(len(plot_subjects) - 0.5, -0.5)
     ax_marginal.set_yticks(y_positions)
-    ax_marginal.set_yticklabels(plot_subjects)
-    ax_marginal.yaxis.tick_right()
+    ax_marginal.set_yticklabels(plot_subjects, fontsize=8)
+    ax_marginal.set_xlabel('Number of Runs', fontsize=11, fontweight='bold', color=SHINOBI_COLOR)
     ax_marginal.tick_params(axis='y', length=0)
     ax_marginal.spines['top'].set_visible(False)
     ax_marginal.spines['right'].set_visible(False)
-    ax_marginal.spines['bottom'].set_visible(False)
     ax_marginal.spines['left'].set_visible(False)
-    ax_marginal.set_xlabel('Number of Level Attempts', fontsize=12)
+    ax_marginal.grid(axis='x', linestyle='--', alpha=0.3)
     
-    # Legend outside
-    legend_elements = []
-    for lvl in ['Level 1', 'Level 4', 'Level 5']:
-        legend_elements.append(plt.Rectangle((0,0),1,1, color=level_colors[lvl], label=lvl))
-    legend_elements.append(plt.Rectangle((0,0),1,1, facecolor='gray', edgecolor='k', label='Cleared'))
-    legend_elements.append(plt.Rectangle((0,0),1,1, facecolor='gray', alpha=0.3, hatch='///', edgecolor='k', label='Failed'))
-    
-    ax_marginal.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1, 1), fontsize=9, title='Legend')
+    # Legend - positioned carefully to avoid overlap
+    legend_elements = [plt.Rectangle((0,0),1,1, color=level_colors[lvl], label=lvl) 
+                       for lvl in ['Level 1', 'Level 4', 'Level 5']]
+    ax_marginal.legend(handles=legend_elements, loc='lower right', fontsize=8, 
+                       frameon=True, framealpha=0.9, edgecolor='none')
 
     # Panel C label
-    ax_marginal.text(-0.1, 1.05, 'C', transform=ax_marginal.transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
-
-
-def plot_volume_distribution(ax, df, logger):
-    """
-    Plot volume counts distribution by subject (Panel C).
-
-    Args:
-        ax: Matplotlib axes object
-        df: Dataset summary DataFrame
-        logger: AnalysisLogger instance
-    """
-    logger.debug("Generating Panel C: Volume counts distribution")
-
-    # Prepare data for box plot
-    subjects = sorted(df['subject'].unique())
-    volume_data = []
-    positions = []
-    labels = []
-
-    for i, subj in enumerate(subjects):
-        subj_volumes = df[df['subject'] == subj]['n_volumes'].dropna().values
-        if len(subj_volumes) > 0:
-            volume_data.append(subj_volumes)
-            positions.append(i)
-            labels.append(subj)
-
-    # Create box plot
-    bp = ax.boxplot(volume_data, positions=positions, widths=0.6,
-                     patch_artist=True, showmeans=True,
-                     meanprops=dict(marker='D', markerfacecolor='red', markersize=6),
-                     medianprops=dict(color='black', linewidth=2),
-                     boxprops=dict(facecolor=SHINOBI_COLOR, alpha=0.6, edgecolor='black', linewidth=1.2),
-                     whiskerprops=dict(color='black', linewidth=1.2),
-                     capprops=dict(color='black', linewidth=1.2))
-
-    # Add overall mean line
-    overall_mean = df['n_volumes'].mean()
-    ax.axhline(y=overall_mean, color='red', linestyle='--', linewidth=2,
-               label=f'Overall Mean: {overall_mean:.1f}', alpha=0.7)
-
-    # Styling
-    ax.set_xticks(positions)
-    ax.set_xticklabels(labels, fontsize=12)
-    ax.set_ylabel('Number of Volumes', fontsize=14)
-    ax.set_xlabel('Subject', fontsize=14)
-    ax.legend(loc='upper right', fontsize=10, framealpha=0.9)
-    ax.grid(axis='y', linestyle='--', alpha=0.5)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    # Panel label
-    ax.text(-0.1, 1.05, 'C', transform=ax.transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
+    ax_marginal.text(-0.15, 1.02, 'C', transform=ax_marginal.transAxes,
+            fontsize=14, fontweight='bold', va='top', ha='right')
 
 
 def create_figure(csv_path, output_path, logger):
     """
-    Create 2-panel figure with descriptive statistics.
+    Create compact 3-panel figure with descriptive statistics.
 
     Args:
         csv_path: Path to dataset summary CSV
@@ -304,19 +263,12 @@ def create_figure(csv_path, output_path, logger):
     # Deduplicate for Panel A (which expects per-run data, not per-level)
     df_unique_runs = df.drop_duplicates(subset=['subject', 'session', 'run'])
 
-    # Create figure with GridSpec: 2 rows, 1 column
-    # We use a wider figure to accommodate the marginal plot in Panel B
-    fig = plt.figure(figsize=(18, 12))
-    gs = fig.add_gridspec(2, 1, hspace=0.3)
+    # Create compact figure with GridSpec: 2 rows, 1 column
+    fig = plt.figure(figsize=(12, 8))
+    gs = fig.add_gridspec(2, 1, hspace=0.4, height_ratios=[1, 1])
 
-    # Panel A: Top
-    ax_events = fig.add_subplot(gs[0])
-    
-    # Panel B: Bottom (Composite Heatmap + Marginal)
-    # Passed as a GridSpec slot to the plotting function
-    
-    # Generate panels
-    plot_events_subjects_x_conditions(ax_events, df_unique_runs, logger)
+    # Generate panels - both use GridSpec slots now
+    plot_events_subjects_x_conditions(fig, gs[0], df_unique_runs, logger)
     plot_composite_session_stats(fig, gs[1], df, logger)
 
     # Save figure
@@ -393,20 +345,16 @@ def main():
             logger=logger
         )
 
-    # Create figure (force regeneration if --force is used)
-    if args.force or not op.exists(output_path):
-        create_figure(csv_path, output_path, logger)
-    else:
-        logger.info(f"Figure already exists: {output_path}. Use --force to regenerate.")
-        print(f"Figure already exists: {output_path}")
-        print(f"Use --force to regenerate")
+    # Create figure
+    create_figure(csv_path, output_path, logger)
 
-    logger.close()
+    # Close logger without printing summary (not useful for single-figure generation)
+    for handler in logger.logger.handlers:
+        handler.close()
+        logger.logger.removeHandler(handler)
 
-    # Print summary if figure was generated
-    if args.force or not op.exists(output_path):
-        print(f"✓ Generated descriptive statistics figure")
-        print(f"  Output: {output_path}")
+    print(f"✓ Generated descriptive statistics figure")
+    print(f"  Output: {output_path}")
 
 
 if __name__ == "__main__":

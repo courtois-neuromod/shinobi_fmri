@@ -1204,6 +1204,47 @@ def descriptive_viz(c, data_path=None, output=None, csv_path=None, force=False, 
     c.run(cmd)
 
 
+@task
+def descriptive_annotations(c, data_path=None, output_dir=None, verbose=0, log_dir=None):
+    """
+    Generate multiple annotation visualization options for exploration.
+
+    Creates 5 different visualization options in a folder:
+    - Option 1: Dual heatmaps (count and duration)
+    - Option 2: Faceted bar charts (one per subject)
+    - Option 3: Bubble matrix (size=count, color=duration)
+    - Option 4: Boxplots showing variance
+    - Option 5: Violin plots
+
+    Loads event data directly from annotated events files.
+    - Count: variance across sessions
+    - Duration: variance across event occurrences
+
+    Args:
+        data_path: Override data path from config
+        output_dir: Output directory (default: {FIG_PATH}/descriptive_annotations)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+
+    Examples:
+        invoke viz.descriptive-annotations --verbose 1
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_descriptive_annotations.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+    if data_path:
+        cmd_parts.extend(["--data-path", data_path])
+    if output_dir:
+        cmd_parts.extend(["--output-dir", output_dir])
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    c.run(cmd)
+
+
 # =============================================================================
 # Build Task Collections
 # =============================================================================
@@ -1242,6 +1283,7 @@ viz_collection.add_task(viz_within_subject_correlations, name='within-subject-co
 viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
 viz_collection.add_task(descriptive_viz, name='descriptive')
+viz_collection.add_task(descriptive_annotations, name='descriptive-annotations')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
