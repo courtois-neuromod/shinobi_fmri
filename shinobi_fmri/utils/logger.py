@@ -33,42 +33,49 @@ class ProcessingSummary:
     def add_warning(self, item: str, warning: str):
         self.warnings.append((item, warning))
 
-    def get_summary_text(self) -> str:
-        """Generate human-readable summary."""
+    def get_summary_text(self, compact: bool = True) -> str:
+        """Generate human-readable summary.
+        
+        Args:
+            compact: If True, only show counts and errors (default: True)
+        """
         lines = []
-        lines.append("\n" + "="*80)
+        lines.append("\n" + "="*60)
         lines.append("PROCESSING SUMMARY")
-        lines.append("="*80)
-        lines.append(f"✓ Computed:  {len(self.computed)}")
-        lines.append(f"⊘ Skipped:   {len(self.skipped)}")
-        lines.append(f"⚠ Warnings:  {len(self.warnings)}")
-        lines.append(f"✗ Errors:    {len(self.errors)}")
+        lines.append("="*60)
+        lines.append(f"✓ Computed: {len(self.computed)}  ⊘ Skipped: {len(self.skipped)}  ⚠ Warnings: {len(self.warnings)}  ✗ Errors: {len(self.errors)}")
 
-        if self.computed:
-            lines.append(f"\nComputed ({len(self.computed)}):")
-            for item in self.computed[:10]:  # Show first 10
-                lines.append(f"  ✓ {item}")
-            if len(self.computed) > 10:
-                lines.append(f"  ... and {len(self.computed) - 10} more")
+        # Only show detailed lists if not compact or if there are errors
+        if not compact:
+            if self.computed:
+                lines.append(f"\nComputed ({len(self.computed)}):")
+                for item in self.computed[:10]:  # Show first 10
+                    lines.append(f"  ✓ {item}")
+                if len(self.computed) > 10:
+                    lines.append(f"  ... and {len(self.computed) - 10} more")
 
-        if self.skipped:
-            lines.append(f"\nSkipped ({len(self.skipped)}):")
-            for item in self.skipped[:5]:
-                lines.append(f"  ⊘ {item}")
-            if len(self.skipped) > 5:
-                lines.append(f"  ... and {len(self.skipped) - 5} more")
+            if self.skipped:
+                lines.append(f"\nSkipped ({len(self.skipped)}):")
+                for item in self.skipped[:5]:
+                    lines.append(f"  ⊘ {item}")
+                if len(self.skipped) > 5:
+                    lines.append(f"  ... and {len(self.skipped) - 5} more")
 
         if self.warnings:
             lines.append(f"\nWarnings ({len(self.warnings)}):")
-            for item, warning in self.warnings:
+            for item, warning in self.warnings[:5]:
                 lines.append(f"  ⚠ {item}: {warning}")
+            if len(self.warnings) > 5:
+                lines.append(f"  ... and {len(self.warnings) - 5} more")
 
         if self.errors:
             lines.append(f"\nErrors ({len(self.errors)}):")
-            for item, error in self.errors:
+            for item, error in self.errors[:5]:
                 lines.append(f"  ✗ {item}: {error}")
+            if len(self.errors) > 5:
+                lines.append(f"  ... and {len(self.errors) - 5} more")
 
-        lines.append("="*80 + "\n")
+        lines.append("="*60)
         return "\n".join(lines)
 
 
@@ -229,18 +236,16 @@ class AnalysisLogger:
         """Print and log the processing summary."""
         summary_text = self.summary.get_summary_text()
 
-        # Print to console (always, unless extremely silent?)
-        # Let's use logger.info so it respects verbosity, but maybe force print?
-        # User requested summary at the end.
+        # Print to console (always show summary)
         print(summary_text)
 
-        # Log to file
+        # Log to file only (not console - already printed above)
         for line in summary_text.split('\n'):
             if line.strip():
-                self.logger.info(line)
+                self.logger.debug(line)  # Use debug so it only goes to file
 
         if self.summary.errors:
-            self.warning(f"\nDetailed error logs saved to: {self.log_filename}")
+            print(f"\nDetailed error logs saved to: {self.log_filename}")
 
     def close(self):
         """Print summary and close all handlers."""

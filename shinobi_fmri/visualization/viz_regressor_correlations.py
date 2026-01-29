@@ -33,6 +33,7 @@ import nilearn.interfaces.fmriprep
 import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import AnalysisLogger
 from shinobi_fmri.glm.utils import add_psychophysics_confounds, add_button_press_confounds
+from shinobi_fmri.visualization.hcp_tasks import SHINOBI_COLOR
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='nilearn')
@@ -69,16 +70,10 @@ def setup_argparse():
         help="Skip design matrix generation, only plot from existing pickle file",
     )
     parser.add_argument(
-        "--low-level-confs",
+        "--exclude-low-level",
         action="store_true",
-        default=True,
-        help="Include low-level confounds (psychophysics and button presses) in design matrix (default: True)",
-    )
-    parser.add_argument(
-        "--no-low-level-confs",
-        dest="low_level_confs",
-        action="store_false",
-        help="Exclude low-level confounds from design matrix",
+        default=False,
+        help="Exclude low-level confounds (psychophysics and button presses) from design matrix (default: False, confounds are included)",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -94,7 +89,7 @@ def setup_argparse():
     return parser
 
 
-def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_confs=False):
+def process_single_run(sub, ses, run, path_to_data, figures_path, exclude_low_level=False):
     """Helper function to process a single run."""
     t_r = 1.49
     hrf_model = 'spm'
@@ -158,8 +153,8 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
                 'error': f"Could not load confounds (broken link or missing file): {str(e)}"
             }
 
-        # Add low-level confounds if requested
-        if use_low_level_confs:
+        # Add low-level confounds unless excluded
+        if not exclude_low_level:
             confounds = add_psychophysics_confounds(confounds, run_events, path_to_data, t_r=t_r)
             confounds = add_button_press_confounds(confounds, run_events, t_r=t_r)
 
@@ -170,20 +165,29 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
         n_slices = confounds.shape[0]
         frame_times = np.arange(n_slices) * t_r
 
-        # Filter events to keep only relevant columns and avoid warnings
+        # Filter events to keep only conditions from config (excludes gym-retro_game, etc.)
         events_cols = ['onset', 'duration', 'trial_type']
         if 'modulation' in run_events.columns:
             events_cols.append('modulation')
-        events_df_clean = run_events[events_cols]
+        events_df_clean = run_events[events_cols].copy()
+        
+        # Keep only conditions defined in config.CONDITIONS
+        events_df_clean = events_df_clean[events_df_clean['trial_type'].isin(config.CONDITIONS)]
+        
+        # Drop rows with NaN onset (can't model events without onset time)
+        events_df_clean = events_df_clean.dropna(subset=['onset'])
 
-        design_matrix_raw = make_first_level_design_matrix(
-            frame_times,
-            events=events_df_clean,
-            drift_model=None,
-            hrf_model=hrf_model,
-            add_regs=confounds,
-            add_reg_names=None
-        )
+        # Suppress nilearn warning about zero-duration events (Kill, HealthLoss are impulse events)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*null duration.*')
+            design_matrix_raw = make_first_level_design_matrix(
+                frame_times,
+                events=events_df_clean,
+                drift_model=None,
+                hrf_model=hrf_model,
+                add_regs=confounds,
+                add_reg_names=None
+            )
 
         # Clean design matrix
         regressors_clean = clean(
@@ -230,7 +234,7 @@ def process_single_run(sub, ses, run, path_to_data, figures_path, use_low_level_
         }
 
 
-def build_design_matrices(subjects, path_to_data, figures_path, use_low_level_confs=False, logger=None):
+def build_design_matrices(subjects, path_to_data, figures_path, exclude_low_level=False, logger=None):
     """
     Build design matrices for all runs across specified subjects.
 
@@ -238,7 +242,7 @@ def build_design_matrices(subjects, path_to_data, figures_path, use_low_level_co
         subjects: List of subject IDs to process
         path_to_data: Path to data directory
         figures_path: Path to figures directory
-        use_low_level_confs: Include low-level confounds (psychophysics and button presses)
+        exclude_low_level: Exclude low-level confounds (psychophysics and button presses)
         logger: AnalysisLogger instance
 
     Returns:
@@ -294,7 +298,7 @@ def build_design_matrices(subjects, path_to_data, figures_path, use_low_level_co
 
     for sub, ses, run in tqdm(tasks, desc="Building design matrices"):
         res = process_single_run(
-            sub, ses, run, path_to_data, figures_path, use_low_level_confs
+            sub, ses, run, path_to_data, figures_path, exclude_low_level
         )
         if res['success']:
             regressors_dict['regressors'].append(res['regressors'])
@@ -385,7 +389,7 @@ def plot_run_correlations(regressors_dict, figures_path, logger=None):
         pbar.set_postfix({"Subject": sub, "Session": ses, "Run": run_num})
 
 
-def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=False, logger=None):
+def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, exclude_low_level=False, logger=None):
     """
     Plot subject-averaged correlation matrices.
 
@@ -393,14 +397,14 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
         regressors_dict: Dictionary containing correlation matrices
         subjects: List of subjects to process
         figures_path: Path to save figures
-        use_low_level_confs: Include low-level confounds in design matrix
+        exclude_low_level: Exclude low-level confounds from design matrix
         logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
 
     # Add suffix to filename if low-level confounds are included
-    suffix = "_low-level" if use_low_level_confs else ""
+    suffix = "" if exclude_low_level else "_low-level"
 
     for sub in tqdm(subjects, desc="Plotting subject-averaged correlations"):
         if logger:
@@ -424,7 +428,7 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
         # Heatmap with annotations
         f, ax = plt.subplots(figsize=(30, 25))
         title = f'{sub} - Averaged across runs'
-        if use_low_level_confs:
+        if not exclude_low_level:
             title += ' (with low-level confounds)'
         sns.heatmap(
             averaged_corr_mat, mask=mask, center=0,
@@ -457,7 +461,7 @@ def plot_subject_averaged_correlations(regressors_dict, subjects, figures_path, 
             logger.summary.add_computed(f"Subject-averaged correlations: {sub}")
 
 
-def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=False, logger=None):
+def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, exclude_low_level=False, logger=None):
     """
     Plot a 2x2 grid of subject-averaged correlation matrices.
 
@@ -473,28 +477,43 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_l
         regressors_dict: Dictionary containing correlation matrices
         subjects: List of subjects to process (should be 4 subjects for 2x2 grid)
         figures_path: Path to save figures
-        use_low_level_confs: Include low-level confounds in design matrix
+        exclude_low_level: Exclude low-level confounds from design matrix
         logger: AnalysisLogger instance
     """
     output_dir = op.join(figures_path, 'design_matrices')
     os.makedirs(output_dir, exist_ok=True)
 
     # Add suffix to filename if low-level confounds are included
-    suffix = "_low-level" if use_low_level_confs else ""
+    suffix = "" if exclude_low_level else "_low-level"
 
     if logger:
         logger.info(f"Plotting 2x2 grid for {len(subjects)} subjects")
 
-    # Define which regressors to include
-    # Shinobi conditions (excluding UP - not analyzed)
-    shinobi_conditions = ['DOWN', 'HIT', 'HealthGain', 'HealthLoss', 'JUMP',
-                          'Kill', 'LEFT', 'RIGHT']
-    # Psychophysics confounds
+    # Define which regressors to include and their order
+    # Match order from descriptive_annotations: RIGHT, LEFT, DOWN, HIT, JUMP, Kill, HealthLoss
+    # Then add low-level features
+    shinobi_conditions = ['RIGHT', 'LEFT', 'DOWN', 'HIT', 'JUMP', 'Kill', 'HealthLoss']
+    # Psychophysics confounds (internal names)
     psychophysics_confounds = ['luminance', 'optical_flow', 'audio_envelope']
     # Button press confounds
     button_confounds = ['button_presses_count']
-    # Combined list
+    # Combined list in desired order
     regressors_to_include = shinobi_conditions + psychophysics_confounds + button_confounds
+    
+    # Display names for cleaner labels (all should be displayed)
+    display_names = {
+        'RIGHT': 'RIGHT',
+        'LEFT': 'LEFT',
+        'DOWN': 'DOWN',
+        'HIT': 'HIT',
+        'JUMP': 'JUMP',
+        'Kill': 'Kill',
+        'HealthLoss': 'HealthLoss',
+        'luminance': 'Luminance',
+        'optical_flow': 'Optical flow',
+        'audio_envelope': 'Audio envelope',
+        'button_presses_count': 'Button press'
+    }
 
     # Prepare averaged correlation matrices for each subject
     subject_corr_mats = {}
@@ -515,15 +534,20 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_l
         # Average across runs
         averaged_corr_mat = pd.concat(subj_corrs, axis=0).groupby(level=0).mean()
 
-        # Filter to keep only specified regressors
+        # Filter to keep only specified regressors (in the specified order)
         available_regressors = [r for r in regressors_to_include if r in averaged_corr_mat.index]
         if len(available_regressors) == 0:
             if logger:
                 logger.warning(f"No target regressors found for {sub}")
+                logger.warning(f"Available columns: {list(averaged_corr_mat.columns)}")
             continue
 
+        # Reorder to match desired order
         averaged_corr_mat = averaged_corr_mat.loc[available_regressors, available_regressors]
         subject_corr_mats[sub] = averaged_corr_mat
+        
+        if logger:
+            logger.info(f"{sub}: Found {len(available_regressors)} regressors: {available_regressors}")
 
         # Collect values from lower triangle for global color scale
         mask_lower = np.tril(np.ones_like(averaged_corr_mat, dtype=bool), k=-1)
@@ -539,13 +563,29 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_l
     vmax = np.max(all_values)
     abs_max = max(abs(vmin), abs(vmax))
 
-    # Create 2x2 figure with larger size for bigger cells
+    # Create 2x2 figure - compact layout
+    # Top row x-labels will extend into empty upper triangle of bottom row
     fig, axes = plt.subplots(2, 2, figsize=(28, 26))
+    fig.subplots_adjust(hspace=0.10, wspace=0.15)
     axes = axes.flatten()
+    
+    # Plot bottom row first (indices 2, 3), then top row (indices 0, 1)
+    # This ensures top row x-labels are drawn on top of bottom row's empty space
+    plot_order = [2, 3, 0, 1]
 
     # Plot each subject in a subplot
-    for idx, sub in enumerate(subjects[:4]):  # Only plot first 4 subjects
-        ax = axes[idx]
+    for plot_idx in plot_order:
+        sub_idx = plot_idx
+        if sub_idx >= len(subjects[:4]):
+            axes[plot_idx].set_visible(False)
+            continue
+            
+        sub = subjects[sub_idx]
+        ax = axes[plot_idx]
+        
+        # Set higher zorder for top row so their labels appear on top
+        if plot_idx in [0, 1]:
+            ax.set_zorder(10)
 
         if sub not in subject_corr_mats:
             ax.set_visible(False)
@@ -574,27 +614,43 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_l
             fmt='.2f',  # Two decimal places
             annot_kws={'fontsize': 16}  # Font size for annotations (doubled from 8)
         )
+        
+        # Make axes background transparent so top row x-labels show through
+        # bottom row's masked (empty) upper triangle
+        ax.set_facecolor('none')
+        ax.patch.set_alpha(0)
 
-        # Subtitle (subject name) - not bold, positioned very close to matrix
-        # Use ax.text() to manually position the subtitle near the top of the axes
-        ax.text(0.5, 0.92, f'{sub}', transform=ax.transAxes,
+        # Subtitle (subject name) - not bold, positioned near top of matrix
+        ax.text(0.5, 0.87, f'{sub}', transform=ax.transAxes,
                 fontsize=32, fontweight='normal', ha='center', va='top')
 
-        # Get tick labels
-        xticklabels = ax.get_xticklabels()
-        yticklabels = ax.get_yticklabels()
+        # Get current tick labels and create display names list
+        current_labels = [t.get_text() for t in ax.get_xticklabels()]
+        display_labels = [display_names.get(lbl, lbl) for lbl in current_labels]
+        
+        # For lower triangle heatmap: hide first y-label and last x-label (diagonal cells)
+        x_display = display_labels.copy()
+        y_display = display_labels.copy()
+        if len(x_display) > 0:
+            x_display[-1] = ''  # Last column has no visible data
+        if len(y_display) > 0:
+            y_display[0] = ''  # First row has no visible data
 
-        # Remove first row label (no data shown) and last column label (no data shown)
-        # since we mask the diagonal
-        yticklabels[0].set_visible(False)  # First row (DOWN)
-        xticklabels[-1].set_visible(False)  # Last column (audio_envelope)
-
-        # Rotate labels for better readability with slightly smaller font
-        ax.set_xticklabels(xticklabels, rotation=90, ha='right', fontsize=18)
-        ax.set_yticklabels(yticklabels, rotation=0, fontsize=18)
+        # Apply orange bold styling to all tick labels
+        # ha='center' aligns rotated x-labels with their ticks
+        ax.set_xticklabels(x_display, rotation=90, ha='center', va='top', fontsize=18, 
+                          fontweight='bold', color=SHINOBI_COLOR)
+        ax.set_yticklabels(y_display, rotation=0, ha='right', va='center', fontsize=18, 
+                          fontweight='bold', color=SHINOBI_COLOR)
+        
+        # Ensure tick labels are not clipped by subplot boundaries
+        ax.tick_params(axis='x', which='both', pad=2)
+        ax.tick_params(axis='y', which='both', pad=2)
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            label.set_clip_on(False)
 
     # Hide unused subplots if less than 4 subjects
-    for idx in range(len(subjects), 4):
+    for idx in range(len(subjects[:4]), 4):
         axes[idx].set_visible(False)
 
     # Add shared colorbar on the right (size of one subplot, vertically centered)
@@ -614,12 +670,11 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_l
     # Set colorbar tick label size (doubled from default)
     cbar.ax.tick_params(labelsize=20)
 
-    # Add "r̄" (r bar) label above the colorbar (not rotated)
-    cbar.ax.text(0.5, 1.05, r'$\bar{r}$', transform=cbar.ax.transAxes,
-                 fontsize=36, ha='center', va='bottom')
+    # Add "Mean Pearson r" label on the right side of the colorbar (vertical)
+    cbar.set_label('Mean Pearson r', fontsize=24, rotation=270, labelpad=30)
 
-    # Save figure
-    fig_fname = op.join(output_dir, f'regressor_correlations_2x2_subjects{suffix}.png')
+    # Save main panel directly to figures_path (not subdirectory)
+    fig_fname = op.join(figures_path, f'regressor_correlations_panel{suffix}.png')
     plt.savefig(fig_fname, dpi=150, bbox_inches='tight')
     plt.close()
 
@@ -665,11 +720,11 @@ def main():
         logger.summary.add_skipped("Design matrix generation (loaded from pickle)")
     else:
         logger.info("Building design matrices...")
-        if args.low_level_confs:
+        if not args.exclude_low_level:
             logger.info("Including low-level confounds (psychophysics and button presses)")
         regressors_dict = build_design_matrices(
             subjects, path_to_data, figures_path,
-            use_low_level_confs=args.low_level_confs,
+            exclude_low_level=args.exclude_low_level,
             logger=logger
         )
 
@@ -691,7 +746,7 @@ def main():
 
     # Generate 2x2 subject correlation grid (Shinobi conditions + 3 psychophysics confounds only)
     logger.info("Plotting 2x2 subject correlation grid...")
-    plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, use_low_level_confs=args.low_level_confs, logger=logger)
+    plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, exclude_low_level=args.exclude_low_level, logger=logger)
 
     logger.info("Done!")
     logger.close()

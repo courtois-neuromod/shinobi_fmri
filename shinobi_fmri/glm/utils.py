@@ -555,8 +555,10 @@ def add_psychophysics_confounds(
     for key, data in ppc_data.items():
         confounds[0][key] = data
 
+    # NaN onsets in gym-retro_game events are expected (some level attempts have missing data)
+    # Only log at DEBUG level to avoid cluttering output
     if n_invalid_onsets > 0:
-        logging.warning(f"Found {n_invalid_onsets} gym-retro_game events with NaN onsets (low-level features)")
+        logging.debug(f"Found {n_invalid_onsets} gym-retro_game events with NaN onsets (low-level features)")
 
     return confounds
 

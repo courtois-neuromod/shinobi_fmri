@@ -842,8 +842,9 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
     ax2.text(-0.05, 1.05, 'B', transform=ax2.transAxes, fontsize=20, fontweight='bold', va='top', ha='right')
 
     plt.tight_layout()
-    plt.savefig(output_path / 'average_and_specificity_panel.png', dpi=300, bbox_inches='tight')
-    print(f"Saved: {output_path / 'average_and_specificity_panel.png'}")
+    # Save directly to output_path (FIG_PATH) with descriptive name
+    plt.savefig(output_path / 'within_subject_beta_correlations_panel.png', dpi=300, bbox_inches='tight')
+    print(f"Saved: {output_path / 'within_subject_beta_correlations_panel.png'}")
     plt.close()
 
 
@@ -1005,17 +1006,21 @@ def main():
     # Aggregate across subjects
     avg_matrix = aggregate_across_subjects(subject_results, unique_conditions)
 
-    # Setup output directory
+    # Setup output directories
+    # Main panel goes directly to FIG_PATH
+    main_output_path = Path(FIG_PATH)
+    # Supplementary figures go to subdirectory
     output_path = Path(FIG_PATH) / 'within_subject_condition_correlations'
     output_path.mkdir(exist_ok=True, parents=True)
-    print(f"\nFigure output directory: {output_path}")
+    print(f"\nMain figure output: {main_output_path}")
+    print(f"Supplementary figures: {output_path}")
 
     # Generate plots
     print("\n" + "="*60)
     print("Generating visualizations...")
     print("="*60)
 
-    # Individual subject heatmaps
+    # Individual subject heatmaps (supplementary)
     print("\n1. Individual subject heatmaps...")
     for subject in sorted(subject_results.keys()):
         plot_subject_heatmap(
@@ -1025,15 +1030,15 @@ def main():
             include_low_level=not args.exclude_low_level
         )
 
-    # Combined panel: Average heatmap and Condition specificity
-    print("\n2. Average correlation and specificity panel...")
-    plot_average_and_specificity_panel(avg_matrix, subject_results, output_path, include_low_level=not args.exclude_low_level)
+    # Combined panel: Average heatmap and Condition specificity (MAIN FIGURE - save to FIG_PATH)
+    print("\n2. Average correlation and specificity panel (main figure)...")
+    plot_average_and_specificity_panel(avg_matrix, subject_results, main_output_path, include_low_level=not args.exclude_low_level)
 
-    # Same vs different comparison
+    # Same vs different comparison (supplementary)
     print("\n3. Same vs different condition comparison...")
     plot_same_vs_different_comparison(subject_results, corr_data, output_path, include_low_level=not args.exclude_low_level)
 
-    # Keep individual plots for reference (optional)
+    # Keep individual plots for reference (supplementary)
     print("\n4. Individual average heatmap...")
     plot_average_heatmap(avg_matrix, output_path, include_low_level=not args.exclude_low_level)
 
@@ -1043,7 +1048,7 @@ def main():
     print("\n" + "="*60)
     print("ANALYSIS COMPLETE")
     print("="*60)
-    print(f"\nAll plots saved to: {output_path}")
+    print(f"\nMain panel saved to: {main_output_path}")
 
 
 if __name__ == '__main__':

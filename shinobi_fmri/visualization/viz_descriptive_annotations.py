@@ -249,7 +249,7 @@ def main():
 
     # Setup paths
     data_path = args.data_path if args.data_path else config.DATA_PATH
-    output_dir = args.output_dir if args.output_dir else op.join(config.FIG_PATH, "descriptive_annotations")
+    output_dir = args.output_dir if args.output_dir else config.FIG_PATH
 
     # Setup logger
     verbosity_map = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
