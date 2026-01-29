@@ -432,7 +432,7 @@ def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_lo
         fig.text(0.82, y_pos, task_label, fontsize=10, color=color, ha='left')
         y_pos -= 0.03
 
-    # New Legend for Number of Runs (positioned at the level of C-F row)
+    # Legend for Number of Runs (positioned at the level of C-F row)
     run_legend_elements = []
     runs_to_show = min(max_runs_global, len(run_palette))
     for i in range(runs_to_show):

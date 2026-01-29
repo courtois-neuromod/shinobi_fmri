@@ -9,7 +9,7 @@ This document provides detailed documentation for all available analysis tasks i
 - [MVPA Tasks](#mvpa-tasks)
 - [Correlation Analysis Tasks](#correlation-analysis-tasks)
 - [Visualization Tasks](#visualization-tasks)
-- [Descriptive Statistics Tasks](#descriptive-statistics-tasks)
+- [Descriptive Statistics Visualization](#descriptive-statistics-visualization)
 - [Pipeline Tasks](#pipeline-tasks)
 - [Setup and Utility Tasks](#setup-and-utility-tasks)
 
@@ -708,9 +708,9 @@ invoke viz.mvpa-confusion-matrices --output reports/my_figure.png
 
 ---
 
-## Descriptive Statistics Tasks
+## Descriptive Statistics Visualization
 
-### `descriptive.viz`
+### `viz.descriptive`
 
 Generate descriptive statistics visualization figure with dataset summary.
 
@@ -736,16 +736,16 @@ Automatically generates CSV summary if it doesn't exist.
 
 ```bash
 # Generate figure (auto-generates CSV if needed)
-invoke descriptive.viz --verbose 1
+invoke viz.descriptive --verbose 1
 
 # Force regeneration of both CSV and figure
-invoke descriptive.viz --force --verbose 1
+invoke viz.descriptive --force --verbose 1
 
 # Use custom output path
-invoke descriptive.viz --output reports/figures/custom.png
+invoke viz.descriptive --output reports/figures/custom.png
 
 # Use existing custom CSV file
-invoke descriptive.viz --csv-path /path/to/custom_summary.csv
+invoke viz.descriptive --csv-path /path/to/custom_summary.csv
 ```
 
 **Output:**

@@ -170,9 +170,7 @@ The pipeline provides the following task categories:
 - `viz.fingerprinting` - Fingerprinting analysis and visualization (computes scores if needed, then generates plots)
 - `viz.within-subject-correlations` - Within-subject condition correlation analysis and heatmaps
 - `viz.mvpa-confusion-matrices` - MVPA confusion matrices with task grouping
-
-**Descriptive Statistics:**
-- `descriptive.viz` - Generate 3-panel figure with dataset summary (events, sessions, volumes)
+- `viz.descriptive` - Generate 3-panel figure with dataset summary (events, sessions, volumes)
 
 **Validation:**
 - `validate.outputs` - Comprehensive validation of all pipeline outputs against input data
@@ -194,7 +192,7 @@ invoke corr.beta --slurm --chunk-size 100 --verbose 1
 invoke viz.session-level
 
 # Generate descriptive statistics figure (auto-generates CSV if needed)
-invoke descriptive.viz --verbose 1
+invoke viz.descriptive --verbose 1
 
 # Validate all pipeline outputs (quick check)
 invoke validate.outputs

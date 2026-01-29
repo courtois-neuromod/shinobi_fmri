@@ -1176,15 +1176,15 @@ def descriptive_viz(c, data_path=None, output=None, csv_path=None, force=False, 
 
     Examples:
         # Generate figure (auto-generates CSV if needed)
-        invoke descriptive.viz --verbose 1
+        invoke viz.descriptive --verbose 1
 
         # Force regeneration of both CSV and figure
-        invoke descriptive.viz --force --verbose 1
+        invoke viz.descriptive --force --verbose 1
 
         # Use custom output path
-        invoke descriptive.viz --output reports/figures/custom.png
+        invoke viz.descriptive --output reports/figures/custom.png
     """
-    script = op.join(SHINOBI_FMRI_DIR, "descriptive", "viz_descriptive_stats.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_descriptive_stats.py")
 
     cmd_parts = [PYTHON_BIN, script]
     if data_path:

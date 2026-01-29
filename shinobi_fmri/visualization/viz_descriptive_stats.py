@@ -9,7 +9,7 @@ Generates publication-ready 3-panel figure showing dataset descriptive statistic
 
 Usage:
     python viz_descriptive_stats.py [-v] [--output path/to/figure.png] [--force]
-    invoke descriptive.viz [--force]
+    invoke viz.descriptive [--force]
 """
 import os
 import os.path as op
