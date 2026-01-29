@@ -297,6 +297,11 @@ def plot_subject_heatmap(corr_matrix, subject, output_path, include_low_level=Fa
         yticklabels=ordered_conds_with_icons
     )
 
+    # Rotate colorbar label 180 degrees
+    cbar = ax.collections[0].colorbar
+    cbar.ax.yaxis.label.set_rotation(270)
+    cbar.ax.yaxis.label.set_verticalalignment('center')
+
     # Color tick labels
     color_condition_labels(ax, ordered_conds, axis='x', include_low_level=include_low_level)
     color_condition_labels(ax, ordered_conds, axis='y', include_low_level=include_low_level)
@@ -390,6 +395,11 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
         xticklabels=ordered_conds_with_icons,
         yticklabels=ordered_conds_with_icons
     )
+
+    # Rotate colorbar label 180 degrees
+    cbar = ax.collections[0].colorbar
+    cbar.ax.yaxis.label.set_rotation(270)
+    cbar.ax.yaxis.label.set_verticalalignment('center')
 
     # Color tick labels
     color_condition_labels(ax, ordered_conds, axis='x', include_low_level=include_low_level)
@@ -767,7 +777,8 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
                          bbox_transform=ax1.transAxes,
                          borderpad=0)
     cbar = fig.colorbar(hm.collections[0], cax=cbar_ax, orientation='vertical')
-    cbar.set_label('Mean Pearson r', fontsize=10)
+    cbar.set_label('Mean Pearson r', fontsize=10, rotation=270)
+    cbar.ax.yaxis.label.set_verticalalignment('center')
     cbar.ax.tick_params(labelsize=8)
 
     # Color tick labels for panel A
@@ -921,6 +932,11 @@ def plot_condition_specificity_matrix(subject_results, output_path, include_low_
         ax=ax,
         annot_kws={'fontsize': 8}
     )
+
+    # Rotate colorbar label 180 degrees
+    cbar = ax.collections[0].colorbar
+    cbar.ax.yaxis.label.set_rotation(270)
+    cbar.ax.yaxis.label.set_verticalalignment('center')
 
     # Color tick labels
     color_condition_labels(ax, ordered_conds, axis='y', include_low_level=include_low_level)
