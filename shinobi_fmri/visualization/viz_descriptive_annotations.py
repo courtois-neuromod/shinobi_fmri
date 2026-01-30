@@ -152,7 +152,7 @@ def create_annotations_figure(count_df, duration_df, output_path):
     ax.grid(axis='y', linestyle='--', alpha=0.3, linewidth=0.3)
     ax.tick_params(axis='both', labelsize=5, width=0.3, length=2)
     # Add panel label A
-    ax.text(-0.15, 1.05, 'A', transform=ax.transAxes, fontsize=9, fontweight='bold', va='bottom')
+    ax.text(-0.15, 1.05, 'A', transform=ax.transAxes, fontsize=7, fontweight='bold', va='bottom')
     
     # Panel B: Duration boxplots (exclude Kill/HealthLoss) using seaborn
     ax = axes[1]
@@ -173,7 +173,7 @@ def create_annotations_figure(count_df, duration_df, output_path):
     ax.grid(axis='y', linestyle='--', alpha=0.3, linewidth=0.3)
     ax.tick_params(axis='both', labelsize=5, width=0.3, length=2)
     # Add panel label B
-    ax.text(-0.15, 1.05, 'B', transform=ax.transAxes, fontsize=9, fontweight='bold', va='bottom')
+    ax.text(-0.15, 1.05, 'B', transform=ax.transAxes, fontsize=7, fontweight='bold', va='bottom')
     
     # Legend - compact, from the right panel
     ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.0), 
