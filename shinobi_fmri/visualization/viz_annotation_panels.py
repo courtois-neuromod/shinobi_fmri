@@ -506,10 +506,17 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
 
         images.append(subj_images)
 
+
+    # Import display name mapping
+    from shinobi_fmri.visualization.hcp_tasks import LOW_LEVEL_DISPLAY_NAMES
+
+    # Use display name if condition is a low-level feature
+    display_condition = LOW_LEVEL_DISPLAY_NAMES.get(condition, condition)
+
     # Create the combined figure
     if logger:
-        logger.info(f"Assembling figure for {condition}")
-        
+        logger.info(f"Assembling figure for {display_condition}")
+
     fig = plt.figure(figsize=(16, 8), dpi=300)
     gs = fig.add_gridspec(4, 9)
 
@@ -545,8 +552,8 @@ def make_annotation_plot(condition, save_path, data_path=DATA_PATH, use_correcte
             ax.imshow(images[idx_subj][i+1])
             ax.axis('off')
 
-    # Add title
-    fig.suptitle(f"{condition}", fontsize=32, x=0.4444)
+    # Add title with display name
+    fig.suptitle(f"{display_condition}", fontsize=32, x=0.4444)
 
     # Add colorbar
     _, _, cmap = create_colormap()

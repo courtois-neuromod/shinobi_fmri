@@ -744,15 +744,23 @@ def create_legend_image(source1, cond1, source2, cond2, dpi=150):
     """
     from PIL import Image
     import io
-    from shinobi_fmri.visualization.hcp_tasks import get_condition_label
+
+    from shinobi_fmri.visualization.hcp_tasks import get_condition_label, LOW_LEVEL_DISPLAY_NAMES
 
     # Get colors for condition labels (task-specific)
     color1 = get_condition_color(source1, cond1)
     color2 = get_condition_color(source2, cond2)
 
-    # Format labels with icons if HCP
-    label1 = get_condition_label(cond1) if source1 == 'hcp' else cond1
-    label2 = get_condition_label(cond2) if source2 == 'hcp' else cond2
+    # Use display name for low-level features, otherwise use get_condition_label
+    if cond1 in LOW_LEVEL_DISPLAY_NAMES:
+        label1 = LOW_LEVEL_DISPLAY_NAMES[cond1]
+    else:
+        label1 = get_condition_label(cond1) if source1 == 'hcp' else cond1
+
+    if cond2 in LOW_LEVEL_DISPLAY_NAMES:
+        label2 = LOW_LEVEL_DISPLAY_NAMES[cond2]
+    else:
+        label2 = get_condition_label(cond2) if source2 == 'hcp' else cond2
 
     # Font weights: Shinobi is bold, HCP is normal
     weight1 = 'bold' if source1 == 'shinobi' else 'normal'
