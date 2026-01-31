@@ -1004,6 +1004,64 @@ def viz_mvpa_confusion_matrices(c, screening=20, no_low_level=False, output=None
     c.run(cmd)
 
 
+@task
+def viz_figure_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, verbose=0, log_dir=None):
+    """
+    Generate composite figure panel (A, B, C) from three images.
+
+    Combines three images into a publication-ready figure panel:
+    - Panel A spans the top row (full width)
+    - Panels B and C side by side at the bottom
+
+    Default images (Kill condition analysis):
+    - Panel A: Kill condition annotations (subject-level brain maps)
+    - Panel B: Kill vs audio envelope comparison
+    - Panel C: Kill vs reward comparison
+
+    Output is sized to approximately 3/4 of an A4 page.
+
+    Args:
+        panel_a: Path to panel A image (default: annotations_plot_Kill_corrected.png)
+        panel_b: Path to panel B image (default: Kill_vs_audio_envelope_corrected_panel.png)
+        panel_c: Path to panel C image (default: Kill_vs_reward_corrected_panel.png)
+        output: Output figure path (default: {FIG_PATH}/brain_panels.png)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+
+    Examples:
+        # Generate figure with default paths (Kill condition)
+        invoke viz.figure-panel
+
+        # Generate with custom images
+        invoke viz.figure-panel --panel-a img1.png --panel-b img2.png --panel-c img3.png
+
+        # Custom output path
+        invoke viz.figure-panel --output reports/figures/custom_panel.png
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_figure_panel.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if panel_a:
+        cmd_parts.extend(['--panel-a', panel_a])
+    if panel_b:
+        cmd_parts.extend(['--panel-b', panel_b])
+    if panel_c:
+        cmd_parts.extend(['--panel-c', panel_c])
+    if output:
+        cmd_parts.extend(['--output', output])
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print("Generating composite figure panel (A, B, C)...")
+    c.run(cmd)
+
+
 # =============================================================================
 # Full Pipeline Tasks
 # =============================================================================
@@ -1282,6 +1340,7 @@ viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
 viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
+viz_collection.add_task(viz_figure_panel, name='figure-panel')
 viz_collection.add_task(descriptive_viz, name='descriptive')
 viz_collection.add_task(descriptive_annotations, name='descriptive-annotations')
 namespace.add_collection(viz_collection)
