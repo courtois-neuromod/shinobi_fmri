@@ -1,6 +1,7 @@
 import warnings
 import os
 import sys
+import re
 
 # Suppress all warnings including sklearn confusion matrix warnings
 warnings.filterwarnings("ignore")
@@ -122,10 +123,14 @@ def load_zmaps_for_subject(sub, contrasts, path_to_data, target_affine, target_s
 
                 # Parse the contrast from the filename
                 # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-z.nii.gz
+                # or: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_desc-corrected_stat-z.nii.gz
                 try:
-                    # Extract contrast name from filename
-                    contrast_part = [p for p in z_map_fname.split("_") if "contrast-" in p][0]
-                    contrast = contrast_part.replace("contrast-", "")
+                    # Extract contrast name between 'contrast-' and '_stat-z' or '_desc-'
+                    # This handles condition names with underscores (e.g., optical_flow)
+                    match = re.search(r'contrast-(.+?)(?:_desc-|_stat-z)', z_map_fname)
+                    if not match:
+                        continue
+                    contrast = match.group(1)
 
                     if contrast not in contrasts:
                         continue
