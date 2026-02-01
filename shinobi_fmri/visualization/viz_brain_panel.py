@@ -109,7 +109,7 @@ def create_figure_panel(
     ax_a.text(
         0.01, 0.95, 'A',
         transform=ax_a.transAxes,
-        fontsize=16,
+        fontsize=12,
         fontweight='bold',
         verticalalignment='top',
     )
@@ -121,7 +121,7 @@ def create_figure_panel(
     ax_b.text(
         0.01, 1.0, 'B',
         transform=ax_b.transAxes,
-        fontsize=16,
+        fontsize=12,
         fontweight='bold',
         verticalalignment='bottom',
     )
@@ -133,7 +133,7 @@ def create_figure_panel(
     ax_c.text(
         0.01, 1.0, 'C',
         transform=ax_c.transAxes,
-        fontsize=16,
+        fontsize=12,
         fontweight='bold',
         verticalalignment='bottom',
     )

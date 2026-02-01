@@ -1005,9 +1005,9 @@ def viz_mvpa_confusion_matrices(c, screening=20, no_low_level=False, output=None
 
 
 @task
-def viz_figure_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, verbose=0, log_dir=None):
+def viz_brain_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, verbose=0, log_dir=None):
     """
-    Generate composite figure panel (A, B, C) from three images.
+    Generate composite brain figure panel (A, B, C) from three images.
 
     Combines three images into a publication-ready figure panel:
     - Panel A spans the top row (full width)
@@ -1030,15 +1030,15 @@ def viz_figure_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, v
 
     Examples:
         # Generate figure with default paths (Kill condition)
-        invoke viz.figure-panel
+        invoke viz.brain-panel
 
         # Generate with custom images
-        invoke viz.figure-panel --panel-a img1.png --panel-b img2.png --panel-c img3.png
+        invoke viz.brain-panel --panel-a img1.png --panel-b img2.png --panel-c img3.png
 
         # Custom output path
-        invoke viz.figure-panel --output reports/figures/custom_panel.png
+        invoke viz.brain-panel --output reports/figures/custom_panel.png
     """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_figure_panel.py")
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_brain_panel.py")
 
     cmd_parts = [PYTHON_BIN, script]
 
@@ -1340,7 +1340,7 @@ viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
 viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
-viz_collection.add_task(viz_figure_panel, name='figure-panel')
+viz_collection.add_task(viz_brain_panel, name='brain-panel')
 viz_collection.add_task(descriptive_viz, name='descriptive')
 viz_collection.add_task(descriptive_annotations, name='descriptive-annotations')
 namespace.add_collection(viz_collection)
