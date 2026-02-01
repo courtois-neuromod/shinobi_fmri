@@ -445,8 +445,35 @@ def prepare_output_dict(records, existing):
     return data
 
 
-def collect_pending_pairs_for_indices(path, indices):
-    data = load_existing_dict(path)
+def collect_pending_pairs_for_indices(results_path, indices, records, chunk_start, chunk_size, total_maps):
+    """
+    Collect pending correlation pairs for the given indices.
+
+    Checks chunk file first (for resume), then initializes fresh from records.
+    Does NOT depend on master file existing.
+
+    Args:
+        results_path: Path to master results file (used to derive chunk path)
+        indices: List of map indices assigned to this chunk
+        records: List of all map records (for initialization)
+        chunk_start: Starting index for this chunk
+        chunk_size: Size of chunk
+        total_maps: Total number of maps
+
+    Returns:
+        tuple: (pairs_to_compute, data_dict)
+    """
+    # Determine chunk file path
+    chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
+    chunk_path = get_chunk_path(results_path, chunk_start, chunk_end)
+
+    # Try to load existing chunk file first (for resume capability)
+    data = load_existing_dict(chunk_path)
+
+    if data is None:
+        # No chunk file exists - initialize fresh from records
+        data = prepare_output_dict(records, None)
+
     mask = data['computed_mask']
     pairs = [(i, j) for i in indices if i < mask.shape[0] for j in range(i + 1, mask.shape[0]) if not mask[i, j]]
     return pairs, data
@@ -564,13 +591,14 @@ def merge_all_chunks(base_path, chunk_paths, logger=None):
     return master
 
 
-def merge_updates(path, updates, chunk_start, chunk_size, total_maps, logger=None):
+def merge_updates(path, updates, chunk_data, chunk_start, chunk_size, total_maps, logger=None):
     """
     Save chunk results and merge into master if all chunks complete.
 
     Args:
         path: Base path for master correlation matrix file
         updates: Dict of {(i,j): correlation_value} computed in this chunk
+        chunk_data: The data structure for this chunk (already initialized)
         chunk_start: Starting map index for this chunk
         chunk_size: Size of each chunk
         total_maps: Total number of maps across all chunks
@@ -579,18 +607,6 @@ def merge_updates(path, updates, chunk_start, chunk_size, total_maps, logger=Non
     Returns:
         dict: Current state of correlation matrix (from chunk or merged master)
     """
-    if not updates:
-        # No updates computed, load from chunk file or create empty
-        chunk_dir = get_chunk_dir(path)
-        os.makedirs(chunk_dir, exist_ok=True)
-        chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
-        chunk_path = get_chunk_path(path, chunk_start, chunk_end)
-        existing = load_existing_dict(chunk_path)
-        if existing:
-            return existing
-        # If chunk doesn't exist, load master structure
-        return load_existing_dict(path)
-
     # Create chunk directory if needed
     chunk_dir = get_chunk_dir(path)
     os.makedirs(chunk_dir, exist_ok=True)
@@ -599,24 +615,21 @@ def merge_updates(path, updates, chunk_start, chunk_size, total_maps, logger=Non
     chunk_end = min(chunk_start + chunk_size - 1, total_maps - 1)
     chunk_path = get_chunk_path(path, chunk_start, chunk_end)
 
-    # Load or initialize chunk data (use master file as template)
-    chunk_data = load_existing_dict(chunk_path)
-    if chunk_data is None:
-        # Initialize from master file structure if it exists
-        chunk_data = load_existing_dict(path)
-        if chunk_data is None:
-            log("ERROR: No master file to initialize chunk structure", logger)
-            return None
+    if not updates:
+        # No updates computed - chunk is already complete
+        # Save it anyway to mark this chunk as done
+        save_with_retry(chunk_path, chunk_data, logger, save_metadata=False)
+        log(f"Chunk saved (no new updates): {chunk_path}", logger)
+    else:
+        # Apply updates to chunk
+        for (i, j), value in updates.items():
+            chunk_data['corr_matrix'][i, j] = chunk_data['corr_matrix'][j, i] = value
+            chunk_data['computed_mask'][i, j] = chunk_data['computed_mask'][j, i] = True
+        np.fill_diagonal(chunk_data['corr_matrix'], 1.0)
 
-    # Apply updates to chunk
-    for (i, j), value in updates.items():
-        chunk_data['corr_matrix'][i, j] = chunk_data['corr_matrix'][j, i] = value
-        chunk_data['computed_mask'][i, j] = chunk_data['computed_mask'][j, i] = True
-    np.fill_diagonal(chunk_data['corr_matrix'], 1.0)
-
-    # Save chunk file (no metadata for individual chunks)
-    save_with_retry(chunk_path, chunk_data, logger, save_metadata=False)
-    log(f"Chunk saved: {chunk_path}", logger)
+        # Save chunk file (no metadata for individual chunks)
+        save_with_retry(chunk_path, chunk_data, logger, save_metadata=False)
+        log(f"Chunk saved: {chunk_path}", logger)
 
     # Check if all chunks are complete
     all_complete, chunk_paths = check_all_chunks_complete(path, total_maps, chunk_size)
@@ -859,37 +872,41 @@ def main():
         # Print detailed breakdown of collected maps
         print_detailed_breakdown(records, logger)
 
-        # If --slurm flag is provided, submit batch jobs and exit
-        if args.slurm:
-            total_maps = len(records)
-            # Default to 100 maps per chunk if not specified for SLURM jobs
-            chunk_size = args.chunk_size if args.chunk_size is not None else 100
-            submit_slurm_chunks(total_maps, chunk_size, args.log_dir, log_level, exclude_low_level=args.exclude_low_level, logger=logger)
-            return
-        # Initialize output file if it doesn't exist
-        existing = load_existing_dict(results_path)
-        data = ensure_output_file(results_path, records, existing, logger)
-
         # Process the assigned chunk
         total_maps = len(records)
         # Use total_maps as chunk_size if not specified (process everything in one chunk)
         chunk_size = args.chunk_size if args.chunk_size is not None else total_maps
         chunk_start = args.chunk_start
 
+        # If --slurm flag is provided, submit batch jobs and exit
+        if args.slurm:
+            # Default to 100 maps per chunk if not specified for SLURM jobs
+            chunk_size = args.chunk_size if args.chunk_size is not None else 100
+            submit_slurm_chunks(total_maps, chunk_size, args.log_dir, log_level, exclude_low_level=args.exclude_low_level, logger=logger)
+            return
+
         chunk_indices = list(chunk_range(total_maps, chunk_size, chunk_start))
         if not chunk_indices:
             log("Chunk contains no map indices; exiting.", logger)
-            save_heatmap(data['corr_matrix'], data['mapnames'], FIG_PATH, logger)
             return
         log(f"Assigned map indices: {chunk_indices}", logger)
-        pairs, latest = collect_pending_pairs_for_indices(results_path, chunk_indices)
+
+        # Collect pending pairs - each chunk initializes its own data structure
+        pairs, chunk_data = collect_pending_pairs_for_indices(
+            results_path, chunk_indices, records, chunk_start, chunk_size, total_maps
+        )
         if not pairs:
             log("No pending correlations for this chunk.", logger)
-            save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
+            # Still save chunk file to mark it as complete
+            latest = merge_updates(results_path, {}, chunk_data, chunk_start, chunk_size, total_maps, logger)
+            if latest is not None:
+                save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
             return
+
         updates = compute_pairs_batch(pairs, records, masker, target_affine, target_shape, args.n_jobs, args.backend, logger)
-        latest = merge_updates(results_path, updates, chunk_start, chunk_size, total_maps, logger)
-        save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
+        latest = merge_updates(results_path, updates, chunk_data, chunk_start, chunk_size, total_maps, logger)
+        if latest is not None:
+            save_heatmap(latest['corr_matrix'], latest['mapnames'], FIG_PATH, logger)
         
     finally:
         logger.close()
