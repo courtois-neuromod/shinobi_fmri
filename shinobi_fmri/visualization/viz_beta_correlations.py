@@ -21,6 +21,9 @@ from visualization.hcp_tasks import (
     get_all_shinobi_conditions, LOW_LEVEL_DISPLAY_NAMES
 )
 
+# Conditions to exclude from visualization (not scientifically meaningful)
+EXCLUDED_CONDITIONS = ['UP']
+
 def get_display_name(condition_name):
     """Convert internal condition name to display name."""
     return LOW_LEVEL_DISPLAY_NAMES.get(condition_name, condition_name)
@@ -63,6 +66,8 @@ def process_beta_correlations_data(pickle_path):
     corr_intera = []
 
     unique_conds = np.unique(conds)
+    # Filter out excluded conditions
+    unique_conds = [c for c in unique_conds if c not in EXCLUDED_CONDITIONS]
     unique_subjs = np.unique(subjs)
 
     print("Processing intra-subject correlations...")
@@ -115,6 +120,8 @@ def process_beta_correlations_data(pickle_path):
     # Apply display name mapping to conditions
     corr_cond_display = [get_display_name(cond) for cond in corr_cond]
     plot_df = pd.DataFrame({'r': corr_r, 'event': corr_cond_display, 'comparison': corr_intera})
+    # Filter out excluded conditions
+    plot_df = plot_df[~plot_df['event'].isin(EXCLUDED_CONDITIONS)]
 
     # --- Part 2: Consistency Analysis (Intra-subject reliability of Xrun maps) ---
     print("Processing Consistency Analysis (Intra-subject reliability)...")
@@ -188,7 +195,9 @@ def process_beta_correlations_data(pickle_path):
         'num_runs': cons_runs,
         'r': cons_r
     })
-    
+    # Filter out excluded conditions
+    consistency_df = consistency_df[~consistency_df['condition'].isin(EXCLUDED_CONDITIONS)]
+
     return plot_df, consistency_df
 
 def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_low_level=False):

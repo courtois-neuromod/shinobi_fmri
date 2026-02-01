@@ -21,8 +21,12 @@ import logging
 import json
 import re
 
+# Conditions to exclude from analysis
+EXCLUDED_CONDITIONS = ['UP']
+
 # Default contrasts (game conditions) - can be overridden by --low-level-confs flag
-CONTRASTS = CONDITIONS  # From config: ['HIT', 'JUMP', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'Kill', 'HealthLoss']
+# Note: UP is excluded as it's not scientifically meaningful
+CONTRASTS = [c for c in CONDITIONS if c not in EXCLUDED_CONDITIONS]
 SUBJECTS = CONFIG_SUBJECTS  # From config: ['sub-01', 'sub-02', 'sub-04', 'sub-06']
 MODEL = "simple"
 RESULTS_PATH = op.join(DATA_PATH, 'processed/beta_maps_correlations.pkl')
@@ -801,13 +805,13 @@ def submit_slurm_chunks(total_maps, chunk_size, log_dir, verbosity, exclude_low_
 def main():
     args = parse_args()
 
-    # Determine which contrasts to include
+    # Determine which contrasts to include (excluding UP which is not scientifically meaningful)
     if args.exclude_low_level:
-        contrasts = CONDITIONS
+        contrasts = [c for c in CONDITIONS if c not in EXCLUDED_CONDITIONS]
         logger_prefix = "game conditions (excluding low-level)"
     else:
         # Default: include both game conditions and low-level features
-        contrasts = CONDITIONS + LOW_LEVEL_CONDITIONS
+        contrasts = [c for c in CONDITIONS + LOW_LEVEL_CONDITIONS if c not in EXCLUDED_CONDITIONS]
         logger_prefix = "game conditions + low-level features"
 
     # Determine verbosity

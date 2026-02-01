@@ -26,7 +26,7 @@ warnings.filterwarnings("ignore", category=UserWarning, message="This figure inc
 
 import shinobi_fmri.config as config
 from shinobi_fmri.visualization.hcp_tasks import (
-    TASK_COLORS, SHINOBI_COLOR, TASK_ICONS, SHINOBI_CONDITIONS,
+    TASK_COLORS, SHINOBI_COLOR, TASK_ICONS, SHINOBI_CONDITIONS, LOW_LEVEL_CONDITIONS,
     get_event_to_task_mapping, get_condition_label, get_task_label
 )
 
@@ -86,13 +86,14 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
     avg_cm = np.mean(fold_confusions, axis=0)
     normalized_cm = avg_cm / avg_cm.sum(axis=1, keepdims=True)
 
-    # Reorder classes: Shinobi first, then grouped by task
-    shinobi_classes = [c for c in classes if c in SHINOBI_CONDITIONS]
+    # Reorder classes: Shinobi (game + low-level) first, then grouped by task
+    all_shinobi = SHINOBI_CONDITIONS + LOW_LEVEL_CONDITIONS
+    shinobi_classes = [c for c in classes if c in all_shinobi]
     task_classes = []
     for task_name in TASK_COLORS.keys():
         task_events = [c for c in classes
                       if event_to_task.get(c) == task_name
-                      and c not in SHINOBI_CONDITIONS]
+                      and c not in all_shinobi]
         task_classes.extend(task_events)
 
     reordered_classes = shinobi_classes + task_classes
@@ -102,8 +103,9 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
     # Create formatted labels with icons for HCP conditions
     tick_labels = []
     for condition in reordered_classes:
-        if condition in SHINOBI_CONDITIONS:
-            tick_labels.append(condition)
+        if condition in all_shinobi:
+            # Use display name for low-level features
+            tick_labels.append(get_condition_label(condition))
         else:
             # Add task icon
             task_name = event_to_task.get(condition)
@@ -162,6 +164,9 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
         if condition in SHINOBI_CONDITIONS:
             label.set_color(SHINOBI_COLOR)
             label.set_fontweight('bold')
+        elif condition in LOW_LEVEL_CONDITIONS or text in [get_condition_label(c) for c in LOW_LEVEL_CONDITIONS]:
+            label.set_color(SHINOBI_COLOR)
+            label.set_fontweight('bold')
         else:
             task_name = event_to_task.get(condition)
             if task_name:
@@ -177,6 +182,9 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
         condition = text.split(' ', 1)[-1] if ' ' in text else text
 
         if condition in SHINOBI_CONDITIONS:
+            label.set_color(SHINOBI_COLOR)
+            label.set_fontweight('bold')
+        elif condition in LOW_LEVEL_CONDITIONS or text in [get_condition_label(c) for c in LOW_LEVEL_CONDITIONS]:
             label.set_color(SHINOBI_COLOR)
             label.set_fontweight('bold')
         else:

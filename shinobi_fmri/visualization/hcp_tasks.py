@@ -44,7 +44,7 @@ EVENTS_TASK_DICT = {
 }
 
 # Shinobi conditions (no HCP task association)
-SHINOBI_CONDITIONS = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'UP', 'Inter']
+SHINOBI_CONDITIONS = ['Kill', 'HIT', 'JUMP', 'HealthLoss', 'DOWN', 'RIGHT', 'LEFT', 'Inter']
 
 # Low-level features (Shinobi task sensory/motor confounds)
 # These are the internal names as they appear in the data

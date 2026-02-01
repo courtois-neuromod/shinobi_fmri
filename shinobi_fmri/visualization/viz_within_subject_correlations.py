@@ -22,6 +22,9 @@ from shinobi_fmri.visualization.hcp_tasks import (
     get_all_shinobi_conditions, SHINOBI_COLOR
 )
 
+# Conditions to exclude from visualization (not scientifically meaningful)
+EXCLUDED_CONDITIONS = ['UP']
+
 
 def load_correlation_data(correlation_file: Path):
     """Load the correlation matrix and metadata."""
@@ -50,6 +53,9 @@ def compute_within_subject_condition_correlations(corr_data):
     # Get unique subjects and conditions
     unique_subjects = sorted(set(subjects))
     unique_conditions = sorted(set(conditions))
+
+    # Filter out excluded conditions
+    unique_conditions = [c for c in unique_conditions if c not in EXCLUDED_CONDITIONS]
 
     print(f"\nFound {len(unique_subjects)} subjects and {len(unique_conditions)} conditions")
 
@@ -434,7 +440,7 @@ def plot_average_heatmap(avg_matrix, output_path, include_low_level=False):
         ax.text(-2.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
-    title = 'Average Within-Subject Correlations'
+    title = 'Average within-participant correlations'
     if not include_low_level:
         title += ' (excluding low-level features)'
     ax.set_title(f'{title}\n', fontsize=16, pad=20)
@@ -809,7 +815,7 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
         ax1.text(-4.5, n_shinobi + len(hcp_conds)/2, 'HCP', ha='right', va='center', rotation=90,
                 fontsize=14, fontweight='bold', color='#4ECDC4')
 
-    title_a = 'Average Within-Subject Correlations'
+    title_a = 'Average within-participant correlations'
     if not include_low_level:
         title_a += '\n(excluding low-level features)'
     ax1.set_title(title_a, fontsize=16, pad=20)
@@ -846,7 +852,7 @@ def plot_average_and_specificity_panel(avg_matrix, subject_results, output_path,
                 ax2.axhline(y=pos, color='gray', linewidth=1, linestyle='--', alpha=0.5)
             prev_task = task
 
-    title_b = 'Condition Specificity'
+    title_b = 'Condition specificity'
     if not include_low_level:
         title_b += '\n(excluding low-level features)'
     ax2.set_title(title_b, fontsize=16, pad=20)
