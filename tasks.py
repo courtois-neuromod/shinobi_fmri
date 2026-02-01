@@ -778,7 +778,7 @@ def viz_condition_comparison(c, cond1=None, cond2=None, run_all=False, threshold
 
 
 @task
-def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_corrected_maps=False, no_low_level=False, overwrite=False):
+def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel_thresh=3.0, direction='both', use_raw_maps=False, no_low_level=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -788,7 +788,7 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
         cluster_extent: Minimum cluster size in voxels (default: 5)
         voxel_thresh: Voxel threshold for significance (default: 3.0)
         direction: Direction of the contrast (both, pos, neg)
-        use_corrected_maps: Use corrected z-maps instead of raw maps (default: False, uses raw maps)
+        use_raw_maps: Use raw z-maps instead of corrected maps (default: False, uses corrected maps)
         no_low_level: Exclude low-level features (default: False, low-level features included)
         overwrite: Overwrite existing cluster files
     """
@@ -805,8 +805,8 @@ def viz_atlas_tables(c, input_dir=None, output_dir=None, cluster_extent=5, voxel
     cmd_parts.extend(['--voxel-thresh', str(voxel_thresh)])
     cmd_parts.extend(['--direction', direction])
 
-    if use_corrected_maps:
-        cmd_parts.append('--use-corrected-maps')
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
 
     if no_low_level:
         cmd_parts.append('--no-low-level')

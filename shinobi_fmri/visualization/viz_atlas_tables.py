@@ -45,7 +45,7 @@ def parse_bids_filename(filename):
         
     return subject, contrast
 
-def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', use_corrected_maps=False, overwrite=False):
+def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=3, direction='both', use_raw_maps=False, overwrite=False):
     """
     Generate atlas tables for z-maps.
 
@@ -55,7 +55,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         cluster_extent: Minimum cluster size in voxels.
         voxel_thresh: Voxel threshold for significance.
         direction: Direction of the contrast ('both', 'pos', 'neg').
-        use_corrected_maps: If True, use corrected z-maps instead of raw maps (default: False).
+        use_raw_maps: If True, use raw z-maps instead of corrected maps (default: False, use corrected).
         overwrite: If True, overwrite existing files.
     """
 
@@ -63,7 +63,7 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         os.makedirs(output_dir)
 
     print(f"Scanning for z-maps in {input_dir}...")
-    print(f"Using {'corrected' if use_corrected_maps else 'raw uncorrected'} z-maps")
+    print(f"Using {'raw uncorrected' if use_raw_maps else 'corrected'} z-maps")
 
     # Check if input_dir exists
     if not op.exists(input_dir):
@@ -84,19 +84,16 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         if not op.exists(zmaps_path):
             continue
 
-        # Use corrected or raw maps based on flag
-        if use_corrected_maps:
-            # Look for corrected z-maps first
-            zmaps_list = glob.glob(op.join(zmaps_path, '*_desc-corrected_stat-z.nii.gz'))
-            # Fall back to raw maps if no corrected maps found
-            if not zmaps_list:
-                zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
-                zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
-        else:
+        # Use corrected or raw maps based on flag (default: corrected)
+        if use_raw_maps:
             # Look for raw z-maps only (no desc-corrected in filename)
             zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
             # Exclude corrected maps from the list
             zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
+        else:
+            # Look for corrected z-maps first (default)
+            zmaps_list = glob.glob(op.join(zmaps_path, '*_desc-corrected_stat-z.nii.gz'))
+            # Fall back to raw maps if no corrected maps found
             if not zmaps_list:
                 zmaps_list = glob.glob(op.join(zmaps_path, '*_stat-z.nii.gz'))
                 zmaps_list = [z for z in zmaps_list if 'desc-corrected' not in z]
@@ -187,16 +184,16 @@ def generate_atlas_tables(input_dir, output_dir, cluster_extent=5, voxel_thresh=
         tables_df_grouped.drop(columns=req_cols, inplace=True)
 
     # Add suffix to indicate corrected vs raw maps
-    map_type = "corrected" if use_corrected_maps else "raw"
+    map_type = "raw" if use_raw_maps else "corrected"
     output_file = op.join(output_dir, f'cluster_tables_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
     print(f"Saving aggregated table to {output_file}")
     tables_df_grouped.to_csv(output_file)
 
     if 'aal' in tables_df_grouped.columns:
         print("Generating occurrence table...")
-        generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_corrected_maps)
+        generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_raw_maps)
 
-def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_corrected_maps=False):
+def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, voxel_thresh, direction, use_raw_maps=False):
     # Extract labels from the aggregated dataframe
     data = []
 
@@ -240,7 +237,7 @@ def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, vox
     )
 
     # Add suffix to indicate corrected vs raw maps
-    map_type = "corrected" if use_corrected_maps else "raw"
+    map_type = "raw" if use_raw_maps else "corrected"
     output_file = op.join(output_dir, f'occurence_df_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
     print(f"Saving occurrence table to {output_file}")
     label_counts.to_csv(output_file, index=False)
@@ -253,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument("--cluster-extent", type=int, default=5, help="Minimum cluster size in voxels.")
     parser.add_argument("--voxel-thresh", type=float, default=3.0, help="Voxel threshold for significance.")
     parser.add_argument("--direction", type=str, default="both", choices=["both", "pos", "neg"], help="Direction of the contrast.")
-    parser.add_argument("--use-corrected-maps", action="store_true", help="Use corrected z-maps instead of raw maps (default: use raw maps).")
+    parser.add_argument("--use-raw-maps", action="store_true", help="Use raw z-maps instead of corrected maps (default: use corrected maps).")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing cluster files.")
     parser.add_argument("--no-low-level", action="store_true", help="Exclude low-level features from visualization (default: False, low-level features are included).")
 
@@ -262,4 +259,4 @@ if __name__ == "__main__":
     # Always use processed/ directory (low-level features are now default)
     # The --no-low-level flag doesn't change the directory since all data is in processed/
 
-    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_corrected_maps, args.overwrite)
+    generate_atlas_tables(args.input_dir, args.output_dir, args.cluster_extent, args.voxel_thresh, args.direction, args.use_raw_maps, args.overwrite)
