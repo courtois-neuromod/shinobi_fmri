@@ -242,6 +242,64 @@ def generate_occurrence_table(tables_df_grouped, output_dir, cluster_extent, vox
     print(f"Saving occurrence table to {output_file}")
     label_counts.to_csv(output_file, index=False)
 
+    # Generate trimmed occurrence table
+    # Remove rows with "no_label" and keep only rows with 3+ subjects
+    trimmed_df = label_counts.copy()
+
+    # Remove no_label rows
+    trimmed_df = trimmed_df[trimmed_df['label'] != 'no_label']
+
+    # Count subjects by counting semicolon-separated entries
+    def count_subjects(subject_str):
+        if not isinstance(subject_str, str):
+            return 0
+        # Split by semicolon and count non-empty entries
+        subjects = [s.strip() for s in subject_str.split(';') if s.strip()]
+        return len(subjects)
+
+    trimmed_df['subject_count'] = trimmed_df['present in subject'].apply(count_subjects)
+    trimmed_df = trimmed_df[trimmed_df['subject_count'] >= 3]
+    trimmed_df = trimmed_df.drop(columns=['subject_count'])
+
+    trimmed_output_file = op.join(output_dir, f'trimmed_occurence_df_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
+    print(f"Saving trimmed occurrence table to {trimmed_output_file}")
+    trimmed_df.to_csv(trimmed_output_file, index=False)
+
+    # Generate per-annotation occurrence table
+    # One row per region, listing annotations where 2+ subjects have that region
+    per_annotation_df = labels_df.copy()
+
+    # Remove no_label rows
+    per_annotation_df = per_annotation_df[per_annotation_df['label'] != 'no_label']
+
+    # Count unique subjects per (label, annotation) pair
+    subject_counts = per_annotation_df.groupby(['label', 'annotation'])['subject'].nunique().reset_index()
+    subject_counts.columns = ['label', 'annotation', 'subject_count']
+
+    # Filter to keep only pairs with 2+ subjects
+    subject_counts = subject_counts[subject_counts['subject_count'] >= 2]
+
+    # Aggregate by label: list annotations with their subject counts
+    def aggregate_annotations(group):
+        # Format: "ANNOTATION (N); ..."
+        annotations_list = [f"{row['annotation']} ({row['subject_count']})"
+                           for _, row in group.sort_values('subject_count', ascending=False).iterrows()]
+        return "; ".join(annotations_list)
+
+    label_annotations = subject_counts.groupby('label').apply(aggregate_annotations).reset_index()
+    label_annotations.columns = ['label', 'annotations (subject count)']
+
+    # Add total number of qualifying annotations per label
+    annotation_counts = subject_counts.groupby('label').size().reset_index(name='num_annotations')
+    label_annotations = label_annotations.merge(annotation_counts, on='label')
+
+    # Sort by number of annotations descending, then alphabetically by label
+    label_annotations = label_annotations.sort_values(['num_annotations', 'label'], ascending=[False, True])
+
+    per_annotation_output_file = op.join(output_dir, f'per_annotation_occurence_df_extent-{cluster_extent}_thresh-{voxel_thresh}_{direction}_{map_type}.csv')
+    print(f"Saving per-annotation occurrence table to {per_annotation_output_file}")
+    label_annotations.to_csv(per_annotation_output_file, index=False)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate atlas tables for z-maps.")
     # UPDATED DEFAULT PATH

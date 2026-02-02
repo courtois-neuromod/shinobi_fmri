@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Trimmed occurrence table in atlas-tables output**: `viz.atlas-tables` now generates an additional `trimmed_occurence_df_*.csv` file that filters out "no_label" rows and only includes labels present in 3 or more subjects.
+- **Per-annotation occurrence table in atlas-tables output**: `viz.atlas-tables` now generates a `per_annotation_occurence_df_*.csv` file with one row per region, listing all annotations where 2+ subjects have that region activated.
+
 ### Fixed
 - **Low-level features now properly included in correlation visualizations**: Fixed mismatch between internal condition names (`luminance`, `optical_flow`, `audio_envelope`, `button_presses_count`) and display names in `hcp_tasks.py`. Low-level features are now correctly included in within-subject correlation matrices and specificity matrices when using default settings (or when not using `--exclude-low-level` flag).
 

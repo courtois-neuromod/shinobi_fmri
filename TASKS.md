@@ -545,6 +545,13 @@ Generate atlas tables for z-maps, identifying significant clusters and their ana
 | `--exclude-low-level` | flag | False | No | Exclude low-level features from tables |
 | `--overwrite` | flag | False | No | Overwrite existing cluster files |
 
+**Outputs:**
+
+- `cluster_tables_extent-{extent}_thresh-{thresh}_{direction}_{map_type}.csv` - Aggregated cluster information with anatomical labels
+- `occurence_df_extent-{extent}_thresh-{thresh}_{direction}_{map_type}.csv` - Occurrence table showing which labels appear across subjects/annotations
+- `trimmed_occurence_df_extent-{extent}_thresh-{thresh}_{direction}_{map_type}.csv` - Filtered occurrence table excluding "no_label" rows and keeping only labels present in 3+ subjects (across all annotations)
+- `per_annotation_occurence_df_extent-{extent}_thresh-{thresh}_{direction}_{map_type}.csv` - Per-annotation occurrence table with one row per region, listing annotations where 2+ subjects have that region activated (format: "ANNOTATION (N); ...")
+
 **Common Use Cases:**
 
 ```bash
