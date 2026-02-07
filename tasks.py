@@ -1304,6 +1304,90 @@ def descriptive_annotations(c, data_path=None, output_dir=None, verbose=0, log_d
 
 
 # =============================================================================
+# Animation Tasks
+# =============================================================================
+
+@task
+def animation_render(c, preview=False, scene=None, quality='medium', output=None, no_transitions=False, verbose=0):
+    """
+    Render the Shinobi fMRI pipeline animation.
+
+    Creates a ~2-minute video demonstrating the complete analysis pipeline with:
+    - Title and data extraction flow
+    - Session-level and subject-level GLM visualization
+    - Analysis outputs (brain maps, correlations, MVPA)
+    - HCP task comparison
+
+    Args:
+        preview: Render preview images instead of video
+        scene: Render specific scene only (title, data_inputs, session_glm,
+               subject_glm, analysis_outputs, hcp_comparison, summary)
+        quality: Quality preset (preview, medium, high)
+        output: Output file path
+        no_transitions: Disable transitions between scenes
+        verbose: Verbosity level
+
+    Examples:
+        # Render preview images for all scenes
+        invoke animation.render --preview
+
+        # Render a single scene
+        invoke animation.render --scene title
+
+        # Render full animation (medium quality)
+        invoke animation.render
+
+        # Render high quality final video
+        invoke animation.render --quality high
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "animation", "render.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if preview:
+        cmd_parts.append('--preview')
+    if scene:
+        cmd_parts.extend(['--scene', scene])
+    if quality != 'medium':
+        cmd_parts.extend(['--quality', quality])
+    if output:
+        cmd_parts.extend(['--output', output])
+    if no_transitions:
+        cmd_parts.append('--no-transitions')
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+
+    cmd = ' '.join(cmd_parts)
+
+    if preview:
+        print("Rendering animation preview images...")
+    elif scene:
+        print(f"Rendering animation scene: {scene}")
+    else:
+        print(f"Rendering full pipeline animation ({quality} quality)...")
+
+    c.run(cmd)
+
+
+@task
+def animation_preview(c, scene=None, output_dir=None):
+    """
+    Render preview images for animation scenes.
+
+    Quick way to preview scenes without rendering full video.
+
+    Args:
+        scene: Specific scene to preview (default: all scenes)
+        output_dir: Output directory for previews
+
+    Examples:
+        invoke animation.preview
+        invoke animation.preview --scene title
+    """
+    animation_render(c, preview=True, scene=scene, output=output_dir)
+
+
+# =============================================================================
 # Build Task Collections
 # =============================================================================
 
@@ -1355,6 +1439,12 @@ namespace.add_collection(pipeline_collection)
 validate_collection = Collection('validate')
 validate_collection.add_task(validate_outputs, name='outputs')
 namespace.add_collection(validate_collection)
+
+# Animation tasks
+animation_collection = Collection('animation')
+animation_collection.add_task(animation_render, name='render')
+animation_collection.add_task(animation_preview, name='preview')
+namespace.add_collection(animation_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)

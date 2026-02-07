@@ -299,7 +299,6 @@ def main():
         help="Overwrite existing corrected z-maps"
     )
     # Removed --low-level-confs flag - low-level features are now default
-    )
     parser.add_argument(
         "-v", "--verbose",
         action="count",
