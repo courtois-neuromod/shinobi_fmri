@@ -3,19 +3,19 @@
 # SETUP INSTRUCTIONS:
 #   1. Copy this file to config.yaml:
 #      cp config.yaml.template config.yaml
-#   2. Replace all <PLACEHOLDER> values with your actual paths
+#   2. Replace <DATA_PATH> with your actual data directory path
 #   3. config.yaml is gitignored and will stay local to your machine
 
 # Data paths
 paths:
-  data: <PATH_TO_YOUR_DATA>  # e.g., /home/user/DATA/shinobi_data
+  data: <DATA_PATH>  # e.g., /home/user/DATA/neuromod/shinobi_data
   figures: reports/figures
   tables: reports/tables
 
 # Python environment
 python:
-  local_bin: <PATH_TO_PYTHON>      # e.g., python or env/bin/python
-  slurm_bin: <PATH_TO_PYTHON>
+  local_bin: env/bin/python
+  slurm_bin: env/bin/python
 
 # Analysis parameters
 analysis:
@@ -36,7 +36,7 @@ analysis:
     - Kill
     - HealthLoss
 
-  # Low-level sensory/motor features (used when --low-level-confs flag is set)
+  # Low-level sensory/motor features (always included as task regressors)
   low_level_conditions:
     - luminance
     - optical_flow
@@ -63,28 +63,17 @@ analysis:
     - X
     - Z
 
-  game_fs: 60  # Game framerate
+  game_fs: 60
 
 # GLM Analysis Parameters
 glm:
-  # Data acquisition
-  tr: 1.49                    # Repetition time in seconds
-  hrf_model: spm              # Options: spm, glover, fir, spm + derivative
-
-  # Preprocessing
-  smoothing_fwhm: 5           # Spatial smoothing kernel (mm FWHM)
-  n_jobs: 16                  # Parallel jobs for GLM fitting (-1 for all cores)
-
-  # Statistical inference
-  alpha: 0.05                 # Family-wise error rate for cluster correction
-
-  # Cluster-forming thresholds (Z-scores)
-  # NOTE: 2.3 is FSL's default (p<0.01 uncorrected) and appropriate for naturalistic paradigms
-  # with modest sample sizes (3-10 runs/sessions per level)
-  cluster_thresh_run: 2.3     # Threshold for run-level (first-level)
-  cluster_thresh_session: 2.3 # Threshold for session-level (second-level)
-  cluster_thresh_subject: 2.3 # Threshold for subject-level (third-level) - lowered from 3.1
-
-  # Model configuration
-  noise_model: ar1            # Options: ar1 (recommended), ols
-  drift_model: null           # Options: null (drift handled via confounds), cosine, polynomial
+  tr: 1.49
+  hrf_model: spm
+  smoothing_fwhm: 5
+  n_jobs: 16
+  alpha: 0.05
+  cluster_thresh_run: 2.3
+  cluster_thresh_session: 2.3
+  cluster_thresh_subject: 2.3
+  noise_model: ar1
+  drift_model: null

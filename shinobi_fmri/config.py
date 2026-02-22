@@ -32,22 +32,21 @@ except FileNotFoundError:
         "SETUP REQUIRED:\n"
         "  1. Copy the template:\n"
         f"     cp config.yaml.template config.yaml\n\n"
-        "  2. Edit config.yaml and replace <PLACEHOLDER> values with your paths\n\n"
+        "  2. Edit config.yaml and replace <DATA_PATH> with your data directory\n\n"
         "See README.md for detailed setup instructions.\n"
         "="*60
     )
 
 # Check for placeholders still present
 _config_str = str(_config)
-if '<PATH' in _config_str or '<PLACEHOLDER>' in _config_str:
+if '<DATA_PATH>' in _config_str:
     raise ValueError(
         "\n" + "="*60 + "\n"
         "CONFIG NOT SETUP PROPERLY\n"
         "="*60 + "\n"
-        "Your config.yaml still contains placeholder values like:\n"
-        "  <PATH_TO_YOUR_DATA> or <PATH_TO_PYTHON>\n\n"
-        "Please edit config.yaml and replace ALL placeholders\n"
-        "with your actual paths.\n"
+        "Your config.yaml still contains the <DATA_PATH> placeholder.\n\n"
+        "Please edit config.yaml and replace <DATA_PATH> with your\n"
+        "actual data directory path.\n"
         "="*60
     )
 

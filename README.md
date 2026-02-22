@@ -50,13 +50,10 @@ pip install -e .
    cp config.yaml.template config.yaml
    ```
 
-2. Edit `config.yaml` and replace all `<PLACEHOLDER>` values with your actual paths:
+2. Edit `config.yaml` and replace `<DATA_PATH>` with your actual data directory:
    ```yaml
    paths:
-     data: /your/path/to/shinobi_data  # Replace <PATH_TO_YOUR_DATA>
-   python:
-     local_bin: python                  # Or /path/to/your/env/bin/python
-     slurm_bin: python                  # Or path to Python on HPC
+     data: /home/user/DATA/neuromod/shinobi_data  # Replace <DATA_PATH>
    ```
 
 3. The `config.yaml` file is gitignored - your paths stay private and local to your machine
