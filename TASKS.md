@@ -10,6 +10,7 @@ This document provides detailed documentation for all available analysis tasks i
 - [Correlation Analysis Tasks](#correlation-analysis-tasks)
 - [Visualization Tasks](#visualization-tasks)
 - [Descriptive Statistics Visualization](#descriptive-statistics-visualization)
+- [Behavioral Analysis Tasks](#behavioral-analysis-tasks)
 - [Pipeline Tasks](#pipeline-tasks)
 - [Setup and Utility Tasks](#setup-and-utility-tasks)
 
@@ -715,6 +716,152 @@ invoke viz.mvpa-confusion-matrices --output reports/my_figure.png
 
 ---
 
+### `viz.volume-slices`
+
+Generate raw volume slice comparisons (corrected vs uncorrected maps).
+
+Creates orthogonal slice plots and histograms comparing corrected and uncorrected z-maps with no interpolation, for investigating raw data.
+
+By default (no arguments), processes all subjects and all conditions at subject-level.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--subject` | str | None | No | Subject ID (e.g., `sub-01`). If None, process all subjects |
+| `--session` | str | None | No | Session ID (e.g., `ses-004`). If provided, uses session-level instead of subject-level |
+| `--condition` | str | None | No | Condition/contrast name (e.g., `HIT`, `Kill`). If None, process all conditions |
+| `--coords` | str | None | No | Slice coordinates as `x,y,z` (e.g., `45,55,35`). Uses center of mass if not provided |
+| `--no-low-level` | flag | False | No | Exclude low-level features |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+| `--output-dir` | str | `./reports/figures/volume_slices/` | No | Custom output directory |
+
+**Common Use Cases:**
+
+```bash
+# Process all subjects and conditions (subject-level)
+invoke viz.volume-slices
+
+# Process specific subject, all conditions
+invoke viz.volume-slices --subject sub-01
+
+# Process specific subject and condition
+invoke viz.volume-slices --subject sub-01 --condition HIT
+
+# Process specific session (session-level)
+invoke viz.volume-slices --subject sub-01 --session ses-004 --condition HIT
+
+# Use custom slice coordinates
+invoke viz.volume-slices --subject sub-01 --condition Kill --coords 45,55,35
+
+# Exclude low-level features
+invoke viz.volume-slices --subject sub-01 --no-low-level
+```
+
+---
+
+### `viz.brain-panel`
+
+Generate composite brain figure panel (A, B, C) from three images.
+
+Combines three images into a publication-ready figure panel:
+- **Panel A** spans the top row (full width)
+- **Panels B and C** side by side at the bottom
+
+Default images use the Kill condition analysis:
+- Panel A: Kill condition annotations (subject-level brain maps)
+- Panel B: Kill vs audio envelope comparison
+- Panel C: Kill vs reward comparison
+
+Output is sized to approximately 3/4 of an A4 page.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--panel-a` | str | `annotations_plot_Kill_corrected.png` | No | Path to panel A image |
+| `--panel-b` | str | `Kill_vs_audio_envelope_corrected_panel.png` | No | Path to panel B image |
+| `--panel-c` | str | `Kill_vs_reward_corrected_panel.png` | No | Path to panel C image |
+| `--output` | str | `{FIG_PATH}/brain_panels.png` | No | Output figure path |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Generate figure with default paths (Kill condition)
+invoke viz.brain-panel
+
+# Generate with custom images
+invoke viz.brain-panel --panel-a img1.png --panel-b img2.png --panel-c img3.png
+
+# Custom output path
+invoke viz.brain-panel --output reports/figures/custom_panel.png
+```
+
+---
+
+### `viz.between-subject-conjunction`
+
+Generate between-subject conjunction maps on inflated brain surfaces.
+
+For each condition, counts how many of the 4 subjects show activation at each voxel (using corrected z-maps where non-zero = significant). Produces a single brain plot per condition with a discrete 4-level sequential colormap showing 1, 2, 3, or 4 subjects activated.
+
+**Colormap:**
+- **Light pink** (`#FFCCCC`): 1 subject
+- **Medium red** (`#FF6666`): 2 subjects
+- **Dark red** (`#CC0000`): 3 subjects
+- **Dark maroon** (`#660000`): 4 subjects
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--condition` | str | None | No | Single condition to process (e.g., `Kill`) |
+| `--conditions` | str | None | No | Comma-separated conditions (e.g., `Kill,HIT,JUMP`) |
+| `--data-path` | str | config | No | Path to data directory |
+| `--output-dir` | str | `./reports/figures/between_subject_conjunction/` | No | Custom output directory |
+| `--use-raw-maps` | flag | False | No | Use raw (uncorrected) z-maps instead of corrected maps |
+| `--threshold` | float | 3.0 | No | Threshold for raw maps (only used with `--use-raw-maps`) |
+| `--exclude-low-level` | flag | False | No | Exclude low-level features from processing |
+| `--skip-panel` | flag | False | No | Skip generating the combined panel image |
+| `--force` | flag | False | No | Regenerate images even if they already exist |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Outputs:**
+
+- `conjunction_{condition}_{corrected|raw}.png` - Individual conjunction map per condition
+- `between_subject_conjunction_{corrected|raw}_panel.png` - Combined panel (3x4 grid) with all maps + legend
+
+**Common Use Cases:**
+
+```bash
+# Generate conjunction maps for all conditions (corrected maps, default)
+invoke viz.between-subject-conjunction -v
+
+# Single condition
+invoke viz.between-subject-conjunction --condition Kill -v
+
+# Multiple specific conditions
+invoke viz.between-subject-conjunction --conditions Kill,HIT,JUMP -v
+
+# Use raw maps with custom threshold
+invoke viz.between-subject-conjunction --use-raw-maps --threshold 2.5 -v
+
+# Exclude low-level features
+invoke viz.between-subject-conjunction --exclude-low-level -v
+
+# Force regeneration of existing images
+invoke viz.between-subject-conjunction --force -v
+
+# Skip panel generation (only individual PNGs)
+invoke viz.between-subject-conjunction --skip-panel -v
+```
+
+---
+
 ## Descriptive Statistics Visualization
 
 ### `viz.descriptive`
@@ -759,6 +906,170 @@ invoke viz.descriptive --csv-path /path/to/custom_summary.csv
 
 - **CSV:** `{DATA_PATH}/processed/descriptive/dataset_summary.csv` - Dataset summary with one row per run containing subject, session, run identifiers, fMRI and events file availability, number of volumes, and event counts for each condition
 - **Figure:** `{FIG_PATH}/descriptive_stats.png` - Publication-ready PNG figure (300 DPI) with 3 panels showing events by subject/condition, session availability, and volume distribution
+
+---
+
+### `viz.descriptive-annotations`
+
+Generate multiple annotation visualization options for exploration.
+
+Creates 5 different visualization options in a folder:
+- **Option 1:** Dual heatmaps (count and duration)
+- **Option 2:** Faceted bar charts (one per subject)
+- **Option 3:** Bubble matrix (size=count, color=duration)
+- **Option 4:** Boxplots showing variance
+- **Option 5:** Violin plots
+
+Loads event data directly from annotated events files.
+- Count: variance across sessions
+- Duration: variance across event occurrences
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--data-path` | str | `{DATA_PATH}` | No | Override data path from config |
+| `--output-dir` | str | `{FIG_PATH}/descriptive_annotations` | No | Output directory |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Generate all annotation visualizations
+invoke viz.descriptive-annotations --verbose 1
+
+# Use custom output directory
+invoke viz.descriptive-annotations --output-dir reports/figures/custom_annotations
+
+# Use custom data path
+invoke viz.descriptive-annotations --data-path /path/to/data
+```
+
+---
+
+## Behavioral Analysis Tasks
+
+### `behav.skill-metrics`
+
+Compute per-subject game skill metrics from Shinobi gamelogs.
+
+Reads frame-by-frame gamelog variable files (`*_variables.json`) and produces three metrics per subject:
+- **Clear rate**: proportion of gameplays completed without losing a life
+- **Average progression**: mean percentage of each level reached (normalized by max position across all subjects)
+- **Efficiency**: mean ratio of progression to damage taken: `completion_pct / (|health_lost| + 1)`
+
+Fake repetitions (max score <= 200) are filtered out. Results are saved as JSON with a provenance sidecar.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--output` | str | `{DATA_PATH}/processed/skill_metrics/skill_metrics.json` | No | Output JSON path |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Compute skill metrics with verbose output
+invoke behav.skill-metrics --verbose 1
+
+# Write to a custom location
+invoke behav.skill-metrics --output /tmp/skills.json
+```
+
+---
+
+### `behav.session-skill`
+
+Compute per-session composite game skill metrics from Shinobi gamelogs.
+
+Reads frame-by-frame gamelog variable files and produces a composite skill score per repetition, then aggregates to per-session means. The composite combines three z-scored raw metrics (within each level across all subjects):
+
+    composite = 3 * z(progression) - 2 * z(health_lost) + 1 * z(speed)
+
+Z-scoring within each level normalises difficulty differences across levels.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--output` | str | `{DATA_PATH}/processed/skill_metrics/session_skill_metrics.json` | No | Output JSON path |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Compute session-level skill metrics with verbose output
+invoke behav.session-skill -v
+
+# Write to a custom location
+invoke behav.session-skill --output /tmp/session_skills.json
+```
+
+---
+
+### `viz.session-skill-vs-reliability`
+
+Plot per-session game skill against per-session brain-map reliability.
+
+Creates a multi-panel scatter plot (one panel per condition) showing session skill on the x-axis and brain reliability on the y-axis. Points are hued by subject, with per-subject regression trend lines.
+
+For each (subject, session, condition), reliability is the mean Pearson correlation of that session's beta map with all other sessions of the same subject and condition.
+
+**Requires** `behav.session-skill` and `corr.beta` to be run first.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--skill-input` | str | `{DATA_PATH}/processed/skill_metrics/session_skill_metrics.json` | No | Path to session skill metrics JSON |
+| `--corr-input` | str | `{DATA_PATH}/processed/beta_maps_correlations.pkl` | No | Path to beta correlations pickle |
+| `--output` | str | `{FIG_PATH}/session_skill_vs_reliability.png` | No | Output figure path |
+| `--exclude-low-level` | flag | False | No | Exclude low-level conditions from figure |
+
+**Common Use Cases:**
+
+```bash
+# Generate figure with default paths
+invoke viz.session-skill-vs-reliability
+
+# Exclude low-level conditions
+invoke viz.session-skill-vs-reliability --exclude-low-level
+
+# Use custom inputs
+invoke viz.session-skill-vs-reliability --skill-input /path/to/session_skills.json --corr-input /path/to/corr.pkl
+```
+
+---
+
+### `viz.skill-vs-correlation`
+
+Plot game skill metrics against within-subject beta-map correlation.
+
+Creates a 1x3 scatter plot (one panel per skill metric) showing each subject's game skill on the x-axis and their average within-subject same-condition beta-map correlation on the y-axis.
+
+**Requires** `behav.skill-metrics` to be run first.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--skill-input` | str | `{DATA_PATH}/processed/skill_metrics/skill_metrics.json` | No | Path to skill metrics JSON |
+| `--corr-input` | str | `{DATA_PATH}/processed/beta_maps_correlations.pkl` | No | Path to beta correlations pickle |
+| `--output` | str | `{FIG_PATH}/skill_vs_correlation.png` | No | Output figure path |
+
+**Common Use Cases:**
+
+```bash
+# Generate figure with default paths
+invoke viz.skill-vs-correlation
+
+# Use custom inputs
+invoke viz.skill-vs-correlation --skill-input /path/to/skills.json --corr-input /path/to/corr.pkl
+```
 
 ---
 

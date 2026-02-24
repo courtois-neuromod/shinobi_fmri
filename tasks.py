@@ -22,7 +22,7 @@ load_dotenv()
 
 # Import configuration
 try:
-    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, LOW_LEVEL_CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN
+    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, LOW_LEVEL_CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN, GAMELOGS_PATH
 except ImportError:
     # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
@@ -30,6 +30,7 @@ except ImportError:
     SUBJECTS = ['sub-01', 'sub-02', 'sub-04', 'sub-06']
     CONDITIONS = ['HIT', 'JUMP', 'DOWN', 'HealthLoss', 'Kill', 'LEFT', 'RIGHT', 'UP']
     LOW_LEVEL_CONDITIONS = ['luminance', 'optical_flow', 'audio_envelope', 'button_presses_count']
+    GAMELOGS_PATH = os.getenv("SHINOBI_GAMELOGS_PATH", "")
     PYTHON_BIN = os.getenv("SHINOBI_PYTHON_BIN", "python")
     SLURM_PYTHON_BIN = os.getenv("SHINOBI_SLURM_PYTHON_BIN", "python")
 
@@ -1005,6 +1006,77 @@ def viz_mvpa_confusion_matrices(c, screening=20, no_low_level=False, output=None
 
 
 @task
+def viz_between_subject_conjunction(c, condition=None, conditions=None, use_raw_maps=False, threshold=3.0, exclude_low_level=False, skip_panel=False, force=False, verbose=0, log_dir=None, output_dir=None):
+    """
+    Generate between-subject conjunction maps on inflated brain surfaces.
+
+    For each condition, counts how many subjects show activation at each voxel
+    and plots a single brain map with a 4-level discrete colormap (1-4 subjects).
+
+    When processing multiple conditions, creates a combined panel (3x4 grid)
+    with all conjunction maps and the legend in the last cell.
+
+    Uses corrected z-maps by default (non-zero = significant). With --use-raw-maps,
+    applies a threshold to raw z-maps.
+
+    Args:
+        condition: Single condition to process (e.g., 'Kill')
+        conditions: Comma-separated conditions (e.g., 'Kill,HIT,JUMP')
+        use_raw_maps: Use raw (uncorrected) z-maps instead of corrected maps (default: False)
+        threshold: Threshold for raw maps (only used with --use-raw-maps, default: 3.0)
+        exclude_low_level: Exclude low-level features (default: False)
+        skip_panel: Skip generating the combined panel image
+        force: Regenerate images even if they already exist
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+        output_dir: Custom output directory (default: ./reports/figures/between_subject_conjunction/)
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_between_subject_conjunction.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if condition:
+        cmd_parts.extend(['--condition', condition])
+    elif conditions:
+        cmd_parts.extend(['--conditions', conditions])
+
+    if use_raw_maps:
+        cmd_parts.append('--use-raw-maps')
+
+    if threshold != 3.0:
+        cmd_parts.extend(['--threshold', str(threshold)])
+
+    if exclude_low_level:
+        cmd_parts.append('--exclude-low-level')
+
+    if skip_panel:
+        cmd_parts.append('--skip-panel')
+
+    if force:
+        cmd_parts.append('--force')
+
+    if output_dir:
+        cmd_parts.extend(['--output-dir', output_dir])
+
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(['--log-dir', log_dir])
+
+    cmd = ' '.join(cmd_parts)
+
+    print(f"Generating between-subject conjunction maps...")
+    if condition:
+        print(f"  Condition: {condition}")
+    elif conditions:
+        print(f"  Conditions: {conditions}")
+    else:
+        print(f"  Processing all conditions")
+
+    c.run(cmd)
+
+
+@task
 def viz_brain_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, verbose=0, log_dir=None):
     """
     Generate composite brain figure panel (A, B, C) from three images.
@@ -1059,6 +1131,140 @@ def viz_brain_panel(c, panel_a=None, panel_b=None, panel_c=None, output=None, ve
     cmd = ' '.join(cmd_parts)
 
     print("Generating composite figure panel (A, B, C)...")
+    c.run(cmd)
+
+
+# =============================================================================
+# Behavioral Analysis Tasks
+# =============================================================================
+
+@task
+def behav_skill_metrics(c, output=None, verbose=0, log_dir=None):
+    """
+    Compute per-subject game skill metrics from Shinobi gamelogs.
+
+    Reads frame-by-frame gamelog data and produces three skill metrics:
+    - Clear rate: proportion of level completions without losing a life
+    - Average progression: mean % of level reached
+    - Efficiency: progression / (damage_taken + 1)
+
+    Args:
+        output: Output JSON path (default: {DATA_PATH}/processed/skill_metrics/skill_metrics.json)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "behavioral", "compute_skill_metrics.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if output:
+        cmd_parts.extend(["--output", output])
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    print("Computing game skill metrics...")
+    c.run(cmd)
+
+
+@task
+def behav_session_skill(c, output=None, verbose=0, log_dir=None):
+    """
+    Compute per-session composite game skill metrics from Shinobi gamelogs.
+
+    Combines three z-scored raw metrics (progression, health lost, speed)
+    into a single composite per repetition, then averages per session.
+
+    Composite = 3*z(progression) - 2*z(health_lost) + 1*z(speed)
+    Z-scoring is done within each level across all subjects.
+
+    Args:
+        output: Output JSON path (default: {DATA_PATH}/processed/skill_metrics/session_skill_metrics.json)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "behavioral", "compute_session_skill.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if output:
+        cmd_parts.extend(["--output", output])
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    print("Computing per-session game skill metrics...")
+    c.run(cmd)
+
+
+@task
+def viz_session_skill_vs_reliability(c, skill_input=None, corr_input=None, output=None, exclude_low_level=False):
+    """
+    Plot per-session game skill against per-session brain-map reliability.
+
+    Creates a multi-panel scatter plot (one panel per condition) showing
+    session skill (x) vs brain reliability (y), hued by subject, with
+    per-subject regression trend lines.
+
+    Requires behav.session-skill and corr.beta to be run first.
+
+    Args:
+        skill_input: Path to session_skill_metrics.json (default: auto from config)
+        corr_input: Path to beta_maps_correlations.pkl (default: auto from config)
+        output: Output figure path (default: {FIG_PATH}/session_skill_vs_reliability.png)
+        exclude_low_level: Exclude low-level conditions from figure
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_session_skill_vs_reliability.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if skill_input:
+        cmd_parts.extend(["--skill-input", skill_input])
+    if corr_input:
+        cmd_parts.extend(["--corr-input", corr_input])
+    if output:
+        cmd_parts.extend(["--output", output])
+    if exclude_low_level:
+        cmd_parts.append("--exclude-low-level")
+
+    cmd = ' '.join(cmd_parts)
+    print("Generating session skill vs. reliability figure...")
+    c.run(cmd)
+
+
+@task
+def viz_skill_vs_correlation(c, skill_input=None, corr_input=None, output=None):
+    """
+    Plot game skill metrics against within-subject beta-map correlation.
+
+    Creates a 1x3 scatter plot (one panel per skill metric) showing each
+    subject's game skill on the x-axis and their average within-subject
+    beta-map correlation on the y-axis.
+
+    Requires skill metrics to be computed first (invoke behav.skill-metrics).
+
+    Args:
+        skill_input: Path to skill_metrics.json (default: auto from config)
+        corr_input: Path to beta_maps_correlations.pkl (default: auto from config)
+        output: Output figure path (default: {FIG_PATH}/skill_vs_correlation.png)
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_skill_vs_correlation.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if skill_input:
+        cmd_parts.extend(["--skill-input", skill_input])
+    if corr_input:
+        cmd_parts.extend(["--corr-input", corr_input])
+    if output:
+        cmd_parts.extend(["--output", output])
+
+    cmd = ' '.join(cmd_parts)
+    print("Generating skill vs. correlation figure...")
     c.run(cmd)
 
 
@@ -1304,90 +1510,6 @@ def descriptive_annotations(c, data_path=None, output_dir=None, verbose=0, log_d
 
 
 # =============================================================================
-# Animation Tasks
-# =============================================================================
-
-@task
-def animation_render(c, preview=False, scene=None, quality='medium', output=None, no_transitions=False, verbose=0):
-    """
-    Render the Shinobi fMRI pipeline animation.
-
-    Creates a ~2-minute video demonstrating the complete analysis pipeline with:
-    - Title and data extraction flow
-    - Session-level and subject-level GLM visualization
-    - Analysis outputs (brain maps, correlations, MVPA)
-    - HCP task comparison
-
-    Args:
-        preview: Render preview images instead of video
-        scene: Render specific scene only (title, data_inputs, session_glm,
-               subject_glm, analysis_outputs, hcp_comparison, summary)
-        quality: Quality preset (preview, medium, high)
-        output: Output file path
-        no_transitions: Disable transitions between scenes
-        verbose: Verbosity level
-
-    Examples:
-        # Render preview images for all scenes
-        invoke animation.render --preview
-
-        # Render a single scene
-        invoke animation.render --scene title
-
-        # Render full animation (medium quality)
-        invoke animation.render
-
-        # Render high quality final video
-        invoke animation.render --quality high
-    """
-    script = op.join(SHINOBI_FMRI_DIR, "visualization", "animation", "render.py")
-
-    cmd_parts = [PYTHON_BIN, script]
-
-    if preview:
-        cmd_parts.append('--preview')
-    if scene:
-        cmd_parts.extend(['--scene', scene])
-    if quality != 'medium':
-        cmd_parts.extend(['--quality', quality])
-    if output:
-        cmd_parts.extend(['--output', output])
-    if no_transitions:
-        cmd_parts.append('--no-transitions')
-    if isinstance(verbose, int) and verbose > 0:
-        cmd_parts.append(f"-{'v' * verbose}")
-
-    cmd = ' '.join(cmd_parts)
-
-    if preview:
-        print("Rendering animation preview images...")
-    elif scene:
-        print(f"Rendering animation scene: {scene}")
-    else:
-        print(f"Rendering full pipeline animation ({quality} quality)...")
-
-    c.run(cmd)
-
-
-@task
-def animation_preview(c, scene=None, output_dir=None):
-    """
-    Render preview images for animation scenes.
-
-    Quick way to preview scenes without rendering full video.
-
-    Args:
-        scene: Specific scene to preview (default: all scenes)
-        output_dir: Output directory for previews
-
-    Examples:
-        invoke animation.preview
-        invoke animation.preview --scene title
-    """
-    animation_render(c, preview=True, scene=scene, output=output_dir)
-
-
-# =============================================================================
 # Build Task Collections
 # =============================================================================
 
@@ -1411,6 +1533,12 @@ corr_collection = Collection('corr')
 corr_collection.add_task(beta_correlations, name='beta')
 namespace.add_collection(corr_collection)
 
+# Behavioral analysis tasks
+behav_collection = Collection('behav')
+behav_collection.add_task(behav_skill_metrics, name='skill-metrics')
+behav_collection.add_task(behav_session_skill, name='session-skill')
+namespace.add_collection(behav_collection)
+
 # Visualization tasks
 viz_collection = Collection('viz')
 viz_collection.add_task(viz_session_level, name='session-level')
@@ -1424,9 +1552,12 @@ viz_collection.add_task(viz_fingerprinting, name='fingerprinting')
 viz_collection.add_task(viz_within_subject_correlations, name='within-subject-correlations')
 viz_collection.add_task(viz_volume_slices, name='volume-slices')
 viz_collection.add_task(viz_mvpa_confusion_matrices, name='mvpa-confusion-matrices')
+viz_collection.add_task(viz_between_subject_conjunction, name='between-subject-conjunction')
 viz_collection.add_task(viz_brain_panel, name='brain-panel')
 viz_collection.add_task(descriptive_viz, name='descriptive')
 viz_collection.add_task(descriptive_annotations, name='descriptive-annotations')
+viz_collection.add_task(viz_skill_vs_correlation, name='skill-vs-correlation')
+viz_collection.add_task(viz_session_skill_vs_reliability, name='session-skill-vs-reliability')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks
@@ -1439,12 +1570,6 @@ namespace.add_collection(pipeline_collection)
 validate_collection = Collection('validate')
 validate_collection.add_task(validate_outputs, name='outputs')
 namespace.add_collection(validate_collection)
-
-# Animation tasks
-animation_collection = Collection('animation')
-animation_collection.add_task(animation_render, name='render')
-animation_collection.add_task(animation_preview, name='preview')
-namespace.add_collection(animation_collection)
 
 # Top-level utility tasks
 namespace.add_task(info)

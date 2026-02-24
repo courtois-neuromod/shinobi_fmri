@@ -52,6 +52,7 @@ if '<DATA_PATH>' in _config_str:
 
 # Expose paths
 DATA_PATH = _config['paths']['data']
+GAMELOGS_PATH = _config['paths']['gamelogs']
 FIG_PATH = _config['paths']['figures']
 TABLE_PATH = _config['paths']['tables']
 

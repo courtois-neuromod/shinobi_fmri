@@ -9,6 +9,7 @@
 # Data paths
 paths:
   data: <DATA_PATH>  # e.g., /home/user/DATA/neuromod/shinobi_data
+  gamelogs: <GAMELOGS_PATH>  # e.g., /home/user/DATA/neuromod/vg_data/shinobi
   figures: reports/figures
   tables: reports/tables
 

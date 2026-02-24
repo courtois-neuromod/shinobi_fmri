@@ -20,9 +20,8 @@ Design Matrix:
 Statistical Inference:
   - Test type: One-sample F-test (mean activation across sessions)
   - Null hypothesis: No consistent activation across sessions
-  - Multiple comparison correction: Cluster-level FWE correction
-  - Cluster-forming threshold: Z > 3.1 (conservative for subject-level)
-  - Family-wise error rate: alpha = 0.05
+  - Multiple comparison correction: Voxel-wise FDR correction (q < 0.05)
+  - Minimum cluster extent: 10 voxels
   - Effect: Random-effects estimate of consistent activation
 
 Contrast:

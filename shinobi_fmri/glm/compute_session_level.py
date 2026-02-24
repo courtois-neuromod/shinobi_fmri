@@ -20,9 +20,8 @@ Design Matrix:
 
 Statistical Inference:
   - Contrast type: F-test for each condition across runs
-  - Multiple comparison correction: Cluster-level FWE correction
-  - Cluster-forming threshold: Z > 2.3 (liberal for session-level)
-  - Family-wise error rate: alpha = 0.05
+  - Multiple comparison correction: Voxel-wise FDR correction (q < 0.05)
+  - Minimum cluster extent: 10 voxels
   - Effect: Fixed-effects combining evidence across runs
 
 Outputs:

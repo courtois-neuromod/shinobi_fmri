@@ -144,6 +144,10 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
     ax.plot([0, 0], [0, n_shinobi], color=SHINOBI_COLOR, linewidth=3, clip_on=False)  # left
     ax.plot([n_shinobi, n_shinobi], [0, n_shinobi], color=SHINOBI_COLOR, linewidth=3, clip_on=False)  # right
 
+    # Add separator between Shinobi and HCP tasks (continues the orange box visually)
+    ax.axhline(y=n_shinobi, color='gray', linewidth=1.5, alpha=0.5)
+    ax.axvline(x=n_shinobi, color='gray', linewidth=1.5, alpha=0.5)
+
     # Add task block separators for HCP tasks
     prev_task = None
     for idx, condition in enumerate(reordered_classes[n_shinobi:], start=n_shinobi):
