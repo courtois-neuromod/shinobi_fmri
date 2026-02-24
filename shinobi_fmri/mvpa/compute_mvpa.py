@@ -121,13 +121,16 @@ def load_zmaps_for_subject(sub, contrasts, path_to_data, target_affine, target_s
                 if not z_map_fname.endswith("stat-z.nii.gz"):
                     continue
 
+                # Skip corrected maps — only load uncorrected z-maps
+                if "desc-corrected" in z_map_fname:
+                    continue
+
                 # Parse the contrast from the filename
                 # Format: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_stat-z.nii.gz
-                # or: sub-XX_ses-YY_task-shinobi_contrast-CONDITION_desc-corrected_stat-z.nii.gz
                 try:
-                    # Extract contrast name between 'contrast-' and '_stat-z' or '_desc-'
+                    # Extract contrast name between 'contrast-' and '_stat-z'
                     # This handles condition names with underscores (e.g., optical_flow)
-                    match = re.search(r'contrast-(.+?)(?:_desc-|_stat-z)', z_map_fname)
+                    match = re.search(r'contrast-(.+?)_stat-z', z_map_fname)
                     if not match:
                         continue
                     contrast = match.group(1)
