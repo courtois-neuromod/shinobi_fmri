@@ -14,6 +14,7 @@ import os
 import os.path as op
 import argparse
 import logging
+from typing import Any, List
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -107,6 +108,84 @@ def prepare_duration_data(events_df):
     duration_df['subject_short'] = duration_df['subject'].str.replace('sub-', '')
     
     return duration_df
+
+
+def compute_count_stats(count_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute descriptive statistics for event counts per session (Panel A).
+
+    Args:
+        count_df: DataFrame with columns subject, session, condition, count.
+
+    Returns:
+        DataFrame with mean, min, max per condition (one row per condition).
+    """
+    stats = count_df.groupby('condition')['count'].agg(
+        mean='mean',
+        min='min',
+        max='max',
+    ).round(1)
+    # Preserve display order
+    stats.index = pd.CategoricalIndex(stats.index, categories=CONDITIONS, ordered=True)
+    return stats.sort_index()
+
+
+def compute_duration_stats(duration_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute descriptive statistics for button press durations (Panel B).
+
+    Args:
+        duration_df: DataFrame with columns subject, condition, duration (seconds).
+
+    Returns:
+        DataFrame with mean, Q1 (25th pct), Q3 (75th pct) per condition.
+    """
+    stats = duration_df.groupby('condition')['duration'].agg(
+        mean='mean',
+        Q1=lambda x: x.quantile(0.25),
+        Q3=lambda x: x.quantile(0.75),
+    ).round(2)
+    stats.index = pd.CategoricalIndex(stats.index, categories=CONDITIONS_DURATION, ordered=True)
+    return stats.sort_index()
+
+
+def save_stats_table(
+    count_stats: pd.DataFrame,
+    duration_stats: pd.DataFrame,
+    output_dir: str,
+    logger: Any,
+) -> List[str]:
+    """
+    Save Panel A and Panel B statistics as CSV and LaTeX tables.
+
+    Files written:
+        - fig4a_event_count_stats.csv / .tex  (mean, min, max per condition)
+        - fig4b_button_duration_stats.csv / .tex  (mean, Q1, Q3 per condition)
+
+    Args:
+        count_stats: Output of compute_count_stats().
+        duration_stats: Output of compute_duration_stats().
+        output_dir: Directory to save tables.
+        logger: AnalysisLogger instance.
+
+    Returns:
+        List of saved file paths.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    output_files = []
+
+    for df, stem, float_fmt in [
+        (count_stats,    "fig4a_event_count_stats",    "%.1f"),
+        (duration_stats, "fig4b_button_duration_stats", "%.2f"),
+    ]:
+        csv_path = op.join(output_dir, f"{stem}.csv")
+        tex_path = op.join(output_dir, f"{stem}.tex")
+        df.to_csv(csv_path, index=True)
+        df.to_latex(tex_path, index=True, float_format=float_fmt)
+        logger.info(f"Saved {stem}: {csv_path}")
+        output_files.extend([csv_path, tex_path])
+
+    return output_files
 
 
 def create_annotations_figure(count_df, duration_df, output_path):
@@ -209,14 +288,26 @@ def generate_annotations_figure(data_path, output_dir, logger):
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Generate the figure
     print("Generating annotations figure...")
-    
     create_annotations_figure(count_df, duration_df, op.join(output_dir, "annotations_count_duration.png"))
-    
+
+    # Compute and save descriptive statistics tables to TABLE_PATH
+    count_stats = compute_count_stats(count_df)
+    duration_stats = compute_duration_stats(duration_df)
+    save_stats_table(count_stats, duration_stats, config.TABLE_PATH, logger)
+
+    # Print summary to console for quick manuscript reference
+    print("\nPanel A – Event counts per session (mean, min, max):")
+    print(count_stats.to_string(float_format=lambda x: f"{x:.1f}"))
+    print("\nPanel B – Button press durations in seconds (mean, Q1, Q3):")
+    print(duration_stats.to_string(float_format=lambda x: f"{x:.2f}"))
+
     logger.info(f"Figure saved to: {output_dir}")
+    logger.info(f"Tables saved to: {config.TABLE_PATH}")
     print(f"\n✓ Generated annotations figure in: {output_dir}")
+    print(f"✓ Stats tables saved in: {config.TABLE_PATH}")
 
 
 def main():

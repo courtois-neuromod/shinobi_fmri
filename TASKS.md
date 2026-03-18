@@ -981,6 +981,44 @@ invoke behav.skill-metrics --output /tmp/skills.json
 
 ---
 
+### `behav.descriptive-table`
+
+Generate a descriptive table of the Shinobi dataset.
+
+Reads `*_summary.json` files and produces per-subject, per-level statistics:
+- **sessions**: number of unique sessions with valid repetitions
+- **runs**: number of unique fMRI runs (fMRI source only)
+- **N**: number of valid repetitions (fake reps with end score <= 200 are filtered out)
+- **cleared**: number of repetitions completed without losing a life
+- **duration**: total play duration (h:m:s)
+
+Supports two data sources: fMRI scanning gamelogs and home training sessions. Outputs are saved as CSV and LaTeX with a provenance sidecar.
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--source` | str | `fmri` | No | Data source: `fmri` or `training` |
+| `--data-root` | str | auto | No | Root directory with subject folders (default: GAMELOGS_PATH for fmri, {DATA_PATH}/shinobi_training for training) |
+| `--output-dir` | str | `reports/tables` | No | Output directory |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Generate fMRI dataset descriptive table
+invoke behav.descriptive-table --verbose 1
+
+# Generate training dataset descriptive table
+invoke behav.descriptive-table --source training --verbose 1
+
+# Custom data root and output directory
+invoke behav.descriptive-table --source fmri --data-root /path/to/gamelogs --output-dir /tmp/tables
+```
+
+---
+
 ### `behav.session-skill`
 
 Compute per-session composite game skill metrics from Shinobi gamelogs.
@@ -1070,6 +1108,57 @@ invoke viz.skill-vs-correlation
 # Use custom inputs
 invoke viz.skill-vs-correlation --skill-input /path/to/skills.json --corr-input /path/to/corr.pkl
 ```
+
+---
+
+### `viz.training-comparison`
+
+Compare behavioral performance between home training and scanner sessions.
+
+Loads game replay data from both the `shinobi_training` (home practice) and `shinobi` (scanner) datasets and generates three figures:
+
+- **Matched comparison** (point plot): The last M training repetitions (where M = number of scan reps for that subject/level) vs all scanner repetitions, with two-sided permutation test significance brackets per level. The most direct test of whether in-scanner performance matches the end-of-training plateau.
+- **Setup comparison** (point plot): 4 metrics split by training time window (0-1 week, 1-12 weeks, 12+ weeks) and scanner sessions, per subject and level. Shows the full training trajectory context.
+- **Learning curves** (line plot): Smoothed metric trajectories over days of training, per subject and level.
+
+Metrics: Final score, Proportion cleared (from X_player position), Health loss, Cleared (level completion).
+
+**Statistical test:** Two-sided permutation test (10,000 shuffles by default) comparing the matched training tail vs scan for each subject/level/metric. No correction for multiple comparisons. Significance brackets use `***` (p<0.001), `**` (p<0.01), `*` (p<0.05), `n.s.` (p>=0.05).
+
+**Arguments:**
+
+| Argument | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `--n-permutations` | int | 10000 | No | Number of permutations for significance tests |
+| `--smoothing-window` | int | 15 | No | Rolling mean window size for learning curves |
+| `--output-dir` | str | `{FIG_PATH}/training_comparison/` | No | Output directory for figures |
+| `--verbose` | int | 0 | No | Verbosity level (0-2) |
+| `--log-dir` | str | None | No | Custom log directory |
+
+**Common Use Cases:**
+
+```bash
+# Generate all three figures with default settings
+invoke viz.training-comparison --verbose 1
+
+# Faster run with fewer permutations
+invoke viz.training-comparison --n-permutations 1000 --verbose 1
+
+# Smoother learning curves
+invoke viz.training-comparison --smoothing-window 20 --verbose 1
+
+# Custom output directory
+invoke viz.training-comparison --output-dir reports/figures/custom/
+```
+
+**Output:**
+
+- **Matched comparison:** `{FIG_PATH}/training_comparison/matched_training_vs_scan.png` - Point plots (4 metrics x 4 subjects) comparing matched training tail to scanner sessions, with permutation test significance brackets
+- **Setup comparison:** `{FIG_PATH}/training_comparison/training_vs_scan_comparison.png` - Point plots (4 metrics x 4 subjects) comparing training phases and scanner sessions
+- **Learning curves:** `{FIG_PATH}/training_comparison/training_learning_curves.png` - Line plots (4 metrics x 4 subjects) of smoothed performance over days of training
+- **Metadata:** `{FIG_PATH}/training_comparison/metadata.json` - Provenance sidecar with parameters and software versions
+
+**Requires:** `training_gamelogs` path configured in `config.yaml`.
 
 ---
 

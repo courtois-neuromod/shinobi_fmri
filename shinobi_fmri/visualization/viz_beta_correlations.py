@@ -10,6 +10,7 @@ import os
 import argparse
 import re
 from matplotlib.collections import LineCollection
+from typing import List
 import sys
 from pathlib import Path
 
@@ -199,6 +200,59 @@ def process_beta_correlations_data(pickle_path):
     consistency_df = consistency_df[~consistency_df['condition'].isin(EXCLUDED_CONDITIONS)]
 
     return plot_df, consistency_df
+
+def compute_correlation_stats(plot_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute mean and SD of Pearson r per annotation, separately for within-
+    and between-participant comparisons.
+
+    Args:
+        plot_df: DataFrame with columns 'event', 'r', 'comparison'
+                 (as produced by process_beta_correlations_data).
+
+    Returns:
+        DataFrame indexed by annotation with columns:
+        within_mean_r, within_sd, between_mean_r, between_sd.
+        Sorted by within_mean_r descending.
+    """
+    rows = []
+    for event, grp in plot_df.groupby('event'):
+        intra = grp[grp['comparison'] == 'intra-subject']['r']
+        inter = grp[grp['comparison'] == 'inter-subject']['r']
+        rows.append({
+            'annotation': event,
+            'within_mean_r': round(intra.mean(), 3) if len(intra) > 0 else np.nan,
+            'within_sd':     round(intra.std(),  3) if len(intra) > 0 else np.nan,
+            'between_mean_r': round(inter.mean(), 3) if len(inter) > 0 else np.nan,
+            'between_sd':     round(inter.std(),  3) if len(inter) > 0 else np.nan,
+        })
+    df = pd.DataFrame(rows).set_index('annotation')
+    return df.sort_values('within_mean_r', ascending=False)
+
+
+def save_correlation_stats_table(stats_df: pd.DataFrame, table_path: str) -> List[str]:
+    """
+    Save within- and between-participant correlation statistics as CSV and LaTeX.
+
+    Files written:
+        - {table_path}/fig7_beta_correlation_stats.csv
+        - {table_path}/fig7_beta_correlation_stats.tex
+
+    Args:
+        stats_df: Output of compute_correlation_stats().
+        table_path: Directory to save tables.
+
+    Returns:
+        List of saved file paths.
+    """
+    os.makedirs(table_path, exist_ok=True)
+    csv_path = os.path.join(table_path, "fig7_beta_correlation_stats.csv")
+    tex_path = os.path.join(table_path, "fig7_beta_correlation_stats.tex")
+    stats_df.to_csv(csv_path)
+    stats_df.to_latex(tex_path, float_format="%.3f", na_rep="—")
+    print(f"  Table saved: {csv_path}")
+    return [csv_path, tex_path]
+
 
 def plot_beta_correlations(plot_df, consistency_df, output_path=None, include_low_level=False):
     """
@@ -478,18 +532,19 @@ if __name__ == "__main__":
 
     # Import config for default paths
     try:
-        from shinobi_fmri.config import DATA_PATH, FIG_PATH
-        
+        from shinobi_fmri.config import DATA_PATH, FIG_PATH, TABLE_PATH
+
         # Always use processed directory (low-level features are now default)
         default_input = os.path.join(DATA_PATH, "processed", "beta_maps_correlations.pkl")
         if args.no_low_level:
             default_output = os.path.join(FIG_PATH, "beta_correlations_plot_no-low-level.png")
         else:
             default_output = os.path.join(FIG_PATH, "beta_correlations_plot.png")
-            
+
     except ImportError:
         default_input = None
         default_output = None
+        TABLE_PATH = None
 
     input_path = args.input if args.input else default_input
     output_path = args.output if args.output else default_output
@@ -505,3 +560,16 @@ if __name__ == "__main__":
     df_main, df_consistency = process_beta_correlations_data(input_path)
     # Reverse logic: include low-level by default, exclude only with --no-low-level flag
     plot_beta_correlations(df_main, df_consistency, output_path=output_path, include_low_level=not args.no_low_level)
+
+    # Compute and save stats table
+    stats_df = compute_correlation_stats(df_main)
+    if TABLE_PATH:
+        save_correlation_stats_table(stats_df, TABLE_PATH)
+
+    # Print summary to console for quick manuscript reference
+    print("\nFig 7 – Within- and between-participant beta correlation stats (mean r ± SD):")
+    print(f"{'Annotation':<20}  {'within mean':>12}  {'within SD':>10}  {'between mean':>13}  {'between SD':>10}")
+    print("-" * 72)
+    for ann, row in stats_df.iterrows():
+        print(f"{ann:<20}  {row['within_mean_r']:>12.3f}  {row['within_sd']:>10.3f}"
+              f"  {row['between_mean_r']:>13.3f}  {row['between_sd']:>10.3f}")

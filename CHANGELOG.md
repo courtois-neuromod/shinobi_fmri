@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Training vs scanner comparison** (`viz.training-comparison`): New visualization script `viz_training_comparison.py` that compares behavioral performance between home training sessions and in-scanner sessions. Generates three figures: (1) matched-N training tail vs scan comparison with permutation test significance brackets (sample sizes matched per subject/level), (2) point plots comparing 4 metrics across training time windows (0-1w, 1-12w, 12w+) and scanner sessions, and (3) smoothed learning curves over days of training. Configurable via `--n-permutations` and `--smoothing-window`. Added `training_gamelogs` path to config.
+- **Descriptive table generation** (`behav.descriptive-table`): New script `compute_descriptive_table.py` that generates a per-subject, per-level summary table with sessions, runs (fMRI only), N repetitions, cleared count, and total duration. Supports both fMRI scanning gamelogs and home training data via `--source` flag. Outputs CSV and LaTeX files with provenance sidecar.
 - **Trimmed occurrence table in atlas-tables output**: `viz.atlas-tables` now generates an additional `trimmed_occurence_df_*.csv` file that filters out "no_label" rows and only includes labels present in 3 or more subjects.
 - **Per-annotation occurrence table in atlas-tables output**: `viz.atlas-tables` now generates a `per_annotation_occurence_df_*.csv` file with one row per region, listing all annotations where 2+ subjects have that region activated.
 

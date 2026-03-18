@@ -22,7 +22,7 @@ load_dotenv()
 
 # Import configuration
 try:
-    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, LOW_LEVEL_CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN, GAMELOGS_PATH
+    from shinobi_fmri.config import DATA_PATH, FIG_PATH, SUBJECTS, CONDITIONS, LOW_LEVEL_CONDITIONS, PYTHON_BIN, SLURM_PYTHON_BIN, GAMELOGS_PATH, TRAINING_GAMELOGS_PATH
 except ImportError:
     # Fallback to environment variables and defaults
     DATA_PATH = os.getenv("SHINOBI_DATA_PATH", "/home/hyruuk/scratch/data")
@@ -1170,6 +1170,42 @@ def behav_skill_metrics(c, output=None, verbose=0, log_dir=None):
 
 
 @task
+def behav_descriptive_table(c, source="fmri", data_root=None, output_dir=None, verbose=0, log_dir=None):
+    """
+    Generate a descriptive table of the Shinobi dataset.
+
+    Produces per-subject, per-level statistics (N, cleared, duration)
+    from summary JSON files. Works with fMRI scanning gamelogs or
+    home training sessions.
+
+    Outputs CSV and LaTeX files with a provenance sidecar.
+
+    Args:
+        source: Data source: 'fmri' or 'training' (default: fmri)
+        data_root: Root directory with subject folders (default: auto from config)
+        output_dir: Output directory (default: reports/tables)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "behavioral", "compute_descriptive_table.py")
+
+    cmd_parts = [PYTHON_BIN, script, "--source", source]
+
+    if data_root:
+        cmd_parts.extend(["--data-root", data_root])
+    if output_dir:
+        cmd_parts.extend(["--output-dir", output_dir])
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    print(f"Generating descriptive table ({source})...")
+    c.run(cmd)
+
+
+@task
 def behav_session_skill(c, output=None, verbose=0, log_dir=None):
     """
     Compute per-session composite game skill metrics from Shinobi gamelogs.
@@ -1198,6 +1234,44 @@ def behav_session_skill(c, output=None, verbose=0, log_dir=None):
 
     cmd = ' '.join(cmd_parts)
     print("Computing per-session game skill metrics...")
+    c.run(cmd)
+
+
+@task
+def viz_training_comparison(c, n_permutations=10000, smoothing_window=15, output_dir=None, verbose=0, log_dir=None):
+    """
+    Compare behavioral performance between home training and scanner sessions.
+
+    Generates three figures:
+    - Matched comparison: Last M training reps (M = scan count) vs scan reps,
+      with permutation test significance brackets
+    - Setup comparison: Point plots split by training time window and scan
+    - Learning curves: Smoothed metric trajectories over days of training
+
+    Args:
+        n_permutations: Number of permutations for significance tests (default: 10000)
+        smoothing_window: Rolling mean window for learning curves (default: 15)
+        output_dir: Output directory (default: reports/figures/training_comparison/)
+        verbose: Verbosity level (0=WARNING, 1=INFO, 2=DEBUG)
+        log_dir: Custom log directory
+    """
+    script = op.join(SHINOBI_FMRI_DIR, "visualization", "viz_training_comparison.py")
+
+    cmd_parts = [PYTHON_BIN, script]
+
+    if n_permutations != 10000:
+        cmd_parts.extend(["--n-permutations", str(n_permutations)])
+    if smoothing_window != 15:
+        cmd_parts.extend(["--smoothing-window", str(smoothing_window)])
+    if output_dir:
+        cmd_parts.extend(["-o", output_dir])
+    if isinstance(verbose, int) and verbose > 0:
+        cmd_parts.append(f"-{'v' * verbose}")
+    if log_dir:
+        cmd_parts.extend(["--log-dir", log_dir])
+
+    cmd = ' '.join(cmd_parts)
+    print("Generating training vs scanner comparison figures...")
     c.run(cmd)
 
 
@@ -1536,6 +1610,7 @@ namespace.add_collection(corr_collection)
 # Behavioral analysis tasks
 behav_collection = Collection('behav')
 behav_collection.add_task(behav_skill_metrics, name='skill-metrics')
+behav_collection.add_task(behav_descriptive_table, name='descriptive-table')
 behav_collection.add_task(behav_session_skill, name='session-skill')
 namespace.add_collection(behav_collection)
 
@@ -1558,6 +1633,7 @@ viz_collection.add_task(descriptive_viz, name='descriptive')
 viz_collection.add_task(descriptive_annotations, name='descriptive-annotations')
 viz_collection.add_task(viz_skill_vs_correlation, name='skill-vs-correlation')
 viz_collection.add_task(viz_session_skill_vs_reliability, name='session-skill-vs-reliability')
+viz_collection.add_task(viz_training_comparison, name='training-comparison')
 namespace.add_collection(viz_collection)
 
 # Pipeline tasks

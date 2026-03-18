@@ -19,6 +19,7 @@ import pickle
 import logging
 import re
 import warnings
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -558,6 +559,26 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, exclu
             logger.error("No correlation matrices to plot")
         return
 
+    # Compute and save pairwise correlation statistics table (all regressors including low-level)
+    stats_df = compute_pairwise_correlation_stats(subject_corr_mats, regressors_to_include)
+    save_correlation_stats_table(stats_df, config.TABLE_PATH, suffix, logger)
+
+    # Print key pairs to console for quick manuscript reference
+    key_pairs = [
+        ('HIT', 'Kill'), ('DOWN', 'HIT'), ('DOWN', 'Kill'),
+        ('JUMP', 'HIT'), ('RIGHT', 'LEFT'),
+    ]
+    print("\nFig 5 – Pairwise Pearson r between Shinobi conditions (mean across runs, per subject):")
+    header = f"{'Pair':<25}" + "".join(f"{s:>12}" for s in subject_corr_mats.keys())
+    header += f"{'mean_r':>10}  {'range':>16}"
+    print(header)
+    for pair in stats_df.index:
+        if pair in stats_df.index:
+            row = stats_df.loc[pair]
+            subj_vals = "".join(f"{row.get(s, float('nan')):>12.3f}" for s in subject_corr_mats.keys())
+            label = f"{pair[0]}–{pair[1]}"
+            print(f"{label:<25}{subj_vals}{row['mean_r']:>10.3f}  [{row['min_r']:.3f}, {row['max_r']:.3f}]")
+
     # Compute global color scale
     vmin = np.min(all_values)
     vmax = np.max(all_values)
@@ -681,6 +702,83 @@ def plot_2x2_subject_correlations(regressors_dict, subjects, figures_path, exclu
     if logger:
         logger.info(f"Saved 2x2 correlation plot to {fig_fname}")
         logger.summary.add_computed("2x2 subject correlation grid")
+
+
+def compute_pairwise_correlation_stats(
+    subject_corr_mats: Dict[str, pd.DataFrame],
+    conditions: List[str],
+) -> pd.DataFrame:
+    """
+    Compute per-subject and summary statistics for all pairwise correlations
+    between Shinobi conditions.
+
+    For each unique condition pair (lower triangle), reports the per-subject
+    mean Pearson r (already averaged across runs) and the range across subjects.
+
+    Args:
+        subject_corr_mats: Dict mapping subject ID -> run-averaged correlation DataFrame.
+        conditions: Ordered list of condition names to include.
+
+    Returns:
+        DataFrame with rows = (condition_A, condition_B) pairs and
+        columns = one column per subject + mean_r, min_r, max_r.
+    """
+    subjects = list(subject_corr_mats.keys())
+    rows = []
+
+    for i, cond_a in enumerate(conditions):
+        for cond_b in conditions[i + 1:]:
+            row: Dict[str, Any] = {'condition_A': cond_a, 'condition_B': cond_b}
+            values = []
+            for sub in subjects:
+                mat = subject_corr_mats[sub]
+                r = mat.loc[cond_a, cond_b] if (cond_a in mat.index and cond_b in mat.index) else np.nan
+                row[sub] = round(float(r), 3) if not np.isnan(r) else np.nan
+                if not np.isnan(r):
+                    values.append(r)
+            row['mean_r'] = round(np.mean(values), 3) if values else np.nan
+            row['min_r']  = round(np.min(values),  3) if values else np.nan
+            row['max_r']  = round(np.max(values),  3) if values else np.nan
+            rows.append(row)
+
+    df = pd.DataFrame(rows).set_index(['condition_A', 'condition_B'])
+    return df
+
+
+def save_correlation_stats_table(
+    stats_df: pd.DataFrame,
+    output_dir: str,
+    suffix: str,
+    logger: Optional[Any] = None,
+) -> List[str]:
+    """
+    Save pairwise correlation statistics as CSV and LaTeX.
+
+    Files written:
+        - fig5_pairwise_correlation_stats{suffix}.csv
+        - fig5_pairwise_correlation_stats{suffix}.tex
+
+    Args:
+        stats_df: Output of compute_pairwise_correlation_stats().
+        output_dir: Directory to save tables.
+        suffix: Filename suffix (e.g. '' or '_low-level').
+        logger: AnalysisLogger instance.
+
+    Returns:
+        List of saved file paths.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    stem = f"fig5_pairwise_correlation_stats{suffix}"
+    csv_path = op.join(output_dir, f"{stem}.csv")
+    tex_path = op.join(output_dir, f"{stem}.tex")
+
+    stats_df.to_csv(csv_path)
+    stats_df.to_latex(tex_path, float_format="%.3f", na_rep="—")
+
+    if logger:
+        logger.info(f"Pairwise correlation stats saved to {csv_path}")
+
+    return [csv_path, tex_path]
 
 
 def main():

@@ -53,6 +53,7 @@ if '<DATA_PATH>' in _config_str:
 # Expose paths
 DATA_PATH = _config['paths']['data']
 GAMELOGS_PATH = _config['paths']['gamelogs']
+TRAINING_GAMELOGS_PATH = _config['paths']['training_gamelogs']
 FIG_PATH = _config['paths']['figures']
 TABLE_PATH = _config['paths']['tables']
 

@@ -168,6 +168,12 @@ The pipeline provides the following task categories:
 - `viz.within-subject-correlations` - Within-subject condition correlation analysis and heatmaps
 - `viz.mvpa-confusion-matrices` - MVPA confusion matrices with task grouping
 - `viz.descriptive` - Generate 3-panel figure with dataset summary (events, sessions, volumes)
+- `viz.training-comparison` - Compare behavioral performance between home training and scanner sessions
+
+**Behavioral Analysis:**
+- `behav.descriptive-table` - Generate descriptive table (sessions, runs, N, cleared, duration) for fMRI or training data
+- `behav.skill-metrics` - Compute per-subject game skill metrics (clear rate, progression, efficiency)
+- `behav.session-skill` - Compute per-session composite game skill (z-scored)
 
 **Validation:**
 - `validate.outputs` - Comprehensive validation of all pipeline outputs against input data

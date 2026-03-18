@@ -9,9 +9,11 @@ import os
 import os.path as op
 import pickle
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from typing import Dict, List
 import argparse
 import warnings
 
@@ -204,6 +206,74 @@ def plot_confusion_matrix(ax, subject, mvpa_results_path, show_colorbar=False, c
     ax.set_ylabel("True Label", fontsize=14)
 
 
+def extract_annotation_accuracies(subject: str, mvpa_results_path: str) -> Dict[str, float]:
+    """
+    Extract diagonal accuracies from the normalized confusion matrix for a subject.
+
+    Args:
+        subject: Subject ID (e.g. 'sub-01').
+        mvpa_results_path: Path to MVPA results directory.
+
+    Returns:
+        Dict mapping annotation name -> classification accuracy (0–1).
+    """
+    decoder, fold_confusions = load_decoder_data(subject, mvpa_results_path)
+    classes = decoder.classes_
+    avg_cm = np.mean(fold_confusions, axis=0)
+    normalized_cm = avg_cm / avg_cm.sum(axis=1, keepdims=True)
+    return {cls: round(float(normalized_cm[i, i]), 3) for i, cls in enumerate(classes)}
+
+
+def compute_mvpa_accuracy_table(subjects: List[str], mvpa_results_path: str) -> pd.DataFrame:
+    """
+    Compute per-annotation classification accuracy for every subject.
+
+    Rows are annotations sorted by mean accuracy descending.
+    Columns are one per subject plus a 'mean' column.
+
+    Args:
+        subjects: List of subject IDs.
+        mvpa_results_path: Path to MVPA results directory.
+
+    Returns:
+        DataFrame with index=annotation, columns=subjects + 'mean'.
+    """
+    all_accuracies: Dict[str, Dict[str, float]] = {}
+    for subject in subjects:
+        try:
+            all_accuracies[subject] = extract_annotation_accuracies(subject, mvpa_results_path)
+        except Exception as e:
+            print(f"Warning: Could not load data for {subject}: {e}")
+
+    df = pd.DataFrame(all_accuracies).round(3)
+    df['mean'] = df.mean(axis=1).round(3)
+    return df.sort_values('mean', ascending=False)
+
+
+def save_mvpa_accuracy_table(stats_df: pd.DataFrame, table_path: str) -> List[str]:
+    """
+    Save MVPA per-annotation accuracy table as CSV and LaTeX.
+
+    Files written:
+        - {table_path}/fig8_mvpa_accuracy_per_annotation.csv
+        - {table_path}/fig8_mvpa_accuracy_per_annotation.tex
+
+    Args:
+        stats_df: Output of compute_mvpa_accuracy_table().
+        table_path: Directory to save tables.
+
+    Returns:
+        List of saved file paths.
+    """
+    os.makedirs(table_path, exist_ok=True)
+    csv_path = op.join(table_path, "fig8_mvpa_accuracy_per_annotation.csv")
+    tex_path = op.join(table_path, "fig8_mvpa_accuracy_per_annotation.tex")
+    stats_df.to_csv(csv_path, index=True)
+    stats_df.to_latex(tex_path, float_format="%.3f", na_rep="—")
+    print(f"  Table saved: {csv_path}")
+    return [csv_path, tex_path]
+
+
 def create_confusion_matrix_figure(subjects, mvpa_results_path, output_path=None):
     """
     Create 2x2 grid of confusion matrices.
@@ -317,8 +387,23 @@ if __name__ == "__main__":
     print(f"Subjects: {subjects}")
 
     fig = create_confusion_matrix_figure(subjects, mvpa_results_path, args.output)
-    
+
+    # Compute and save accuracy table
+    stats_df = compute_mvpa_accuracy_table(subjects, mvpa_results_path)
+    save_mvpa_accuracy_table(stats_df, config.TABLE_PATH)
+
+    # Print Shinobi rows to console for quick manuscript reference
+    all_shinobi = SHINOBI_CONDITIONS + LOW_LEVEL_CONDITIONS
+    shinobi_df = stats_df[stats_df.index.isin(all_shinobi)]
+    other_df = stats_df[~stats_df.index.isin(all_shinobi)]
+
+    print("\nFig 8 – MVPA classification accuracy (diagonal of normalised CM):")
+    print("\n  Shinobi game annotations (sorted by mean):")
+    print(shinobi_df.to_string(float_format=lambda x: f"{x:.3f}"))
+    print("\n  HCP annotations (sorted by mean):")
+    print(other_df.to_string(float_format=lambda x: f"{x:.3f}"))
+
     if not args.no_show:
         plt.show()
-    
+
     plt.close(fig)
