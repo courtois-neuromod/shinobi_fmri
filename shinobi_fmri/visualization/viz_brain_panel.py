@@ -28,11 +28,9 @@ import shinobi_fmri.config as config
 from shinobi_fmri.utils.logger import AnalysisLogger
 
 
-# Figure dimensions: 3/4 of A4 page at 300 DPI
-# A4 = 210 x 297 mm, 3/4 height = ~223 mm
-# At 300 DPI: 210mm = 8.27in, 223mm = 8.78in
+# Figure dimensions: A4 page width at 300 DPI
+# A4 = 210 mm wide → 8.27 in; height is computed dynamically from panel A's aspect ratio
 FIGURE_WIDTH_INCHES = 8.27
-FIGURE_HEIGHT_INCHES = 8.78
 DPI = 300
 
 
@@ -67,7 +65,7 @@ def create_figure_panel(
     Create composite figure panel with A, B, C layout.
 
     Layout:
-    - Panel A spans the top (full width)
+    - Panel A spans the top (full width), sized to fill the figure width
     - Panels B and C side by side at the bottom
 
     Args:
@@ -84,22 +82,46 @@ def create_figure_panel(
     img_b = load_image(panel_b_path, logger)
     img_c = load_image(panel_c_path, logger)
 
-    # Create figure with gridspec for flexible layout
-    fig = plt.figure(figsize=(FIGURE_WIDTH_INCHES, FIGURE_HEIGHT_INCHES), dpi=DPI)
+    # Compute figure height from all panels' natural aspect ratios (no stretching)
+    gs_left, gs_right, gs_top, gs_bottom = 0.02, 0.98, 0.98, 0.02
+    h_a, w_a = img_a.shape[:2]
+    h_b, w_b = img_b.shape[:2]
+    h_c, w_c = img_c.shape[:2]
+    panel_a_width_inches = FIGURE_WIDTH_INCHES * (gs_right - gs_left)
+    panel_a_height_inches = panel_a_width_inches * (h_a / w_a)
+    # B and C sit side by side, each occupying roughly half the content width
+    bc_panel_width_inches = panel_a_width_inches / 2
+    bc_height_inches = max(
+        bc_panel_width_inches * (h_b / w_b),
+        bc_panel_width_inches * (h_c / w_c),
+    )
+    gap_height_inches = (panel_a_height_inches + bc_height_inches) * 0.05
+    height_ratios = [panel_a_height_inches, gap_height_inches, bc_height_inches]
+    # Total content height fills gs_top - gs_bottom of the figure
+    total_content_inches = panel_a_height_inches + gap_height_inches + bc_height_inches
+    figure_height_inches = total_content_inches / (gs_top - gs_bottom)
+    logger.debug(
+        f"Panel A: {panel_a_height_inches:.2f}in; gap: {gap_height_inches:.2f}in; "
+        f"B/C: {bc_height_inches:.2f}in; figure: {figure_height_inches:.2f}in tall"
+    )
 
-    # Create grid: 2 rows, 2 columns
+    # Create figure with gridspec for flexible layout
+    fig = plt.figure(figsize=(FIGURE_WIDTH_INCHES, figure_height_inches), dpi=DPI)
+
+    # Create grid: 3 rows, 2 columns
     # Row 0: Panel A spans both columns
-    # Row 1: Panel B (left), Panel C (right)
+    # Row 1: explicit spacer (5% of content height)
+    # Row 2: Panel B (left), Panel C (right)
     gs = fig.add_gridspec(
-        2, 2,
-        height_ratios=[1, 1.2],  # Bottom row slightly taller for B and C
+        3, 2,
+        height_ratios=height_ratios,
         width_ratios=[1, 1],
-        hspace=0.02,  # Minimal vertical space between A and B/C
+        hspace=0,
         wspace=0.02,
-        left=0.02,
-        right=0.98,
-        top=0.98,
-        bottom=0.32,  # Push B and C up by ~30%
+        left=gs_left,
+        right=gs_right,
+        top=gs_top,
+        bottom=gs_bottom,
     )
 
     # Panel A - spans top row
@@ -115,7 +137,7 @@ def create_figure_panel(
     )
 
     # Panel B - bottom left
-    ax_b = fig.add_subplot(gs[1, 0])
+    ax_b = fig.add_subplot(gs[2, 0])
     ax_b.imshow(img_b)
     ax_b.axis('off')
     ax_b.text(
@@ -127,7 +149,7 @@ def create_figure_panel(
     )
 
     # Panel C - bottom right
-    ax_c = fig.add_subplot(gs[1, 1])
+    ax_c = fig.add_subplot(gs[2, 1])
     ax_c.imshow(img_c)
     ax_c.axis('off')
     ax_c.text(
